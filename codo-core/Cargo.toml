@@ -1,0 +1,9 @@
+[package]
+name = "codo-core"
+edition.workspace = true
+version.workspace = true
+
+[dependencies]
+chrono.workspace = true
+thiserror.workspace = true
+uuid.workspace = true

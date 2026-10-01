@@ -1,0 +1,12 @@
+[package]
+name = "codo-gui"
+edition.workspace = true
+version.workspace = true
+
+[[bin]]
+name = "cost-dropout"
+path = "src/main.rs"
+
+[dependencies]
+codo-core.workspace = true
+gpui-kit.workspace = true

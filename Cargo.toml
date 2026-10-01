@@ -1,0 +1,16 @@
+[workspace]
+resolver = "3"
+members = ["codo-core", "codo-gui"]
+
+[workspace.package]
+edition = "2024"
+version = "0.1.0"
+
+[workspace.dependencies]
+codo-core = { path = "codo-core" }
+chrono = "0.4.45"
+gpui-kit = "0.7.0"
+serde = { version = "1.0", features = ["derive"] }
+thiserror = "2.0"
+toml = "1.1"
+uuid = { version = "1.26", features = ["v4"] }
