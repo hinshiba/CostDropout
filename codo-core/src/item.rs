@@ -81,6 +81,16 @@ impl ItemList {
         items.into_iter()
     }
 
+    /// 同じIDの品目があれば返す
+    pub fn get_item(&self, id: ItemId) -> Option<&Item> {
+        self.items.iter().find(|item| item.id == id)
+    }
+
+    /// 同じ名前の品目があれば返す
+    pub fn find_by_name(&self, name: &str) -> Option<&Item> {
+        self.items.iter().find(|item| item.name == name)
+    }
+
     /// 品目を追加する
     /// # Returns
     /// - Ok(ItemId) : 追加した品目のID
