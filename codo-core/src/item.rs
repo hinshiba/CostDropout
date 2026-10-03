@@ -62,6 +62,25 @@ pub struct ItemList {
 }
 
 impl ItemList {
+    /// 新しい空の品目リストを作成する
+    pub fn new() -> Self {
+        Self { items: Vec::new() }
+    }
+
+    /// アプリ再起動時にファイルを復元する
+    /// エラー検証はしない
+    pub fn from_items(items: Vec<Item>) -> Self {
+        Self { items }
+    }
+
+    /// Vec<&Item>をId順にして返す
+    /// Vec<Item>は並び替えてないので注意
+    pub fn iter(&self) -> impl Iterator<Item = &Item> {
+        let mut items: Vec<&Item> = self.items.iter().collect();
+        items.sort_by_key(|item| item.id);
+        items.into_iter()
+    }
+
     /// 品目を追加する
     /// # Returns
     /// - Ok(ItemId) : 追加した品目のID
