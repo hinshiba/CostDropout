@@ -120,6 +120,17 @@ impl ItemList {
             ))
         }
     }
+
+    /// 指定されたIDの品目を削除する
+    /// delete_itemはVec<Item>の中の参照
+    pub fn remove_item(&mut self, id: ItemId) -> Result<(), ItemError> {
+        if let Some(delete_item) = self.items.iter().position(|item| item.id == id) {
+            self.items.remove(delete_item);
+            Ok(())
+        } else {
+            Err(ItemError::NotFound(id))
+        }
+    }
 }
 
 #[derive(Debug, Error, PartialEq, Eq)]
