@@ -21,6 +21,33 @@ pub enum Tag {
     Expense,
 }
 
+impl Tag {
+    pub const ALL_TAGS: [Tag; 5] = [
+        Tag::Asset,
+        Tag::Liability,
+        Tag::OpeningBalance,
+        Tag::Income,
+        Tag::Expense,
+    ];
+
+    /// タグの表示名
+    /// Tag::Income.label()のように使用
+    pub fn label(&self) -> &'static str {
+        match self {
+            Tag::Asset => "資産",
+            Tag::Liability => "負債",
+            Tag::OpeningBalance => "初期残高",
+            Tag::Income => "収入",
+            Tag::Expense => "支出",
+        }
+    }
+
+    /// 取引の品目として選択できるか
+    pub fn is_transaction_selectable(&self) -> bool {
+        matches!(self, Tag::Income | Tag::Expense | Tag::Liability)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Item {
     pub id: ItemId,
