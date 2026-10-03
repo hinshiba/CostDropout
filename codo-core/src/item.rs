@@ -34,6 +34,38 @@ pub struct ItemList {
     items: Vec<Item>,
 }
 
+impl ItemList {
+    /// 品目を追加する
+    /// # Returns
+    /// - Ok(ItemId) : 追加した品目のID
+    pub fn add_item(&mut self, name: &str, tag: Tag) -> Result<ItemId, ItemError> {
+        if name.is_empty() {
+            return Err(ItemError::EmptyName);
+        }
+        if self.items.iter().any(|item| item.name == name) {
+            return Err(ItemError::DuplicateName(name.to_string()));
+        } else if self.items.len() == 0 {
+            self.items.push(Item {
+                id: ItemId(1),
+                name: name.to_string(),
+                tag,
+            });
+            Ok(ItemId(1))
+        }
+        // 既存の品目がある場合は、最大のIDに1を足して新しいIdを作成(削除後に追加する場合を考慮)
+        else {
+            self.items.push(Item {
+                id: ItemId(self.items.iter().map(|item| item.id).max().unwrap().0 + 1),
+                name: name.to_string(),
+                tag,
+            });
+            Ok(ItemId(
+                self.items.iter().map(|item| item.id).max().unwrap().0,
+            ))
+        }
+    }
+}
+
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum ItemError {
     #[error("品目名が空です")]
