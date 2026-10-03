@@ -1,12 +1,14 @@
 # 作業ガイド
 
-チームメンバー向けの作業ルールです．仕様については [docs/plan.md](docs/plan.md) を参照してください．
+チームメンバー向けの作業ルールです．
+
+- 仕様: [docs/plan.md](docs/plan.md)
+- コーディング規約: [docs/coding.md](docs/coding.md)
 
 ## 作業の流れ
 
 - `main` から作業ブランチを切る
 - コミットを積む
-- push 前にローカルで CI と同じチェックを通す
 - PR を作成し，テンプレートに沿って記入する
 - レビューと CI 成功を確認してからマージする
 
@@ -94,4 +96,4 @@ chrono = "0.4"       # v1未満なのにパッチがない
 - Reviewers: 基本的には hinshiba を
 - Assignees: 自分を登録してください
 - Labels: 適切なものを
-- Milesotne: 適切なものを
+- Milestone: 適切なものを
