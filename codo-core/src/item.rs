@@ -105,7 +105,7 @@ impl ItemList {
         }
 
         if self.items.iter().any(|item| item.name == trim_name) {
-            return Err(ItemError::DuplicateName(trim_name));
+            Err(ItemError::DuplicateName(trim_name))
         } else if self.items.is_empty() {
             self.items.push(Item {
                 id: ItemId(1),
