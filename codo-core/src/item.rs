@@ -87,6 +87,7 @@ impl ItemList {
     }
 
     /// 同じ名前の品目があれば返す
+    /// tagが等しくない場合でも通る
     pub fn find_by_name(&self, name: &str) -> Option<&Item> {
         self.items.iter().find(|item| item.name == name)
     }
@@ -95,34 +96,74 @@ impl ItemList {
     /// # Returns
     /// - Ok(ItemId) : 追加した品目のID
     pub fn add_item(&mut self, name: &str, tag: Tag) -> Result<ItemId, ItemError> {
-        if name.is_empty() {
+        let trim_name = name.trim().to_string();
+        if trim_name.is_empty() {
             return Err(ItemError::EmptyName);
         }
-        if self.items.iter().any(|item| item.name == name) {
-            return Err(ItemError::DuplicateName(name.to_string()));
-        } else if self.items.len() == 0 {
+        if self.items.iter().any(|item| item.name == trim_name) {
+            return Err(ItemError::DuplicateName(trim_name));
+        } else if self.items.is_empty() {
             self.items.push(Item {
                 id: ItemId(1),
-                name: name.to_string(),
+                name: trim_name,
                 tag,
             });
             Ok(ItemId(1))
         }
         // 既存の品目がある場合は、最大のIDに1を足して新しいIdを作成(削除後に追加する場合を考慮)
         else {
+            let new_id: u32 = self.items.iter().map(|item| item.id).max().unwrap().0 + 1;
             self.items.push(Item {
-                id: ItemId(self.items.iter().map(|item| item.id).max().unwrap().0 + 1),
-                name: name.to_string(),
+                id: ItemId(new_id),
+                name: trim_name,
                 tag,
             });
-            Ok(ItemId(
-                self.items.iter().map(|item| item.id).max().unwrap().0,
-            ))
+            Ok(ItemId(new_id))
+        }
+    }
+
+    pub fn update_item(
+        &mut self,
+        input_id: ItemId,
+        input_name: &str,
+        input_tag: Tag,
+    ) -> Result<(), ItemError> {
+        let trim_input_name = input_name.trim().to_string();
+        if let Some(_) = self
+            .items
+            .iter()
+            .find(|item| item.id == input_id && item.tag == input_tag)
+        {
+            if trim_input_name.is_empty() {
+                return Err(ItemError::EmptyName);
+            }
+            if self.items.iter().any(|item| {
+                item.name == trim_input_name && item.id != input_id && item.tag == input_tag
+            }) {
+                return Err(ItemError::DuplicateName(trim_input_name));
+            } else if self
+                .items
+                .iter()
+                .any(|item| item.name == trim_input_name && item.id == input_id)
+            {
+                // 名前とIDも同じ場合は更新不要
+                Ok(())
+            } else {
+                // 名前が異なる場合は更新
+                if let Some(item) = self.items.iter_mut().find(|item| item.id == input_id) {
+                    item.name = trim_input_name;
+                    item.tag = input_tag;
+                    Ok(())
+                } else {
+                    Err(ItemError::NotFound(input_id))
+                }
+            }
+        } else {
+            Err(ItemError::NotFound(input_id))
         }
     }
 
     /// 指定されたIDの品目を削除する
-    /// delete_itemはVec<Item>の中の参照
     pub fn remove_item(&mut self, id: ItemId) -> Result<(), ItemError> {
         if let Some(delete_item) = self.items.iter().position(|item| item.id == id) {
             self.items.remove(delete_item);
