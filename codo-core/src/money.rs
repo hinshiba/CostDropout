@@ -10,6 +10,9 @@ use thiserror::Error;
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Money(pub i32);
 
+/// 金額を加算します
+///
+/// 加算結果が`i32`の範囲を超える場合はパニックします
 impl Add for Money {
     type Output = Money;
 
@@ -18,6 +21,9 @@ impl Add for Money {
     }
 }
 
+/// 金額を減算します
+///
+/// 減算結果が`i32`の範囲を超える場合はパニックします
 impl Sub for Money {
     type Output = Money;
 
@@ -27,6 +33,9 @@ impl Sub for Money {
 }
 
 impl Money {
+    /// 金額を加算します。
+    ///
+    /// オーバーフローした場合は`MoneyError::Overflow`を返します。
     pub fn checked_add(self, rhs: Money) -> Result<Money, MoneyError> {
         match self.0.checked_add(rhs.0) {
             Some(value) => Ok(Money(value)),
@@ -34,6 +43,9 @@ impl Money {
         }
     }
 
+    /// 金額を減算します。
+    ///
+    /// オーバーフローした場合は`MoneyError::Overflow`を返します。
     pub fn checked_sub(self, rhs: Money) -> Result<Money, MoneyError> {
         match self.0.checked_sub(rhs.0) {
             Some(value) => Ok(Money(value)),
@@ -41,43 +53,57 @@ impl Money {
         }
     }
 
+    /// 金額が0より大きいかを判定します
+    ///
+    /// 0は正の値に含まれません。
     pub fn is_positive(&self) -> bool {
-        //0を含まない
         0 < self.0
     }
 
+    /// 金額が0より小さいかを判定します。
     pub fn is_negative(&self) -> bool {
         self.0 < 0
     }
 }
 
+/// Moneyに別のMoneyを加算します。
+///
+/// 加算結果が`i32`の範囲を超える場合はパニックします
 impl AddAssign for Money {
     fn add_assign(&mut self, rhs: Self) {
         *self = *self + rhs
     }
 }
 
+/// Moneyに別のMoneyを減算します。
+///
+/// 減算結果が`i32`の範囲を超える場合はパニックします
 impl SubAssign for Money {
     fn sub_assign(&mut self, rhs: Self) {
         *self = *self - rhs
     }
 }
 
+/// Moneyのイテレータを合計します。
 impl Sum<Money> for Money {
     fn sum<I: Iterator<Item = Money>>(iter: I) -> Self {
         iter.fold(Money(0), |total, item| total + item)
     }
 }
 
+/// Moneyへの参照のイテレータを合計します。
 impl<'a> Sum<&'a Money> for Money {
     fn sum<I: Iterator<Item = &'a Money>>(iter: I) -> Self {
         iter.fold(Money(0), |total, item| total + *item)
     }
 }
 
+/// 金額を`¥1,234`の形式で表示します。
+///
+/// 負の金額は`-¥1,234`の形式で表示します。
 impl fmt::Display for Money {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let negative = self.0 < 0;
+        let is_negative = self.0 < 0;
         let amount = (self.0 as i64).abs();
         let digits = amount.to_string();
         let mut result = String::new();
@@ -88,7 +114,7 @@ impl fmt::Display for Money {
             result.push(c);
         }
         let formatted = result.chars().rev().collect::<String>();
-        if !negative {
+        if !is_negative {
             write!(f, "¥{}", formatted)
         } else {
             write!(f, "-¥{}", formatted)
@@ -103,7 +129,6 @@ fn is_digits(s: &str) -> bool {
 fn is_valid_amount(s: &str) -> bool {
     match s.split_once(',') {
         None => is_digits(s),
-
         Some((head, tail)) => {
             is_digits(head)
                 && (1..4).contains(&head.len())
@@ -115,6 +140,12 @@ fn is_valid_amount(s: &str) -> bool {
     }
 }
 
+/// 文字列からMoneyを生成します。
+///
+/// `¥`や,先頭の符号（`+`/`-`）を使用できます。
+///
+/// 不正な形式の場合は`MoneyError::Parse`を返し、
+/// 表現可能な範囲を超える場合は`MoneyError::Overflow`を返します。
 impl FromStr for Money {
     type Err = MoneyError;
 
@@ -125,15 +156,14 @@ impl FromStr for Money {
         if trimmed.is_empty() {
             return Err(MoneyError::Parse(input.to_string()));
         }
-        let mut value_str = trimmed;
-        let mut negative = false;
 
-        if let Some(rest) = value_str.strip_prefix('-') {
-            negative = true;
-            value_str = rest;
-        } else if let Some(rest) = value_str.strip_prefix('+') {
-            value_str = rest;
-        }
+        let (mut value_str, is_negative) = if let Some(rest) = trimmed.strip_prefix('-') {
+            (rest, true)
+        } else if let Some(rest) = trimmed.strip_prefix('+') {
+            (rest, false)
+        } else {
+            (trimmed, false)
+        };
 
         if let Some(rest) = value_str.strip_prefix('¥') {
             value_str = rest;
@@ -150,7 +180,7 @@ impl FromStr for Money {
             Err(_) => return Err(MoneyError::Overflow),
         };
 
-        if negative {
+        if is_negative {
             value = -value;
         }
 
@@ -161,10 +191,13 @@ impl FromStr for Money {
     }
 }
 
+/// Moneyの操作で発生するエラーです。
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum MoneyError {
+    /// 文字列を金額として解釈できませんでした。
     #[error("金額として解釈できない文字列です: {0}")]
     Parse(String),
+    /// 金額が表現可能な範囲を超えました。
     #[error("金額が表現できる範囲を超えました")]
     Overflow,
 }
