@@ -42,6 +42,7 @@ impl Money {
     }
 
     pub fn is_positive(&self) -> bool {
+        //0を含まない
         0 < self.0
     }
 
@@ -119,30 +120,30 @@ impl FromStr for Money {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let input = s;
-        let s = s.trim();
+        let trimmed = s.trim();
 
-        if s.is_empty() {
+        if trimmed.is_empty() {
             return Err(MoneyError::Parse(input.to_string()));
         }
-        let mut s = s;
+        let mut value_str = trimmed;
         let mut negative = false;
 
-        if let Some(rest) = s.strip_prefix('-') {
+        if let Some(rest) = value_str.strip_prefix('-') {
             negative = true;
-            s = rest;
-        } else if let Some(rest) = s.strip_prefix('+') {
-            s = rest;
+            value_str = rest;
+        } else if let Some(rest) = value_str.strip_prefix('+') {
+            value_str = rest;
         }
 
-        if let Some(rest) = s.strip_prefix('¥') {
-            s = rest;
+        if let Some(rest) = value_str.strip_prefix('¥') {
+            value_str = rest;
         }
 
-        if !is_valid_amount(s) {
+        if !is_valid_amount(value_str) {
             return Err(MoneyError::Parse(input.to_string()));
         }
 
-        let digits = s.replace(',', "");
+        let digits = value_str.replace(',', "");
 
         let mut value = match digits.parse::<i64>() {
             Ok(value) => value,
