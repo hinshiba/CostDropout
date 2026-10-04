@@ -89,17 +89,21 @@ impl ItemList {
     /// 同じ名前の品目があれば返す
     /// tagが等しくない場合でも通る
     pub fn find_by_name(&self, name: &str) -> Option<&Item> {
-        self.items.iter().find(|item| item.name == name)
+        let trim_name = name.trim();
+        self.items.iter().find(|item| item.name == trim_name)
     }
 
     /// 品目を追加する
     /// # Returns
+    /// nameが空の場合と，名前が被る場合はエラーを返す
     /// - Ok(ItemId) : 追加した品目のID
     pub fn add_item(&mut self, name: &str, tag: Tag) -> Result<ItemId, ItemError> {
         let trim_name = name.trim().to_string();
+
         if trim_name.is_empty() {
             return Err(ItemError::EmptyName);
         }
+
         if self.items.iter().any(|item| item.name == trim_name) {
             return Err(ItemError::DuplicateName(trim_name));
         } else if self.items.is_empty() {
@@ -122,44 +126,38 @@ impl ItemList {
         }
     }
 
-    pub fn update_item(
-        &mut self,
-        input_id: ItemId,
-        input_name: &str,
-        input_tag: Tag,
-    ) -> Result<(), ItemError> {
-        let trim_input_name = input_name.trim().to_string();
-        if let Some(_) = self
+    /// 品目を更新する
+    /// nameが空の場合と，名前が被る場合はエラーを返す
+    /// nameが変更なければそのまま返す
+    pub fn update_item(&mut self, id: ItemId, name: &str, tag: Tag) -> Result<(), ItemError> {
+        let trim_name = name.trim().to_string();
+
+        if trim_name.is_empty() {
+            return Err(ItemError::EmptyName);
+        }
+
+        if self
             .items
             .iter()
-            .find(|item| item.id == input_id && item.tag == input_tag)
+            .any(|item| item.name == trim_name && item.id != id)
         {
-            if trim_input_name.is_empty() {
-                return Err(ItemError::EmptyName);
+            return Err(ItemError::DuplicateName(trim_name));
+        }
+
+        // 更新対象を探す
+        if let Some(item) = self.items.iter_mut().find(|item| item.id == id) {
+            // 名前もタグも同じなら更新不要
+            if item.name == trim_name && item.tag == tag {
+                return Ok(());
             }
-            if self.items.iter().any(|item| {
-                item.name == trim_input_name && item.id != input_id && item.tag == input_tag
-            }) {
-                return Err(ItemError::DuplicateName(trim_input_name));
-            } else if self
-                .items
-                .iter()
-                .any(|item| item.name == trim_input_name && item.id == input_id)
-            {
-                // 名前とIDも同じ場合は更新不要
-                Ok(())
-            } else {
-                // 名前が異なる場合は更新
-                if let Some(item) = self.items.iter_mut().find(|item| item.id == input_id) {
-                    item.name = trim_input_name;
-                    item.tag = input_tag;
-                    Ok(())
-                } else {
-                    Err(ItemError::NotFound(input_id))
-                }
-            }
+
+            // 更新
+            item.name = trim_name;
+            item.tag = tag;
+
+            Ok(())
         } else {
-            Err(ItemError::NotFound(input_id))
+            Err(ItemError::NotFound(id))
         }
     }
 
