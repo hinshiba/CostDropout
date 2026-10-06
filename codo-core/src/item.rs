@@ -105,7 +105,7 @@ impl ItemList {
         }
 
         if self.items.iter().any(|item| item.name == trim_name) {
-            Err(ItemError::DuplicateName(trim_name))
+            Err(ItemError::DuplicateName(name.to_string()))
         } else if self.items.is_empty() {
             self.items.push(Item {
                 id: ItemId(1),
@@ -116,13 +116,19 @@ impl ItemList {
         }
         // 既存の品目がある場合は、最大のIDに1を足して新しいIdを作成(削除後に追加する場合を考慮)
         else {
-            let new_id: u32 = self.items.iter().map(|item| item.id).max().unwrap().0 + 1;
-            self.items.push(Item {
-                id: ItemId(new_id),
-                name: trim_name,
-                tag,
-            });
-            Ok(ItemId(new_id))
+            let max_id: u32 = self.items.iter().map(|item| item.id).max().unwrap().0;
+
+            if max_id == u32::MAX {
+                Err(ItemError::Overflow)
+            } else {
+                let new_id = max_id + 1;
+                self.items.push(Item {
+                    id: ItemId(new_id),
+                    name: trim_name,
+                    tag,
+                });
+                Ok(ItemId(new_id))
+            }
         }
     }
 
@@ -134,6 +140,11 @@ impl ItemList {
 
         if trim_name.is_empty() {
             return Err(ItemError::EmptyName);
+        }
+
+        // まず更新対象が存在するか確認
+        if !self.items.iter().any(|item| item.id == id) {
+            return Err(ItemError::NotFound(id));
         }
 
         if self
@@ -180,6 +191,8 @@ pub enum ItemError {
     DuplicateName(String),
     #[error("品目 {0:?} が見つかりません")]
     NotFound(ItemId),
+    #[error("品目IDがオーバーフローしました")]
+    Overflow,
 }
 
 /// 以下全てテスト用
