@@ -92,7 +92,7 @@ impl TransactionList {
         //成功したらnew_idを返す
         Ok(new_id)
     }
-    ///品目を使っている取引があるかの確認
+    ///特定の品目を使っている取引があるかの確認
     pub fn uses_item(&self, item: ItemId) -> bool {
         for t in &self.transactions {
             if t.item == item || t.counterpart == item {
@@ -112,12 +112,8 @@ impl TransactionList {
     }
     ///取引の削除
     pub fn remove(&mut self, id: TransactionId) -> Result<Transaction, TransactionError> {
-        for i in 0..self.transactions.len() {
-            if self.transactions[i].id == id {
-                return Ok(self.transactions.remove(i));
-            }
-        }
-        Err(TransactionError::NotFound(id))
+        let i = self.index_of(id)?;
+        Ok(self.transactions.remove(i))
     }
     ///取引の訂正
     pub fn update(
@@ -127,19 +123,16 @@ impl TransactionList {
     ) -> Result<(), TransactionError> {
         //金額,品目のチェック
         draft.validate()?;
-        //発見時の書き換え
-        for i in 0..self.transactions.len() {
-            if self.transactions[i].id == id {
-                self.transactions[i].date = draft.date;
-                self.transactions[i].amount = draft.amount;
-                self.transactions[i].item = draft.item;
-                self.transactions[i].counterpart = draft.counterpart;
-                self.transactions[i].comment = draft.comment;
-                self.sort();
-                return Ok(());
-            }
-        }
-        Err(TransactionError::NotFound(id))
+
+        //探して書き換える
+        let i = self.index_of(id)?;
+        self.transactions[i].date = draft.date;
+        self.transactions[i].amount = draft.amount;
+        self.transactions[i].item = draft.item;
+        self.transactions[i].counterpart = draft.counterpart;
+        self.transactions[i].comment = draft.comment;
+        self.sort();
+        Ok(())
     }
     ///日付順に取引を取り出す
     pub fn iter(&self) -> impl Iterator<Item = &Transaction> {
@@ -148,6 +141,15 @@ impl TransactionList {
     ///日付順・ID順に並び替える
     fn sort(&mut self) {
         self.transactions.sort_by_key(|t| (t.date, t.id))
+    }
+    ///対象が何番目にあるかを探す
+    fn index_of(&self, id: TransactionId) -> Result<usize, TransactionError> {
+        for i in 0..self.transactions.len() {
+            if self.transactions[i].id == id {
+                return Ok(i);   
+            }
+        }
+        Err(TransactionError::NotFound(id))
     }
 }
 
