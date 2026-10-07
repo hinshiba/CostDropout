@@ -200,9 +200,6 @@ pub enum ItemError {
 mod tests {
     use super::*;
 
-
-
-
     // =========================
     // iter のテスト
     // =========================
@@ -267,7 +264,6 @@ mod tests {
     // find_by_name のテスト
     // =========================
 
-
     #[test]
     fn find_by_name_trims_input_name() {
         let mut list = ItemList::new();
@@ -296,7 +292,6 @@ mod tests {
         assert_eq!(item.name, "りんご");
         assert_eq!(item.tag, Tag::Asset);
     }
-
 
     #[test]
     fn add_item_uses_max_id_plus_one_after_deletion() {
@@ -350,7 +345,6 @@ mod tests {
     // update_item の正常系テスト
     // =========================
 
-
     #[test]
     fn update_item_trims_name() {
         let mut list = ItemList::new();
@@ -377,7 +371,6 @@ mod tests {
     // =========================
     // update_item のエラー系テスト
     // =========================
-
 
     #[test]
     fn update_item_returns_empty_name_error_when_only_spaces() {
