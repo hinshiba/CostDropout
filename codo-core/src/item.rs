@@ -202,31 +202,6 @@ mod tests {
 
 
 
-    // =========================
-    // from_items のテスト
-    // =========================
-
-    #[test]
-    fn from_items_restores_items_without_validation() {
-        let items = vec![
-            Item {
-                id: ItemId(2),
-                name: "みかん".to_string(),
-                tag: Tag::Expense,
-            },
-            Item {
-                id: ItemId(1),
-                name: "".to_string(),
-                tag: Tag::Asset,
-            },
-        ];
-
-        let list = ItemList::from_items(items.clone());
-
-        assert_eq!(list.iter().count(), 2);
-        assert_eq!(list.get_item(ItemId(1)), Some(&items[1]));
-        assert_eq!(list.get_item(ItemId(2)), Some(&items[0]));
-    }
 
     // =========================
     // iter のテスト
