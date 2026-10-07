@@ -443,7 +443,7 @@ mod tests {
     fn update_item_allows_same_name_for_same_item() {
         let mut list = ItemList::new();
 
-        list.add_item("りんご", Tag::Asset).unwrap();
+        list.add_item("食費", Tag::Asset).unwrap();
 
         let result = list.update_item(ItemId(1), "食費", Tag::Asset);
 
