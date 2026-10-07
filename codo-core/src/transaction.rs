@@ -72,9 +72,7 @@ impl TransactionList {
     pub fn add(&mut self, draft: TransactionDraft) -> Result<TransactionId, TransactionError> {
         //金額，品目のチェック
         draft.validate()?;
-        //新たなIDの作成
         let new_id = TransactionId(Uuid::new_v4());
-
         let transaction = Transaction {
             id: new_id,
             date: draft.date,
@@ -83,11 +81,8 @@ impl TransactionList {
             counterpart: draft.counterpart,
             comment: draft.comment,
         };
-        //リストへの追加
         self.transactions.push(transaction);
-        //並び変える
         self.sort();
-        //成功したらnew_idを返す
         Ok(new_id)
     }
     ///特定の品目を使っている取引があるかの確認
@@ -101,12 +96,7 @@ impl TransactionList {
     }
     ///IDで取引を探す
     pub fn get(&self, id: TransactionId) -> Option<&Transaction> {
-        for t in &self.transactions {
-            if t.id == id {
-                return Some(t);
-            }
-        }
-        None
+        self.transactions.iter().find(|t| t.id == id)
     }
     ///取引の削除
     pub fn remove(&mut self, id: TransactionId) -> Result<Transaction, TransactionError> {
