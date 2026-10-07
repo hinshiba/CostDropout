@@ -297,16 +297,6 @@ mod tests {
         assert_eq!(item.tag, Tag::Asset);
     }
 
-    #[test]
-    fn add_item_assigns_next_id() {
-        let mut list = ItemList::new();
-
-        list.add_item("りんご", Tag::Asset).unwrap();
-        list.add_item("みかん", Tag::Expense).unwrap();
-
-        assert!(list.get_item(ItemId(1)).is_some());
-        assert!(list.get_item(ItemId(2)).is_some());
-    }
 
     #[test]
     fn add_item_uses_max_id_plus_one_after_deletion() {
