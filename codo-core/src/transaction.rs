@@ -62,12 +62,14 @@ impl TransactionList {
     pub fn new() -> Self {
         Self::default()
     }
+
     ///ファイルの復元
     pub fn from_transactions(transactions: Vec<Transaction>) -> Self {
         let mut list = Self { transactions };
         list.sort();
         list
     }
+
     ///取引の登録
     pub fn add(&mut self, draft: TransactionDraft) -> Result<TransactionId, TransactionError> {
         //金額，品目のチェック
@@ -85,6 +87,7 @@ impl TransactionList {
         self.sort();
         Ok(new_id)
     }
+
     ///特定の品目を使っている取引があるかの確認
     pub fn uses_item(&self, item: ItemId) -> bool {
         for t in &self.transactions {
@@ -94,15 +97,18 @@ impl TransactionList {
         }
         false
     }
+
     ///IDで取引を探す
     pub fn get(&self, id: TransactionId) -> Option<&Transaction> {
         self.transactions.iter().find(|t| t.id == id)
     }
+
     ///取引の削除
     pub fn remove(&mut self, id: TransactionId) -> Result<Transaction, TransactionError> {
         let i = self.index_of(id)?;
         Ok(self.transactions.remove(i))
     }
+
     ///取引の訂正
     pub fn update(
         &mut self,
@@ -122,14 +128,17 @@ impl TransactionList {
         self.sort();
         Ok(())
     }
+
     ///日付順に取引を取り出す
     pub fn iter(&self) -> impl Iterator<Item = &Transaction> {
         self.transactions.iter()
     }
+
     ///日付順・ID順に並び替える
     fn sort(&mut self) {
         self.transactions.sort_by_key(|t| (t.date, t.id))
     }
+
     ///対象が何番目にあるかを探す
     fn index_of(&self, id: TransactionId) -> Result<usize, TransactionError> {
         for i in 0..self.transactions.len() {
@@ -185,12 +194,14 @@ mod tests {
         assert_eq!(t.counterpart, ItemId(2));
         assert_eq!(t.comment, "テスト");
     }
+
     #[test]
     fn add_rejects_zero_amount() {
         let mut list = TransactionList::new();
         let result = list.add(draft(1, 0, 1, 2));
         assert_eq!(result, Err(TransactionError::NonPositiveAmount(Money(0))));
     }
+
     #[test]
     fn add_rejects_same_item_and_counterpart() {
         let mut list = TransactionList::new();
