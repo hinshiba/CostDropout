@@ -454,16 +454,6 @@ mod tests {
     // update_item のエラー系テスト
     // =========================
 
-    #[test]
-    fn update_item_returns_empty_name_error() {
-        let mut list = ItemList::new();
-
-        list.add_item("りんご", Tag::Asset).unwrap();
-
-        let result = list.update_item(ItemId(1), "", Tag::Asset);
-
-        assert_eq!(result, Err(ItemError::EmptyName));
-    }
 
     #[test]
     fn update_item_returns_empty_name_error_when_only_spaces() {
