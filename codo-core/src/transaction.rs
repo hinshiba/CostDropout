@@ -39,11 +39,11 @@ pub struct TransactionDraft {
 impl TransactionDraft {
     ///金額と品目のチェック
     fn validate(&self) -> Result<(), TransactionError> {
-        //金額が0以下の場合のエラー確認
-        if self.amount.0 <= 0 {
+        //金額が正でなければエラー
+        if !self.amount.is_positive() {
             return Err(TransactionError::NonPositiveAmount(self.amount));
         }
-        //品目が相手先と同じの場合のエラー確認
+        //品目が相手先と同じだとエラー
         if self.item == self.counterpart {
             return Err(TransactionError::SameItemAndCounterpart(self.item));
         }
