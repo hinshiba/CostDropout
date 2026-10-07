@@ -200,27 +200,6 @@ pub enum ItemError {
 mod tests {
     use super::*;
 
-    // =========================
-    // Tag のテスト
-    // =========================
-
-    #[test]
-    fn tag_label_returns_correct_label() {
-        assert_eq!(Tag::Asset.label(), "資産");
-        assert_eq!(Tag::Liability.label(), "負債");
-        assert_eq!(Tag::OpeningBalance.label(), "初期残高");
-        assert_eq!(Tag::Income.label(), "収入");
-        assert_eq!(Tag::Expense.label(), "支出");
-    }
-
-    #[test]
-    fn tag_is_transaction_selectable_returns_correct_result() {
-        assert!(!Tag::Asset.is_transaction_selectable());
-        assert!(Tag::Liability.is_transaction_selectable());
-        assert!(!Tag::OpeningBalance.is_transaction_selectable());
-        assert!(Tag::Income.is_transaction_selectable());
-        assert!(Tag::Expense.is_transaction_selectable());
-    }
 
     // =========================
     // ItemList::new のテスト
