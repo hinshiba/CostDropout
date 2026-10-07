@@ -11,32 +11,82 @@ use crate::money::Money;
 ///
 /// 別の月ファイルへ同時に追加されても衝突しないよう uuid を使う
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct TransactionId(pub Uuid);
+pub struct TransactionId(Uuid);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Transaction {
-    pub id: TransactionId,
-    pub date: NaiveDate,
+    id: TransactionId,
+    date: NaiveDate,
     /// 正の値のみ
-    pub amount: Money,
+    amount: Money,
     /// 収入/支出/負債の品目
-    pub item: ItemId,
+    item: ItemId,
     /// 相手先の品目
-    pub counterpart: ItemId,
-    pub comment: String,
+    counterpart: ItemId,
+    comment: String,
+}
+
+///取引の各値の読み込み
+impl Transaction {
+    ///取引のID
+    pub fn id(&self) -> TransactionId {
+        self.id
+    }
+
+    ///取引の日付
+    pub fn date(&self) -> NaiveDate {
+        self.date
+    }
+
+    ///取引の金額
+    pub fn amount(&self) -> Money {
+        self.amount
+    }
+
+    ///取引の品目
+    pub fn item(&self) -> ItemId {
+        self.item
+    }
+
+    ///取引の相手先
+    pub fn counterpart(&self) -> ItemId {
+        self.counterpart
+    }
+
+    ///取引のコメント
+    pub fn comment(&self) -> &str {
+        &self.comment
+    }
 }
 
 ///idなしの取引
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TransactionDraft {
-    pub date: NaiveDate,
-    pub amount: Money,
-    pub item: ItemId,
-    pub counterpart: ItemId,
-    pub comment: String,
+    date: NaiveDate,
+    amount: Money,
+    item: ItemId,
+    counterpart: ItemId,
+    comment: String,
 }
 
 impl TransactionDraft {
+    ///取引の下書きの作成
+    pub fn new(
+        date: NaiveDate,
+        amount: Money,
+        item: ItemId,
+        counterpart: ItemId,
+        comment: String,
+    ) -> Self {
+        Self {
+            date,
+            amount,
+            item,
+            counterpart,
+            comment,
+        }
+    }
+
     ///金額と品目のチェック
     fn validate(&self) -> Result<(), TransactionError> {
         //金額が正でなければエラー
