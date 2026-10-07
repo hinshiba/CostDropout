@@ -195,7 +195,6 @@ pub enum ItemError {
     Overflow,
 }
 
-/// 以下全てテスト用
 #[cfg(test)]
 mod tests {
     use super::*;
