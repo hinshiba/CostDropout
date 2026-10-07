@@ -2,11 +2,13 @@ use std::path::PathBuf;
 use std::process::Command;
 use thiserror::Error;
 
+/// Gitリポジトリを操作するためのラッパー。
 pub struct GitRepo {
     path: PathBuf,
 }
 
 impl GitRepo {
+    /// 指定されたパスがGitリポジトリであることを確認して開く。
     pub fn open(path: PathBuf) -> Result<GitRepo, GitError> {
         let output = Command::new("git")
             .args(["-C", path.to_str().unwrap(), "status"])
@@ -22,6 +24,8 @@ impl GitRepo {
         Ok(GitRepo { path })
     }
 
+    /// 指定されたパスにGitリポジトリを初期化する。
+    /// すでにGitリポジトリなら、そのまま開く。
     pub fn init(path: PathBuf) -> Result<GitRepo, GitError> {
         if Self::open(path.clone()).is_ok() {
             return Ok(GitRepo { path });
@@ -40,6 +44,7 @@ impl GitRepo {
         Ok(GitRepo { path })
     }
 
+    /// 作業ツリーに変更があるか確認する。
     pub fn has_changes(&self) -> Result<bool, GitError> {
         let output = Command::new("git")
             .args(["-C"])
@@ -57,11 +62,14 @@ impl GitRepo {
         Ok(!output.stdout.is_empty())
     }
 
+    /// すべての変更をステージングしてコミットする。
+    /// 変更がない場合は `Ok(None)` を返す。
     pub fn commit_all(&self, message: &str) -> Result<Option<String>, GitError> {
         if !self.has_changes()? {
             return Ok(None);
         }
 
+        // すべての変更をステージング
         let output = Command::new("git")
             .args(["-C"])
             .arg(&self.path)
@@ -76,6 +84,7 @@ impl GitRepo {
             ));
         }
 
+        // commit
         let output = Command::new("git")
             .args(["-C"])
             .arg(&self.path)
@@ -90,6 +99,7 @@ impl GitRepo {
             ));
         }
 
+        // 作成されたcommitのハッシュを取得
         let output = Command::new("git")
             .args(["-C"])
             .arg(&self.path)
@@ -110,10 +120,61 @@ impl GitRepo {
     }
 }
 
+/// Git操作中に発生するエラー。
 #[derive(Debug, Error)]
 pub enum GitError {
     #[error("gitを実行できません: {0}")]
     Command(std::io::Error),
     #[error("gitコマンドが失敗しました: {0}, stderr: {1}")]
     CommandFailed(String, String),
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use std::process::Command;
+    use tempfile::tempdir;
+
+    #[test]
+    fn commit_all_creates_commit_and_returns_hash() {
+        let dir = tempdir().unwrap();
+
+        let repo = GitRepo::init(dir.path().to_path_buf()).unwrap();
+
+        Command::new("git")
+            .args(["-C"])
+            .arg(dir.path())
+            .args(["config", "user.name", "test"])
+            .output()
+            .unwrap();
+
+        Command::new("git")
+            .args(["-C"])
+            .arg(dir.path())
+            .args(["config", "user.email", "test@example.com"])
+            .output()
+            .unwrap();
+
+        fs::write(dir.path().join("test.txt"), "hello").unwrap();
+
+        let result = repo.commit_all("test commit").unwrap();
+
+        assert!(result.is_some());
+
+        let hash = result.unwrap();
+
+        assert!(!hash.is_empty());
+    }
+}
+
+#[test]
+fn commit_all_returns_none_when_no_changes() {
+    let dir = tempdir().unwrap();
+
+    let repo = GitRepo::init(dir.path().to_path_buf()).unwrap();
+
+    let result = repo.commit_all("test commit").unwrap();
+
+    assert_eq!(result, None);
 }
