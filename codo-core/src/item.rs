@@ -174,8 +174,8 @@ impl ItemList {
 
     /// 指定されたIDの品目を削除する
     pub fn remove_item(&mut self, id: ItemId) -> Result<(), ItemError> {
-        if let Some(delete_item) = self.items.iter().position(|item| item.id == id) {
-            self.items.remove(delete_item);
+        if let Some(delete_pos) = self.items.iter().position(|item| item.id == id) {
+            self.items.remove(delete_pos);
             Ok(())
         } else {
             Err(ItemError::NotFound(id))
