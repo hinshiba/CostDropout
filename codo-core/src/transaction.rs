@@ -196,10 +196,27 @@ mod tests {
     }
 
     #[test]
+    fn add_accepts_one_yen() {
+        let mut list = TransactionList::new();
+
+        let id = list.add(draft(1, 1, 1, 2)).unwrap();
+
+        let t = list.get(id).unwrap();
+        assert_eq!(t.amount, Money(1));
+    }
+
+    #[test]
     fn add_rejects_zero_amount() {
         let mut list = TransactionList::new();
         let result = list.add(draft(1, 0, 1, 2));
         assert_eq!(result, Err(TransactionError::NonPositiveAmount(Money(0))));
+    }
+
+    #[test]
+    fn add_rejects_minus_one_yen() {
+        let mut list = TransactionList::new();
+        let result = list.add(draft(1, -1, 1, 2));
+        assert_eq!(result, Err(TransactionError::NonPositiveAmount(Money(-1))));
     }
 
     #[test]
