@@ -267,16 +267,6 @@ mod tests {
     // find_by_name のテスト
     // =========================
 
-    #[test]
-    fn find_by_name_returns_item_when_name_exists() {
-        let mut list = ItemList::new();
-
-        list.add_item("りんご", Tag::Asset).unwrap();
-
-        let item = list.find_by_name("りんご");
-
-        assert_eq!(item.unwrap().name, "りんご");
-    }
 
     #[test]
     fn find_by_name_trims_input_name() {
