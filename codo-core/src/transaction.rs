@@ -37,6 +37,7 @@ pub struct TransactionDraft {
 }
 
 impl TransactionDraft {
+    ///金額と品目のチェック
     fn validate(&self) -> Result<(), TransactionError> {
         //金額が0以下の場合のエラー確認
         if self.amount.0 <= 0 {
@@ -57,11 +58,9 @@ pub struct TransactionList {
 }
 
 impl TransactionList {
-    ///空のVecを作成
+    ///空の取引一覧を作る
     pub fn new() -> Self {
-        Self {
-            transactions: Vec::new(),
-        }
+        Self::default()
     }
     ///ファイルの復元
     pub fn from_transactions(transactions: Vec<Transaction>) -> Self {
@@ -69,7 +68,6 @@ impl TransactionList {
         list.sort();
         list
     }
-
     ///取引の登録
     pub fn add(&mut self, draft: TransactionDraft) -> Result<TransactionId, TransactionError> {
         //金額，品目のチェック
@@ -146,7 +144,7 @@ impl TransactionList {
     fn index_of(&self, id: TransactionId) -> Result<usize, TransactionError> {
         for i in 0..self.transactions.len() {
             if self.transactions[i].id == id {
-                return Ok(i);   
+                return Ok(i);
             }
         }
         Err(TransactionError::NotFound(id))
