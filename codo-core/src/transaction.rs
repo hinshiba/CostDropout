@@ -352,13 +352,14 @@ mod tests {
     fn update_rejects_same_item_and_counterpart() {
         let mut list = TransactionList::new();
         let id = list.add(draft(1, 1000, 1, 2)).unwrap();
-
+        let copy = list.get(id).unwrap().clone();
         let result = list.update(id, draft(1, 1000, 3, 3));
 
         assert_eq!(
             result,
             Err(TransactionError::SameItemAndCounterpart(ItemId(3)))
         );
+        assert_eq!(list.get(id), Some(&copy));
     }
 
     #[test]
