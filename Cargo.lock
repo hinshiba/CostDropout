@@ -990,6 +990,7 @@ name = "codo-core"
 version = "0.1.0"
 dependencies = [
  "chrono",
+ "tempfile",
  "thiserror 2.0.21",
  "uuid",
 ]
