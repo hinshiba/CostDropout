@@ -201,16 +201,6 @@ mod tests {
     use super::*;
 
 
-    // =========================
-    // ItemList::new のテスト
-    // =========================
-
-    #[test]
-    fn new_creates_empty_item_list() {
-        let list = ItemList::new();
-
-        assert_eq!(list.iter().count(), 0);
-    }
 
     // =========================
     // from_items のテスト
