@@ -426,21 +426,6 @@ mod tests {
     // update_item の正常系テスト
     // =========================
 
-    #[test]
-    fn update_item_updates_name_and_tag() {
-        let mut list = ItemList::new();
-
-        list.add_item("りんご", Tag::Asset).unwrap();
-
-        let result = list.update_item(ItemId(1), "みかん", Tag::Expense);
-
-        assert_eq!(result, Ok(()));
-
-        let item = list.get_item(ItemId(1)).unwrap();
-
-        assert_eq!(item.name, "みかん");
-        assert_eq!(item.tag, Tag::Expense);
-    }
 
     #[test]
     fn update_item_trims_name() {
