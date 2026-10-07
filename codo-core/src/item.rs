@@ -95,8 +95,8 @@ impl ItemList {
 
     /// 品目を追加する
     /// # Returns
+    ///
     /// nameが空の場合と，名前が被る場合はエラーを返す
-    /// - Ok(ItemId) : 追加した品目のID
     pub fn add_item(&mut self, name: &str, tag: Tag) -> Result<ItemId, ItemError> {
         let trim_name = name.trim().to_string();
 
