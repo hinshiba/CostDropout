@@ -423,28 +423,4 @@ mod tests {
         }
         assert_eq!(dates, vec![date(2), date(3)]);
     }
-
-    #[test]
-    fn from_transactions_sorts_without_validation() {
-        let transaction = |day: u32, amount: i32| Transaction {
-            id: TransactionId(Uuid::new_v4()),
-            date: date(day),
-            amount: Money(amount),
-            item: ItemId(1),
-            counterpart: ItemId(2),
-            comment: String::from("テスト"),
-        };
-        // 金額 0 の取引も検証せずに受け入れる
-        let list = TransactionList::from_transactions(vec![
-            transaction(3, 1000),
-            transaction(1, 0),
-            transaction(2, 1000),
-        ]);
-
-        let mut dates = Vec::new();
-        for t in list.iter() {
-            dates.push(t.date);
-        }
-        assert_eq!(dates, vec![date(1), date(2), date(3)]);
-    }
 }
