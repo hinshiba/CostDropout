@@ -83,6 +83,49 @@ pub struct Period {
     pub end: NaiveDate,
 }
 
+/// 開始時間＜＝終了時間の確認
+pub fn new(start: NaiveDate, end: NaiveDate) -> Result<Self, PeriodError> {
+    if start > end {
+        return Err(PeriodError::StartAfterEnd);
+    }
+    Ok(Self { start, end })
+}
+
+/// 月全体，年全体の構築
+pub fn month(ym: YearMonth) -> Self {
+    Self {
+        start: ym.first_day(),
+        end: ym.last_day(),
+    }
+}
+
+pub fn year(year: i32) -> Self {
+    let start = NaiveDate::from_ymd_opt(year, 1, 1).unwrap();
+    let end = NaiveDate::from_ymd_opt(year, 12, 31).unwrap();
+    Self { start, end }
+}
+
+/// 日付の確認
+pub fn contains(&self, date: NaiveDate) -> bool {
+    self.start <= date && date <= self.end
+}
+
+/// 期間内の年月の列挙
+pub fn months(&self) -> Vec<YearMonth> {
+    let start_ym = YearMonth::from_date(self.start);
+    let end_ym = YearMonth::from_date(self.end);
+
+    let mut result = Vec::new();
+    let mut current = start_ym;
+
+    while current <= end_ym {
+        result.push(current);
+        current = current.next();
+    }
+
+    result
+}
+
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum PeriodError {
     #[error("不正な月です: {0}")]
@@ -90,3 +133,7 @@ pub enum PeriodError {
     #[error("開始日 {start} が終了日 {end} より後です")]
     StartAfterEnd { start: NaiveDate, end: NaiveDate },
 }
+
+
+#[cfg(test)]
+mod tests { ... }
