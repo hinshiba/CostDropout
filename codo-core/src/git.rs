@@ -1,7 +1,36 @@
+use std::path::Path;
 use std::path::PathBuf;
 use std::process::Command;
-
 use thiserror::Error;
+
+/// Gitコマンドを生成する。
+/// 指定したパスを使い、リポジトリを切り替える環境変数を除去する。
+fn git_command(path: &Path) -> Command {
+    let mut command = Command::new("git");
+
+    command
+        .args(["-C"])
+        .arg(path)
+        .env_remove("GIT_DIR")
+        .env_remove("GIT_WORK_TREE")
+        .env_remove("GIT_INDEX_FILE");
+
+    command
+}
+
+/// 指定されたパス自体がGitリポジトリのルートか判定する。
+fn is_repository(path: &Path) -> Result<bool, GitError> {
+    let output = git_command(path)
+        .args(["rev-parse", "--show-cdup"])
+        .output()
+        .map_err(GitError::Command)?;
+
+    if !output.status.success() {
+        return Ok(false);
+    }
+
+    Ok(output.stdout.is_empty())
+}
 
 /// Gitリポジトリを操作するためのラッパー。
 pub struct GitRepo {
@@ -9,19 +38,12 @@ pub struct GitRepo {
 }
 
 impl GitRepo {
-    /// 指定されたパスがGitリポジトリであることを確認して開く。
+    /// 指定されたパスがGitリポジトリのルートであることを確認して開く。
     pub fn open(path: PathBuf) -> Result<GitRepo, GitError> {
-        let output = Command::new("git")
-            .args(["-C"])
-            .arg(&path)
-            .args(["status"])
-            .output()
-            .map_err(GitError::Command)?;
-
-        if !output.status.success() {
+        if !is_repository(&path)? {
             return Err(GitError::CommandFailed(
-                "git -C <path> status".to_string(),
-                String::from_utf8_lossy(&output.stderr).trim().to_string(),
+                "git -C <path> rev-parse --show-cdup".to_string(),
+                "指定されたパスはGitリポジトリのルートではありません".to_string(),
             ));
         }
 
@@ -31,13 +53,11 @@ impl GitRepo {
     /// 指定されたパスにGitリポジトリを初期化する。
     /// すでにGitリポジトリなら、そのまま開く。
     pub fn init(path: PathBuf) -> Result<GitRepo, GitError> {
-        if path.join(".git").exists() {
+        if is_repository(&path)? {
             return Ok(GitRepo { path });
         }
 
-        let output = Command::new("git")
-            .args(["-C"])
-            .arg(&path)
+        let output = git_command(&path)
             .arg("init")
             .output()
             .map_err(GitError::Command)?;
@@ -54,9 +74,7 @@ impl GitRepo {
 
     /// 作業ツリーに変更があるか確認する。
     pub fn has_changes(&self) -> Result<bool, GitError> {
-        let output = Command::new("git")
-            .args(["-C"])
-            .arg(&self.path)
+        let output = git_command(&self.path)
             .args(["status", "--porcelain"])
             .output()
             .map_err(GitError::Command)?;
@@ -78,9 +96,8 @@ impl GitRepo {
             return Ok(None);
         }
 
-        let output = Command::new("git")
-            .args(["-C"])
-            .arg(&self.path)
+        // すべての変更をステージングする
+        let output = git_command(&self.path)
             .args(["add", "-A"])
             .output()
             .map_err(GitError::Command)?;
@@ -92,6 +109,7 @@ impl GitRepo {
             ));
         }
 
+        // コミットする
         let output = Command::new("git")
             .args(["-C"])
             .arg(&self.path)
@@ -106,9 +124,8 @@ impl GitRepo {
             ));
         }
 
-        let output = Command::new("git")
-            .args(["-C"])
-            .arg(&self.path)
+        // コミットハッシュを取得する
+        let output = git_command(&self.path)
             .args(["rev-parse", "HEAD"])
             .output()
             .map_err(GitError::Command)?;
@@ -140,7 +157,6 @@ pub enum GitError {
 mod tests {
     use super::*;
     use std::fs;
-    use std::process::Command;
     use tempfile::tempdir;
 
     #[test]
@@ -149,9 +165,7 @@ mod tests {
 
         let repo = GitRepo::init(dir.path().to_path_buf()).unwrap();
 
-        let output = Command::new("git")
-            .args(["-C"])
-            .arg(dir.path())
+        let output = git_command(dir.path())
             .args(["config", "user.name", "test"])
             .output()
             .unwrap();
@@ -162,9 +176,7 @@ mod tests {
             String::from_utf8_lossy(&output.stderr)
         );
 
-        let output = Command::new("git")
-            .args(["-C"])
-            .arg(dir.path())
+        let output = git_command(dir.path())
             .args(["config", "user.email", "test@example.com"])
             .output()
             .unwrap();
