@@ -129,8 +129,8 @@ impl GitRepo {
 /// Git操作中に発生するエラー。
 #[derive(Debug, Error)]
 pub enum GitError {
-    #[error("gitを実行できません: {0}")]
-    Command(std::io::Error),
+    #[error("gitを実行できません")]
+    Command(#[source] std::io::Error),
 
     #[error("gitコマンドが失敗しました: {0}, stderr: {1}")]
     CommandFailed(String, String),
