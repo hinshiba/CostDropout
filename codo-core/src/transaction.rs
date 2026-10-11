@@ -213,6 +213,7 @@ pub enum TransactionError {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::item::{ItemList, Tag};
 
     /// テスト用の日付(2026年10月の指定した日)
     fn date(day: u32) -> NaiveDate {
@@ -220,36 +221,47 @@ mod tests {
     }
 
     /// テスト用の draft を作る(コメントは "テスト" で固定)
-    fn draft(day: u32, amount: i32, item: u32, counterpart: u32) -> TransactionDraft {
+    fn draft(day: u32, amount: i32, item: ItemId, counterpart: ItemId) -> TransactionDraft {
         TransactionDraft {
             date: date(day),
             amount: Money(amount),
-            item: ItemId(item),
-            counterpart: ItemId(counterpart),
+            item,
+            counterpart,
             comment: String::from("テスト"),
         }
     }
 
+    ///テスト用の品目を3つ登録して、その ID を返す
+    fn items() -> (ItemId, ItemId, ItemId) {
+        let mut list = ItemList::new();
+        let a = list.add_item("食費", Tag::Expense).unwrap();
+        let b = list.add_item("現金", Tag::Asset).unwrap();
+        let c = list.add_item("娯楽", Tag::Expense).unwrap();
+        (a, b, c)
+    }
+
     #[test]
     fn add_then_get() {
+        let (a, b, _) = items();
         let mut list = TransactionList::new();
 
-        let id = list.add(draft(1, 1000, 1, 2)).unwrap();
+        let id = list.add(draft(1, 1000, a, b)).unwrap();
 
         let t = list.get(id).unwrap();
         assert_eq!(t.id, id);
         assert_eq!(t.date, date(1));
         assert_eq!(t.amount, Money(1000));
-        assert_eq!(t.item, ItemId(1));
-        assert_eq!(t.counterpart, ItemId(2));
+        assert_eq!(t.item, a);
+        assert_eq!(t.counterpart, b);
         assert_eq!(t.comment, "テスト");
     }
 
     #[test]
     fn add_accepts_one_yen() {
+        let (a, b, _) = items();
         let mut list = TransactionList::new();
 
-        let id = list.add(draft(1, 1, 1, 2)).unwrap();
+        let id = list.add(draft(1, 1, a, b)).unwrap();
 
         let t = list.get(id).unwrap();
         assert_eq!(t.amount, Money(1));
@@ -257,32 +269,33 @@ mod tests {
 
     #[test]
     fn add_rejects_zero_amount() {
+        let (a, b, _) = items();
         let mut list = TransactionList::new();
-        let result = list.add(draft(1, 0, 1, 2));
+        let result = list.add(draft(1, 0, a, b));
         assert_eq!(result, Err(TransactionError::NonPositiveAmount(Money(0))));
     }
 
     #[test]
     fn add_rejects_minus_one_yen() {
+        let (a, b, _) = items();
         let mut list = TransactionList::new();
-        let result = list.add(draft(1, -1, 1, 2));
+        let result = list.add(draft(1, -1, a, b));
         assert_eq!(result, Err(TransactionError::NonPositiveAmount(Money(-1))));
     }
 
     #[test]
     fn add_rejects_same_item_and_counterpart() {
+        let (a, _, _) = items();
         let mut list = TransactionList::new();
-        let result = list.add(draft(1, 1000, 1, 1));
-        assert_eq!(
-            result,
-            Err(TransactionError::SameItemAndCounterpart(ItemId(1)))
-        );
+        let result = list.add(draft(1, 1000, a, a));
+        assert_eq!(result, Err(TransactionError::SameItemAndCounterpart(a)));
     }
 
     #[test]
     fn remove_deletes() {
+        let (a, b, _) = items();
         let mut list = TransactionList::new();
-        let id = list.add(draft(1, 1000, 2, 1)).unwrap();
+        let id = list.add(draft(1, 1000, b, a)).unwrap();
         let removed = list.remove(id).unwrap();
         assert_eq!(removed.id, id);
         assert_eq!(list.get(id), None);
@@ -300,9 +313,10 @@ mod tests {
 
     #[test]
     fn add_rejects_negative_amount() {
+        let (a, b, _) = items();
         let mut list = TransactionList::new();
 
-        let result = list.add(draft(1, -500, 1, 2));
+        let result = list.add(draft(1, -500, a, b));
 
         assert_eq!(
             result,
@@ -312,36 +326,39 @@ mod tests {
 
     #[test]
     fn update_changes() {
+        let (a, b, c) = items();
         let mut list = TransactionList::new();
-        let id = list.add(draft(1, 1000, 1, 2)).unwrap();
+        let id = list.add(draft(1, 1000, a, b)).unwrap();
 
-        let result = list.update(id, draft(5, 2000, 3, 4));
+        let result = list.update(id, draft(5, 2000, c, a));
 
         assert_eq!(result, Ok(()));
         let t = list.get(id).unwrap();
         assert_eq!(t.id, id);
         assert_eq!(t.date, date(5));
         assert_eq!(t.amount, Money(2000));
-        assert_eq!(t.item, ItemId(3));
-        assert_eq!(t.counterpart, ItemId(4));
+        assert_eq!(t.item, c);
+        assert_eq!(t.counterpart, a);
     }
 
     #[test]
     fn update_not_found() {
+        let (a, b, _) = items();
         let mut list = TransactionList::new();
         let missing = TransactionId(Uuid::new_v4());
 
-        let result = list.update(missing, draft(1, 1000, 1, 2));
+        let result = list.update(missing, draft(1, 1000, a, b));
 
         assert_eq!(result, Err(TransactionError::NotFound(missing)));
     }
 
     #[test]
     fn update_rejects_zero_amount() {
+        let (a, b, _) = items();
         let mut list = TransactionList::new();
-        let id = list.add(draft(1, 1000, 1, 2)).unwrap();
+        let id = list.add(draft(1, 1000, a, b)).unwrap();
 
-        let result = list.update(id, draft(1, 0, 1, 2));
+        let result = list.update(id, draft(1, 0, a, b));
 
         assert_eq!(result, Err(TransactionError::NonPositiveAmount(Money(0))));
         // 失敗したときは元の取引のまま
@@ -350,37 +367,37 @@ mod tests {
 
     #[test]
     fn update_rejects_same_item_and_counterpart() {
+        let (a, b, c) = items();
         let mut list = TransactionList::new();
-        let id = list.add(draft(1, 1000, 1, 2)).unwrap();
+        let id = list.add(draft(1, 1000, a, b)).unwrap();
         let copy = list.get(id).unwrap().clone();
-        let result = list.update(id, draft(1, 1000, 3, 3));
+        let result = list.update(id, draft(1, 1000, c, c));
 
-        assert_eq!(
-            result,
-            Err(TransactionError::SameItemAndCounterpart(ItemId(3)))
-        );
+        assert_eq!(result, Err(TransactionError::SameItemAndCounterpart(c)));
         assert_eq!(list.get(id), Some(&copy));
     }
 
     #[test]
     fn uses_item_checks_item_and_counterpart() {
+        let (a, b, c) = items();
         let mut list = TransactionList::new();
-        list.add(draft(1, 1000, 1, 2)).unwrap();
+        list.add(draft(1, 1000, a, b)).unwrap();
 
         // 品目として使っている
-        assert!(list.uses_item(ItemId(1)));
+        assert!(list.uses_item(a));
         // 相手先として使っている
-        assert!(list.uses_item(ItemId(2)));
+        assert!(list.uses_item(b));
         // 使っていない
-        assert!(!list.uses_item(ItemId(3)));
+        assert!(!list.uses_item(c));
     }
 
     #[test]
     fn iter_sorted_by_date() {
+        let (a, b, _) = items();
         let mut list = TransactionList::new();
-        list.add(draft(3, 1000, 1, 2)).unwrap();
-        list.add(draft(1, 1000, 1, 2)).unwrap();
-        list.add(draft(2, 1000, 1, 2)).unwrap();
+        list.add(draft(3, 1000, a, b)).unwrap();
+        list.add(draft(1, 1000, a, b)).unwrap();
+        list.add(draft(2, 1000, a, b)).unwrap();
 
         let mut dates = Vec::new();
         for t in list.iter() {
@@ -392,10 +409,11 @@ mod tests {
 
     #[test]
     fn iter_same_date_sorted_by_id() {
+        let (a, b, _) = items();
         let mut list = TransactionList::new();
-        let a = list.add(draft(1, 1000, 1, 2)).unwrap();
-        let b = list.add(draft(1, 2000, 1, 2)).unwrap();
-        let c = list.add(draft(1, 3000, 1, 2)).unwrap();
+        let id1 = list.add(draft(1, 1000, a, b)).unwrap();
+        let id2 = list.add(draft(1, 2000, a, b)).unwrap();
+        let id3 = list.add(draft(1, 3000, a, b)).unwrap();
 
         let mut ids = Vec::new();
         for t in list.iter() {
@@ -403,19 +421,20 @@ mod tests {
         }
 
         // ID はランダムなので、期待する順番は自分で並べ替えて作る
-        let mut expected = vec![a, b, c];
+        let mut expected = vec![id1, id2, id3];
         expected.sort();
         assert_eq!(ids, expected);
     }
 
     #[test]
     fn update_keeps_date_order() {
+        let (a, b, _) = items();
         let mut list = TransactionList::new();
-        let id = list.add(draft(1, 1000, 1, 2)).unwrap();
-        list.add(draft(2, 1000, 1, 2)).unwrap();
+        let id = list.add(draft(1, 1000, a, b)).unwrap();
+        list.add(draft(2, 1000, a, b)).unwrap();
 
         // 10/1 の取引を 10/3 に訂正すると、一番後ろに移る
-        list.update(id, draft(3, 1000, 1, 2)).unwrap();
+        list.update(id, draft(3, 1000, a, b)).unwrap();
 
         let mut dates = Vec::new();
         for t in list.iter() {
