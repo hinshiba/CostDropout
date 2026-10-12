@@ -1,6 +1,6 @@
 use crate::item::{ItemError, ItemId, ItemList, Tag};
 use crate::preset::preset_items;
-use crate::transaction::{TransactionError, TransactionList};
+use crate::transaction::{TransactionDraft, TransactionError, TransactionId, TransactionList};
 use thiserror::Error;
 
 /// 品目 ID(連番)
@@ -108,6 +108,50 @@ impl Ledger {
 
         // ItemList に削除を移譲する
         self.items.remove_item(id)?;
+        Ok(())
+    }
+
+    fn validate_transaction_draft(&self, draft: &TransactionDraft) -> Result<(), LedgerError> {
+        let Some(item) = self.items.get_item(draft.item()) else {
+            return Err(LedgerError::Item(ItemError::NotFound(draft.item())));
+        };
+
+        let Some(counterpart) = self.items.get_item(draft.counterpart) else {
+            return Err(LedgerError::Item(ItemError::NotFound(draft.counterpart)));
+        };
+
+        if !item.tag().is_transaction_selectable() {
+            return Err(LedgerError::InvalidItemTag(item.tag()));
+        }
+
+        if item.tag() == counterpart.tag() {
+            return Err(LedgerError::SameTag(item.tag()));
+        }
+
+        Ok(())
+    }
+
+    pub fn add_transaction(
+        &mut self,
+        draft: TransactionDraft,
+    ) -> Result<TransactionId, LedgerError> {
+        self.validate_transaction_draft(&draft)?;
+
+        Ok(self.transactions.add(draft)?)
+    }
+
+    pub fn update_transaction(
+        &mut self,
+        id: TransactionId,
+        draft: TransactionDraft,
+    ) -> Result<(), LedgerError> {
+        self.validate_transaction_draft(&draft)?;
+
+        Ok(self.transactions.update(id, draft)?)
+    }
+
+    pub fn remove_transaction(&mut self, id: TransactionId) -> Result<(), LedgerError> {
+        self.transactions.remove(id)?;
         Ok(())
     }
 }
