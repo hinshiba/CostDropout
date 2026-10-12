@@ -66,7 +66,7 @@ impl Ledger {
     }
 
     pub fn add_item(&mut self, name: &str, tag: Tag) -> Result<ItemId, LedgerError> {
-        Ok(self.items.add_item(name, tag)?)
+        Ok(self.items.add(name, tag)?)
     }
 
     pub fn update_item(&mut self, id: ItemId, name: &str, tag: Tag) -> Result<(), LedgerError> {
@@ -97,7 +97,7 @@ impl Ledger {
             }
         }
         // ItemList に更新を移譲する
-        self.items.update_item(id, name, tag)?;
+        self.items.update(id, name, tag)?;
         Ok(())
     }
 
@@ -107,7 +107,7 @@ impl Ledger {
         }
 
         // ItemList に削除を移譲する
-        self.items.remove_item(id)?;
+        self.items.remove(id)?;
         Ok(())
     }
 
@@ -116,8 +116,8 @@ impl Ledger {
             return Err(LedgerError::Item(ItemError::NotFound(draft.item())));
         };
 
-        let Some(counterpart) = self.items.get_item(draft.counterpart) else {
-            return Err(LedgerError::Item(ItemError::NotFound(draft.counterpart)));
+        let Some(counterpart) = self.items.get_item(draft.counterpart()) else {
+            return Err(LedgerError::Item(ItemError::NotFound(draft.counterpart())));
         };
 
         if !item.tag().is_transaction_selectable() {
@@ -146,12 +146,126 @@ impl Ledger {
         draft: TransactionDraft,
     ) -> Result<(), LedgerError> {
         self.validate_transaction_draft(&draft)?;
-
-        Ok(self.transactions.update(id, draft)?)
+        self.transactions.update(id, draft)?;
+        Ok(())
     }
 
     pub fn remove_transaction(&mut self, id: TransactionId) -> Result<(), LedgerError> {
         self.transactions.remove(id)?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::money::Money;
+
+    fn draft(item: ItemId, counterpart: ItemId) -> TransactionDraft {
+        TransactionDraft::new(
+            chrono::NaiveDate::from_ymd_opt(2026, 10, 12).unwrap(),
+            Money(1000),
+            item,
+            counterpart,
+            String::new(),
+        )
+    }
+
+    fn ledger_with_items() -> (Ledger, ItemId, ItemId) {
+        let mut ledger = Ledger::new();
+
+        let income_id: ItemId = ledger.add_item("収入", Tag::Income).unwrap();
+        let asset_id = ledger.add_item("現金", Tag::Asset).unwrap();
+
+        (ledger, income_id, asset_id)
+    }
+
+    /// item関連のテスト
+    #[test]
+    fn remove_item_fails_when_item_is_used_by_transaction() {
+        let (mut ledger, income_id, asset_id) = ledger_with_items();
+
+        ledger.add_transaction(draft(income_id, asset_id)).unwrap();
+
+        assert_eq!(
+            ledger.remove_item(income_id),
+            Err(LedgerError::ItemUse(income_id))
+        );
+
+        assert_eq!(
+            ledger.remove_item(asset_id),
+            Err(LedgerError::ItemUse(asset_id))
+        );
+    }
+
+    #[test]
+    fn update_item_fails_when_item_tag_becomes_invalid() {
+        let (mut ledger, income_id, asset_id) = ledger_with_items();
+
+        ledger.add_transaction(draft(income_id, asset_id)).unwrap();
+
+        assert_eq!(
+            ledger.update_item(income_id, "収入", Tag::Asset),
+            Err(LedgerError::InvalidItemTag(Tag::Asset))
+        );
+    }
+
+    #[test]
+    fn update_item_fails_when_counterpart_tag_becomes_same() {
+        let (mut ledger, income_id, asset_id) = ledger_with_items();
+
+        ledger.add_transaction(draft(income_id, asset_id)).unwrap();
+
+        assert_eq!(
+            ledger.update_item(asset_id, "現金", Tag::Income),
+            Err(LedgerError::SameTag(Tag::Income))
+        );
+    }
+
+    /// transaction関連のテスト
+    #[test]
+    fn add_transaction_fails_when_item_or_counterpart_does_not_exist() {
+        let mut ledger = Ledger::new();
+
+        let income_id = ledger.add_item("収入", Tag::Income).unwrap();
+        let missing_id = ledger.add_item("削除する品目", Tag::Asset).unwrap();
+
+        ledger.remove_item(missing_id).unwrap();
+
+        assert_eq!(
+            ledger.add_transaction(draft(missing_id, income_id)),
+            Err(LedgerError::Item(ItemError::NotFound(missing_id)))
+        );
+
+        assert_eq!(
+            ledger.add_transaction(draft(income_id, missing_id)),
+            Err(LedgerError::Item(ItemError::NotFound(missing_id)))
+        );
+    }
+
+    #[test]
+    fn validate_transaction_draft_fails_when_item_tag_is_not_selectable() {
+        let mut ledger = Ledger::new();
+
+        let asset_id = ledger.add_item("現金", Tag::Asset).unwrap();
+        let income_id = ledger.add_item("収入", Tag::Income).unwrap();
+
+        assert_eq!(
+            ledger.add_transaction(draft(asset_id, income_id)),
+            Err(LedgerError::InvalidItemTag(Tag::Asset))
+        );
+    }
+
+    #[test]
+    fn validate_transaction_draft_fails_when_item_and_counterpart_have_same_tag() {
+        let mut ledger = Ledger::new();
+
+        let income1 = ledger.add_item("収入1", Tag::Income).unwrap();
+        let income2 = ledger.add_item("収入2", Tag::Income).unwrap();
+
+        assert_eq!(
+            ledger.add_transaction(draft(income1, income2)),
+            Err(LedgerError::SameTag(Tag::Income))
+        );
     }
 }
