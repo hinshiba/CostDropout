@@ -1,5 +1,5 @@
-use crate::item::ItemError;
 use crate::item::ItemList;
+use crate::item::{ItemError, ItemId, Tag};
 use crate::preset::preset_items;
 use crate::transaction::TransactionError;
 use crate::transaction::TransactionList;
@@ -7,7 +7,6 @@ use thiserror::Error;
 
 /// 品目 ID(連番)
 // #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-use crate::transaction::TransactionList;
 
 pub struct Ledger {
     items: ItemList,
@@ -16,23 +15,23 @@ pub struct Ledger {
 
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum LegerError {
-    #[error("品目エラー: {0}")]
+    #[error(transparent)]
     Item(#[from] ItemError),
 
-    #[error("取引エラー: {0}")]
+    #[error(transparent)]
     Transaction(#[from] TransactionError),
 
     #[error("取引から参照されている品目は削除できません")]
-    ItemUse,
+    ItemUse(ItemId),
 
     #[error("取引の品目のタグが不正です")]
-    InValidItemTag,
+    InValidItemTag(Tag),
 
     #[error("相手先のタグが品目のタグと同じです")]
-    SameTag,
+    SameTag(Tag),
 
     #[error("存在しない品目が指定されています")]
-    ItemNotFound,
+    ItemNotFound(ItemId),
 }
 
 impl Ledger {
@@ -43,6 +42,7 @@ impl Ledger {
         }
     }
 
+    /// ItemListにプリセット品目を入れる関数
     pub fn with_presets() -> Self {
         Self {
             items: ItemList::from_items(preset_items()),
@@ -50,10 +50,20 @@ impl Ledger {
         }
     }
 
+    /// ファイル復元のため
+    /// エラー検証は行わない
     pub fn from_parts(items: ItemList, transactions: TransactionList) -> Self {
         Self {
             items,
             transactions,
         }
+    }
+
+    pub fn items(&self) -> &ItemList {
+        &self.items
+    }
+
+    pub fn transactions(&self) -> &TransactionList {
+        &self.transactions
     }
 }
