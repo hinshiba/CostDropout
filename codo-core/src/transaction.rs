@@ -70,6 +70,14 @@ pub struct TransactionDraft {
 }
 
 impl TransactionDraft {
+    pub fn item(&self) -> ItemId {
+        self.item
+    }
+
+    pub fn counterpart(&self) -> ItemId {
+        self.counterpart
+    }
+
     ///取引の下書きの作成
     pub fn new(
         date: NaiveDate,
@@ -234,9 +242,9 @@ mod tests {
     ///テスト用の品目を3つ登録して、その ID を返す
     fn items() -> (ItemId, ItemId, ItemId) {
         let mut list = ItemList::new();
-        let a = list.add_item("食費", Tag::Expense).unwrap();
-        let b = list.add_item("現金", Tag::Asset).unwrap();
-        let c = list.add_item("娯楽", Tag::Expense).unwrap();
+        let a = list.add("食費", Tag::Expense).unwrap();
+        let b = list.add("現金", Tag::Asset).unwrap();
+        let c = list.add("娯楽", Tag::Expense).unwrap();
         (a, b, c)
     }
 
