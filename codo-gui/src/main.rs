@@ -1,6 +1,9 @@
 use gpui_kit::*;
 
-struct App;
+struct App {
+    app_state: Entity<AppState>,
+    page: page,
+}
 
 impl Render for App {
     fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
