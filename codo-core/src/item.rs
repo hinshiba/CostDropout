@@ -108,7 +108,7 @@ impl ItemList {
     /// # Returns
     ///
     /// nameが空の場合と，名前が被る場合はエラーを返す
-    pub fn add_item(&mut self, name: &str, tag: Tag) -> Result<ItemId, ItemError> {
+    pub fn add(&mut self, name: &str, tag: Tag) -> Result<ItemId, ItemError> {
         let trim_name = name.trim();
 
         if trim_name.is_empty() {
@@ -144,7 +144,7 @@ impl ItemList {
     /// 品目を更新する
     /// nameが空の場合と，名前が被る場合はエラーを返す
     /// nameが変更なければそのまま返す
-    pub fn update_item(&mut self, id: ItemId, name: &str, tag: Tag) -> Result<(), ItemError> {
+    pub fn update(&mut self, id: ItemId, name: &str, tag: Tag) -> Result<(), ItemError> {
         let trim_name = name.trim();
 
         if trim_name.is_empty() {
@@ -180,7 +180,7 @@ impl ItemList {
     }
 
     /// 指定されたIDの品目を削除する
-    pub fn remove_item(&mut self, id: ItemId) -> Result<(), ItemError> {
+    pub fn remove(&mut self, id: ItemId) -> Result<(), ItemError> {
         if let Some(delete_pos) = self.items.iter().position(|item| item.id == id) {
             self.items.remove(delete_pos);
             Ok(())
@@ -214,9 +214,9 @@ mod tests {
     fn get_item_returns_item_when_id_exists() {
         let mut list = ItemList::new();
 
-        list.add_item("日用品", Tag::Asset).unwrap();
-        list.add_item("食費", Tag::Expense).unwrap();
-        list.add_item("給与", Tag::Income).unwrap();
+        list.add("日用品", Tag::Asset).unwrap();
+        list.add("食費", Tag::Expense).unwrap();
+        list.add("給与", Tag::Income).unwrap();
 
         let item = list.get_item(ItemId(1));
 
@@ -245,9 +245,9 @@ mod tests {
     fn find_by_name_trims_input_name() {
         let mut list = ItemList::new();
 
-        list.add_item("日用品", Tag::Asset).unwrap();
-        list.add_item("食費", Tag::Expense).unwrap();
-        list.add_item("給与", Tag::Income).unwrap();
+        list.add("日用品", Tag::Asset).unwrap();
+        list.add("食費", Tag::Expense).unwrap();
+        list.add("給与", Tag::Income).unwrap();
 
         let item = list.find_by_name("  日用品  ");
 
@@ -262,7 +262,7 @@ mod tests {
     fn add_item_adds_item_with_id_one() {
         let mut list = ItemList::new();
 
-        let result = list.add_item("　　食費　　", Tag::Asset);
+        let result = list.add("　　食費　　", Tag::Asset);
 
         assert_eq!(result, Ok(ItemId(1)));
 
@@ -276,13 +276,13 @@ mod tests {
     fn add_item_uses_max_id_plus_one_after_deletion() {
         let mut list = ItemList::new();
 
-        list.add_item("日用品", Tag::Asset).unwrap();
-        list.add_item("娯楽", Tag::Expense).unwrap();
-        list.add_item("食費", Tag::Income).unwrap();
+        list.add("日用品", Tag::Asset).unwrap();
+        list.add("娯楽", Tag::Expense).unwrap();
+        list.add("食費", Tag::Income).unwrap();
 
-        list.remove_item(ItemId(2)).unwrap();
+        list.remove(ItemId(2)).unwrap();
 
-        let result = list.add_item("住宅", Tag::Asset);
+        let result = list.add("住宅", Tag::Asset);
 
         assert_eq!(result, Ok(ItemId(4)));
     }
@@ -291,7 +291,7 @@ mod tests {
     fn add_item_returns_empty_name_error_when_only_spaces() {
         let mut list = ItemList::new();
 
-        let result = list.add_item("   ", Tag::Asset);
+        let result = list.add("   ", Tag::Asset);
 
         assert_eq!(result, Err(ItemError::EmptyName));
     }
@@ -300,9 +300,9 @@ mod tests {
     fn add_item_returns_duplicate_name_error() {
         let mut list = ItemList::new();
 
-        list.add_item("食費", Tag::Asset).unwrap();
+        list.add("食費", Tag::Asset).unwrap();
 
-        let result = list.add_item("食費", Tag::Expense);
+        let result = list.add("食費", Tag::Expense);
 
         assert_eq!(result, Err(ItemError::DuplicateName("食費".to_string())));
     }
@@ -315,10 +315,9 @@ mod tests {
     fn update_item_trims_name() {
         let mut list = ItemList::new();
 
-        list.add_item("食費", Tag::Asset).unwrap();
+        list.add("食費", Tag::Asset).unwrap();
 
-        list.update_item(ItemId(1), "  娯楽  ", Tag::Expense)
-            .unwrap();
+        list.update(ItemId(1), "  娯楽  ", Tag::Expense).unwrap();
 
         assert_eq!(list.get_item(ItemId(1)).unwrap().name, "娯楽");
     }
@@ -327,9 +326,9 @@ mod tests {
     fn update_item_allows_same_name_for_same_item() {
         let mut list = ItemList::new();
 
-        list.add_item("食費", Tag::Asset).unwrap();
+        list.add("食費", Tag::Asset).unwrap();
 
-        let result = list.update_item(ItemId(1), "食費", Tag::Asset);
+        let result = list.update(ItemId(1), "食費", Tag::Asset);
 
         assert_eq!(result, Ok(()));
     }
@@ -338,9 +337,9 @@ mod tests {
     fn update_item_returns_empty_name_error_when_only_spaces() {
         let mut list = ItemList::new();
 
-        list.add_item("食費", Tag::Asset).unwrap();
+        list.add("食費", Tag::Asset).unwrap();
 
-        let result = list.update_item(ItemId(1), "   ", Tag::Asset);
+        let result = list.update(ItemId(1), "   ", Tag::Asset);
 
         assert_eq!(result, Err(ItemError::EmptyName));
     }
@@ -349,10 +348,10 @@ mod tests {
     fn update_item_returns_duplicate_name_error() {
         let mut list = ItemList::new();
 
-        list.add_item("食費", Tag::Asset).unwrap();
-        list.add_item("娯楽", Tag::Expense).unwrap();
+        list.add("食費", Tag::Asset).unwrap();
+        list.add("娯楽", Tag::Expense).unwrap();
 
-        let result = list.update_item(ItemId(2), "食費", Tag::Expense);
+        let result = list.update(ItemId(2), "食費", Tag::Expense);
 
         assert_eq!(result, Err(ItemError::DuplicateName("食費".to_string())));
     }
@@ -361,7 +360,7 @@ mod tests {
     fn update_item_returns_not_found_error() {
         let mut list = ItemList::new();
 
-        let result = list.update_item(ItemId(999), "食費", Tag::Asset);
+        let result = list.update(ItemId(999), "食費", Tag::Asset);
 
         assert_eq!(result, Err(ItemError::NotFound(ItemId(999))));
     }
@@ -374,9 +373,9 @@ mod tests {
     fn remove_item_removes_item() {
         let mut list = ItemList::new();
 
-        list.add_item("食費", Tag::Asset).unwrap();
-        list.add_item("娯楽", Tag::Expense).unwrap();
-        let result = list.remove_item(ItemId(1));
+        list.add("食費", Tag::Asset).unwrap();
+        list.add("娯楽", Tag::Expense).unwrap();
+        let result = list.remove(ItemId(1));
 
         assert_eq!(result, Ok(()));
         assert_eq!(list.get_item(ItemId(1)), None);
@@ -387,7 +386,7 @@ mod tests {
     fn remove_item_returns_not_found_error() {
         let mut list = ItemList::new();
 
-        let result = list.remove_item(ItemId(999));
+        let result = list.remove(ItemId(999));
 
         assert_eq!(result, Err(ItemError::NotFound(ItemId(999))));
     }
