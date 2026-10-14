@@ -87,8 +87,16 @@ impl Ledger {
         if item.tag() != tag {
             for t in self.transactions.iter() {
                 // この品目が「品目」として使われている場合
-                if t.item() == id && !tag.is_transaction_selectable() {
-                    return Err(LedgerError::InvalidItemTag(tag));
+                if t.item() == id {
+                    if !tag.is_transaction_selectable() {
+                        return Err(LedgerError::InvalidItemTag(tag));
+                    }
+                    let Some(counterpart) = self.items.get_item(t.counterpart()) else {
+                        return Err(LedgerError::TransactionItemNotFound(t.counterpart()));
+                    };
+                    if counterpart.tag() == tag {
+                        return Err(LedgerError::SameTag(tag));
+                    }
                 }
 
                 // この品目が「相手先」として使われている場合
