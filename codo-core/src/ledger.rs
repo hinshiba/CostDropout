@@ -22,7 +22,7 @@ pub enum LedgerError {
     #[error("取引から参照されている品目は削除できません")]
     ItemUse(ItemId),
 
-    #[error("取引の品目のタグが不正です")]
+    #[error("取引の品目のタグが収入・支出・負債ではありません")]
     InvalidItemTag(Tag),
 
     #[error("相手先のタグが品目のタグと同じです")]
@@ -65,10 +65,12 @@ impl Ledger {
         &self.transactions
     }
 
+    /// 品目のadd処理を委譲
     pub fn add_item(&mut self, name: &str, tag: Tag) -> Result<ItemId, LedgerError> {
         Ok(self.items.add(name, tag)?)
     }
 
+    /// 品目のupdate処理を委譲
     pub fn update_item(&mut self, id: ItemId, name: &str, tag: Tag) -> Result<(), LedgerError> {
         // 更新対象の品目を確認
         let Some(item) = self.items.get_item(id) else {
@@ -101,6 +103,7 @@ impl Ledger {
         Ok(())
     }
 
+    /// 品目のremove処理を委譲
     pub fn remove_item(&mut self, id: ItemId) -> Result<(), LedgerError> {
         if self.transactions.uses_item(id) {
             return Err(LedgerError::ItemUse(id));
@@ -131,6 +134,7 @@ impl Ledger {
         Ok(())
     }
 
+    /// 取引のadd処理を委譲
     pub fn add_transaction(
         &mut self,
         draft: TransactionDraft,
@@ -140,6 +144,7 @@ impl Ledger {
         Ok(self.transactions.add(draft)?)
     }
 
+    /// 取引のupdate処理を委譲
     pub fn update_transaction(
         &mut self,
         id: TransactionId,
@@ -150,6 +155,7 @@ impl Ledger {
         Ok(())
     }
 
+    /// 取引のremove処理を委譲
     pub fn remove_transaction(&mut self, id: TransactionId) -> Result<(), LedgerError> {
         self.transactions.remove(id)?;
         Ok(())
