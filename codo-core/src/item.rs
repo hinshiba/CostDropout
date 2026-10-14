@@ -10,6 +10,7 @@ impl ItemId {
     pub const fn new(id: u32) -> Self {
         Self(id)
     }
+
     pub const fn id(&self) -> u32 {
         self.0
     }
@@ -75,6 +76,7 @@ impl Item {
     pub fn tag(&self) -> Tag {
         self.tag
     }
+
     pub fn new(id: ItemId, name: String, tag: Tag) -> Self {
         Self { id, name, tag }
     }
