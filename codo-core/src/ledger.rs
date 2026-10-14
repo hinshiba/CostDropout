@@ -4,8 +4,8 @@ use crate::transaction::{TransactionDraft, TransactionError, TransactionId, Tran
 use thiserror::Error;
 
 /// 品目 ID(連番)
-// #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 
+#[derive(Debug)]
 pub struct Ledger {
     items: ItemList,
     transactions: TransactionList,
@@ -30,6 +30,12 @@ pub enum LedgerError {
 
     #[error("存在しない取引の品目が指定されています")]
     TransactionItemNotFound(ItemId),
+}
+
+impl Default for Ledger {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl Ledger {
