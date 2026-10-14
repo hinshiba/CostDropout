@@ -3,8 +3,6 @@ use crate::preset::preset_items;
 use crate::transaction::{TransactionDraft, TransactionError, TransactionId, TransactionList};
 use thiserror::Error;
 
-/// 品目 ID(連番)
-
 #[derive(Debug)]
 pub struct Ledger {
     items: ItemList,
