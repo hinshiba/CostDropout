@@ -42,7 +42,12 @@ pub fn log(repo: &GitRepo, limit: usize) -> Result<Vec<CommitInfo>, AuditError> 
         }
         let author = fields.next().ok_or(AuditError::OutputDataFailed)?;
         let date_text = fields.next().ok_or(AuditError::OutputDataFailed)?;
-        let date = DateTime::parse_from_rfc3339(date_text).map_err(AuditError::DateTimeFailed)?;
+        let date = DateTime::parse_from_rfc3339(date_text).map_err(|source| {
+            AuditError::DateTimeFailed {
+                date_text: date_text.to_string(),
+                source,
+            }
+        })?;
         let message = fields.next().ok_or(AuditError::OutputDataFailed)?;
 
         logs.push(CommitInfo {
@@ -161,8 +166,12 @@ pub enum AuditError {
     OutputDataFailed,
 
     /// コミット日時の解析に失敗した場合
-    #[error("日時の解析に失敗しました")]
-    DateTimeFailed(#[source] chrono::ParseError),
+    #[error("日時の解析に失敗しました: {date_text}")]
+    DateTimeFailed {
+        date_text: String,
+        #[source]
+        source: chrono::ParseError,
+    },
 }
 
 #[cfg(test)]
