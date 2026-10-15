@@ -1,32 +1,25 @@
+use crate::app::AppState;
 use gpui_kit::*;
-
-struct TransactionForm {
-    text: SharedString,
+pub struct TransactionForm {
+    state: Entity<AppState>,
 }
 
-impl Render for App {
+impl TransactionForm {
+    pub fn new(state: Entity<AppState>) -> Self {
+        Self { state }
+    }
+}
+
+impl Render for TransactionForm {
     fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
         div()
             .size_full()
             .flex()
             .bg(rgb(0x2e7d32))
-            .size_full()
             .justify_center()
             .items_center()
             .text_xl()
             .text_color(rgb(0xffffff))
-            .child(format!("取引入力, {}!", &self.text))
+            .child(format!("取引入力"))
     }
-}
-
-fn main() {
-    gpui_kit::application().run(|cx| {
-        gpui_kit::init(cx);
-        gpui_kit::open_window(WindowOptions::default(), cx, |_, cx| {
-            cx.new(|_cx| App {
-                text: "画面".into(),
-            })
-        })
-        .unwrap();
-    })
 }

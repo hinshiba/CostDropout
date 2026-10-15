@@ -1,32 +1,26 @@
+use crate::app::AppState;
 use gpui_kit::*;
-
-struct TransactionList {
-    text: SharedString,
+pub struct TransactionList {
+    state: Entity<AppState>,
 }
 
-impl Render for App {
+impl TransactionList {
+    pub fn new(state: Entity<AppState>) -> Self {
+        Self { state }
+    }
+}
+
+impl Render for TransactionList {
+    /// TransactionListを画面に表示する
     fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
         div()
             .size_full()
             .flex()
-            .bg(rgb(0x2e7d32))
-            .size_full()
+            .bg(rgb(0x5e7d32))
             .justify_center()
             .items_center()
             .text_xl()
             .text_color(rgb(0xffffff))
-            .child(format!("取引一覧, {}!", &self.text))
+            .child(format!("取引一覧"))
     }
-}
-
-fn main() {
-    gpui_kit::application().run(|cx| {
-        gpui_kit::init(cx);
-        gpui_kit::open_window(WindowOptions::default(), cx, |_, cx| {
-            cx.new(|_cx| App {
-                text: "画面".into(),
-            })
-        })
-        .unwrap();
-    })
 }

@@ -1,10 +1,16 @@
-use gpui::*;
-
-struct Items {
-    text: SharedString,
+use crate::app::AppState;
+use gpui_kit::*;
+pub struct Items {
+    state: Entity<AppState>,
 }
 
-impl Render for HelloWorld {
+impl Items {
+    pub fn new(state: Entity<AppState>) -> Self {
+        Self { state }
+    }
+}
+
+impl Render for Items {
     fn render(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
         div()
             .flex()
@@ -14,17 +20,6 @@ impl Render for HelloWorld {
             .items_center()
             .text_xl()
             .text_color(rgb(0xffffff))
-            .child(format!("品目, {}!", &self.text))
+            .child(format!("品目"))
     }
-}
-
-fn main() {
-    Application::new().run(|cx: &mut App| {
-        cx.open_window(WindowOptions::default(), |_, cx| {
-            cx.new(|_cx| HelloWorld {
-                text: "画面".into(),
-            })
-        })
-        .unwrap();
-    });
 }

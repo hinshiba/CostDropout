@@ -1,20 +1,14 @@
+mod app;
+mod pages;
+use crate::app::App;
 use gpui_kit::*;
-
-struct App {
-    app_state: Entity<AppState>,
-    page: page,
-}
-
-impl Render for App {
-    fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
-        div().size_full()
-    }
-}
 
 fn main() {
     gpui_kit::application().run(|cx| {
         gpui_kit::init(cx);
-        gpui_kit::open_window(WindowOptions::default(), cx, |_, cx| cx.new(|_| App))
-            .expect("ウィンドウを開けませんでした");
+        gpui_kit::open_window(WindowOptions::default(), cx, |_, cx| {
+            cx.new(|cx| App::new(cx))
+        })
+        .expect("ウィンドウを開けませんでした");
     });
 }
