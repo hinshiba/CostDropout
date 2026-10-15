@@ -56,27 +56,55 @@ pub fn log(repo: &GitRepo, limit: usize) -> Result<Vec<CommitInfo>, AuditError> 
     Ok(logs)
 }
 
-/// 指定したコミットで変更されたファイル名の一覧を取得する。
-pub fn changed_files(repo: &GitRepo, hash: &str) -> Result<Vec<String>, AuditError> {
+/// 指定したコミットの第1親を取得する
+fn first_parent(repo: &GitRepo, hash: &str) -> Result<Option<String>, AuditError> {
     let output = git_command(repo.get_pathbuf())
-        .args([
-            "diff-tree",
-            "--root",
-            "--no-commit-id",
-            "--name-only",
-            "-r",
-            "-z",
-        ])
+        .args(["rev-list", "--parents", "-n", "1"])
         .arg(hash)
         .output()
         .map_err(AuditError::Command)?;
 
     if !output.status.success() {
         return Err(AuditError::CommandFailed(
-            format!(
-                "git diff-tree --root --no-commit-id --name-only -r -z {}",
-                hash
-            ),
+            format!("git rev-list --parents -n 1 {}", hash),
+            String::from_utf8_lossy(&output.stderr).trim().to_string(),
+        ));
+    }
+
+    let text = String::from_utf8_lossy(&output.stdout);
+    let mut hashes = text.split_whitespace();
+
+    hashes.next().ok_or(AuditError::OutputDataFailed)?;
+
+    Ok(hashes.next().map(str::to_string))
+}
+
+/// 指定したコミットで変更されたファイル名の一覧を取得する。
+pub fn changed_files(repo: &GitRepo, hash: &str) -> Result<Vec<String>, AuditError> {
+    let output = match first_parent(repo, hash)? {
+        Some(parent) => git_command(repo.get_pathbuf())
+            .args(["diff", "--name-only", "-z"])
+            .arg(&parent)
+            .arg(hash)
+            .output()
+            .map_err(AuditError::Command)?,
+        None => git_command(repo.get_pathbuf())
+            .args([
+                "diff-tree",
+                "--root",
+                "--no-commit-id",
+                "--name-only",
+                "-r",
+                "-z",
+            ])
+            .arg(hash)
+            .output()
+            .map_err(AuditError::Command)?,
+    };
+
+    if !output.status.success() {
+        return Err(AuditError::CommandFailed(
+            format!("git diff --name-only -z {}", hash),
             String::from_utf8_lossy(&output.stderr).trim().to_string(),
         ));
     }
@@ -86,7 +114,7 @@ pub fn changed_files(repo: &GitRepo, hash: &str) -> Result<Vec<String>, AuditErr
     let files: Vec<String> = text
         .split('\0')
         .filter(|file_name| !file_name.is_empty())
-        .map(|file| file.to_string())
+        .map(str::to_string)
         .collect();
 
     Ok(files)
@@ -94,15 +122,23 @@ pub fn changed_files(repo: &GitRepo, hash: &str) -> Result<Vec<String>, AuditErr
 
 /// 指定したコミットの差分を取得する
 pub fn show_diff(repo: &GitRepo, hash: &str) -> Result<String, AuditError> {
-    let output = git_command(repo.get_pathbuf())
-        .args(["show", "--format="])
-        .arg(hash)
-        .output()
-        .map_err(AuditError::Command)?;
+    let output = match first_parent(repo, hash)? {
+        Some(parent) => git_command(repo.get_pathbuf())
+            .arg("diff")
+            .arg(&parent)
+            .arg(hash)
+            .output()
+            .map_err(AuditError::Command)?,
+        None => git_command(repo.get_pathbuf())
+            .args(["show", "--root", "--format="])
+            .arg(hash)
+            .output()
+            .map_err(AuditError::Command)?,
+    };
 
     if !output.status.success() {
         return Err(AuditError::CommandFailed(
-            format!("git show --format= {}", hash),
+            format!("git diff/show {}", hash),
             String::from_utf8_lossy(&output.stderr).trim().to_string(),
         ));
     }
@@ -302,5 +338,88 @@ mod tests {
 
         assert_eq!(files1, vec!["hello.txt"]);
         assert_eq!(files2, vec!["memo.txt"]);
+    }
+
+    #[test]
+    fn merge_commit_uses_first_parent_for_audit() {
+        let (_dir, repo) = setup_repo();
+
+        // 最初のコミットを作る
+        fs::write(repo.get_pathbuf().join("base.txt"), "base\n").unwrap();
+
+        repo.commit_all("base commit")
+            .unwrap()
+            .expect("最初のコミットが作成されるはず");
+
+        let output = git_command(repo.get_pathbuf())
+            .args(["symbolic-ref", "--short", "HEAD"])
+            .output()
+            .unwrap();
+
+        assert!(output.status.success());
+
+        let base_branch = String::from_utf8(output.stdout).unwrap().trim().to_string();
+
+        // feature ブランチを作り、feature.txt を追加
+        let output = git_command(repo.get_pathbuf())
+            .args(["checkout", "-b", "feature"])
+            .output()
+            .unwrap();
+
+        assert!(output.status.success());
+
+        fs::write(repo.get_pathbuf().join("feature.txt"), "feature\n").unwrap();
+
+        repo.commit_all("feature commit")
+            .unwrap()
+            .expect("feature のコミットが作成されるはず");
+
+        // 元のブランチに戻り、main.txt を追加
+        let output = git_command(repo.get_pathbuf())
+            .args(["checkout", &base_branch])
+            .output()
+            .unwrap();
+
+        assert!(output.status.success());
+
+        fs::write(repo.get_pathbuf().join("main.txt"), "main\n").unwrap();
+
+        repo.commit_all("main commit")
+            .unwrap()
+            .expect("main のコミットが作成されるはず");
+
+        // feature をマージしてマージコミットを作る
+        let output = git_command(repo.get_pathbuf())
+            .args(["merge", "--no-ff", "feature", "-m", "merge feature"])
+            .output()
+            .unwrap();
+
+        assert!(
+            output.status.success(),
+            "merge failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+
+        // マージコミットのハッシュを取得する
+        let output = git_command(repo.get_pathbuf())
+            .args(["rev-parse", "HEAD"])
+            .output()
+            .unwrap();
+
+        assert!(output.status.success());
+
+        let merge_hash = String::from_utf8(output.stdout).unwrap().trim().to_string();
+
+        // 第1親との差分には feature.txt が含まれる
+        let files = changed_files(&repo, &merge_hash).unwrap();
+
+        assert_eq!(files, vec!["feature.txt"]);
+
+        // 差分の内容も同じ比較方針になっている
+        let diff = show_diff(&repo, &merge_hash).unwrap();
+
+        assert!(diff.contains("feature.txt"));
+        assert!(diff.contains("+feature"));
+        assert!(!diff.contains("main.txt"));
     }
 }
