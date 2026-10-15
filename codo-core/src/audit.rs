@@ -25,9 +25,15 @@ pub fn log(repo: &GitRepo, limit: usize) -> Result<Vec<CommitInfo>, AuditError> 
         .map_err(AuditError::Command)?;
 
     if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+
+        if stderr.contains("does not have any commits yet") {
+            return Ok(Vec::new());
+        }
+
         return Err(AuditError::CommandFailed(
             "git log -n".to_string(),
-            String::from_utf8_lossy(&output.stderr).trim().to_string(),
+            stderr.trim().to_string(),
         ));
     }
 
@@ -430,5 +436,47 @@ mod tests {
         assert!(diff.contains("feature.txt"));
         assert!(diff.contains("+feature"));
         assert!(!diff.contains("main.txt"));
+    }
+
+    #[test]
+    fn log_with_zero_limit_returns_empty_vec() {
+        let (_dir, repo) = setup_repo();
+
+        fs::write(repo.get_pathbuf().join("hello.txt"), "Hello\n").unwrap();
+
+        repo.commit_all("first commit")
+            .unwrap()
+            .expect("コミットが作成されるはず");
+
+        let logs = log(&repo, 0).unwrap();
+
+        assert!(logs.is_empty());
+    }
+
+    #[test]
+    fn log_on_empty_repository_returns_empty_vec() {
+        let (_dir, repo) = setup_repo();
+
+        let logs = log(&repo, 10).unwrap();
+
+        assert!(logs.is_empty());
+    }
+
+    #[test]
+    fn changed_files_returns_error_for_invalid_hash() {
+        let (_dir, repo) = setup_repo();
+
+        let result = changed_files(&repo, "invalid-hash");
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn show_diff_returns_error_for_invalid_hash() {
+        let (_dir, repo) = setup_repo();
+
+        let result = show_diff(&repo, "invalid-hash");
+
+        assert!(result.is_err());
     }
 }
