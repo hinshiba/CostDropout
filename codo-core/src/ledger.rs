@@ -1,14 +1,19 @@
+//! ledgerの整合性
+
 use crate::item::{ItemError, ItemId, ItemList, Tag};
 use crate::preset::preset_items;
 use crate::transaction::{TransactionDraft, TransactionError, TransactionId, TransactionList};
 use thiserror::Error;
 
+/// 登録された品目と取引を保持し、
+/// 品目や取引に対する操作を提供する。
 #[derive(Debug)]
 pub struct Ledger {
     items: ItemList,
     transactions: TransactionList,
 }
 
+/// Ledgerの操作中に発生するエラー
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum LedgerError {
     #[error(transparent)]
@@ -17,16 +22,16 @@ pub enum LedgerError {
     #[error(transparent)]
     Transaction(#[from] TransactionError),
 
-    #[error("取引から参照されている品目は削除できません")]
+    #[error("取引から参照されている品目 {0:?} は削除できません")]
     ItemUse(ItemId),
 
-    #[error("取引の品目のタグが収入・支出・負債ではありません")]
+    #[error("取引の品目のタグ {0:?} が収入・支出・負債ではありません")]
     InvalidItemTag(Tag),
 
-    #[error("相手先のタグが品目のタグと同じです")]
+    #[error("相手先のタグ {0:?} が品目のタグと同じです")]
     SameTag(Tag),
 
-    #[error("存在しない取引の品目が指定されています")]
+    #[error("存在しない取引の品目 {0:?} が指定されています")]
     TransactionItemNotFound(ItemId),
 }
 
@@ -75,13 +80,13 @@ impl Ledger {
     }
 
     /// 品目のupdate処理を委譲
+    /// タグを変えると，この品目を参照している取引が制約を満たさなくなる場合はエラー
     pub fn update_item(&mut self, id: ItemId, name: &str, tag: Tag) -> Result<(), LedgerError> {
         // 更新対象の品目を確認
         let Some(item) = self.items.get_item(id) else {
             return Err(LedgerError::Item(ItemError::NotFound(id)));
         };
 
-        // タグが変わらないなら、取引への影響はない
         if item.tag() != tag {
             for t in self.transactions.iter() {
                 // この品目が「品目」として使われている場合
@@ -110,29 +115,32 @@ impl Ledger {
                 }
             }
         }
-        // ItemList に更新を移譲する
+        // ItemList に更新を委譲する
         self.items.update(id, name, tag)?;
         Ok(())
     }
 
     /// 品目のremove処理を委譲
+    /// 取引から品目または相手先として参照されていればエラー
     pub fn remove_item(&mut self, id: ItemId) -> Result<(), LedgerError> {
         if self.transactions.uses_item(id) {
             return Err(LedgerError::ItemUse(id));
         }
 
-        // ItemList に削除を移譲する
+        // ItemList に削除を委譲する
         self.items.remove(id)?;
         Ok(())
     }
 
     fn validate_transaction_draft(&self, draft: &TransactionDraft) -> Result<(), LedgerError> {
+        draft.validate()?;
+
         let Some(item) = self.items.get_item(draft.item()) else {
-            return Err(LedgerError::Item(ItemError::NotFound(draft.item())));
+            return Err(LedgerError::TransactionItemNotFound(draft.item()));
         };
 
         let Some(counterpart) = self.items.get_item(draft.counterpart()) else {
-            return Err(LedgerError::Item(ItemError::NotFound(draft.counterpart())));
+            return Err(LedgerError::TransactionItemNotFound(draft.counterpart()));
         };
 
         if !item.tag().is_transaction_selectable() {
@@ -142,11 +150,13 @@ impl Ledger {
         if item.tag() == counterpart.tag() {
             return Err(LedgerError::SameTag(item.tag()));
         }
-
         Ok(())
     }
 
     /// 取引のadd処理を委譲
+    /// 品目と相手先が存在しなければエラー
+    /// 品目のタグが Tag::is_transaction_selectable を満たさなければエラー
+    /// 相手先のタグが品目のタグと異なればエラー
     pub fn add_transaction(
         &mut self,
         draft: TransactionDraft,
@@ -157,6 +167,9 @@ impl Ledger {
     }
 
     /// 取引のupdate処理を委譲
+    /// 品目と相手先が存在しなければエラー
+    /// 品目のタグが Tag::is_transaction_selectable を満たさなければエラー
+    /// 相手先のタグが品目のタグと異なればエラー
     pub fn update_transaction(
         &mut self,
         id: TransactionId,
@@ -168,6 +181,7 @@ impl Ledger {
     }
 
     /// 取引のremove処理を委譲
+    /// 指定した取引が存在しない場合は、そのエラーをそのまま返す。
     pub fn remove_transaction(&mut self, id: TransactionId) -> Result<(), LedgerError> {
         self.transactions.remove(id)?;
         Ok(())
@@ -198,7 +212,7 @@ mod tests {
         (ledger, income_id, asset_id)
     }
 
-    /// item関連のテスト
+    // item関連のテスト
     #[test]
     fn remove_item_fails_when_item_is_used_by_transaction() {
         let (mut ledger, income_id, asset_id) = ledger_with_items();
@@ -238,9 +252,12 @@ mod tests {
             ledger.update_item(asset_id, "現金", Tag::Income),
             Err(LedgerError::SameTag(Tag::Income))
         );
+
+        // 更新に失敗したときは，現金のタグはAssetのまま
+        assert_eq!(ledger.items.get_item(asset_id).unwrap().tag(), Tag::Asset);
     }
 
-    /// transaction関連のテスト
+    // transaction関連のテスト
     #[test]
     fn add_transaction_fails_when_item_or_counterpart_does_not_exist() {
         let mut ledger = Ledger::new();
@@ -252,17 +269,17 @@ mod tests {
 
         assert_eq!(
             ledger.add_transaction(draft(missing_id, income_id)),
-            Err(LedgerError::Item(ItemError::NotFound(missing_id)))
+            Err(LedgerError::TransactionItemNotFound(missing_id))
         );
 
         assert_eq!(
             ledger.add_transaction(draft(income_id, missing_id)),
-            Err(LedgerError::Item(ItemError::NotFound(missing_id)))
+            Err(LedgerError::TransactionItemNotFound(missing_id))
         );
     }
 
     #[test]
-    fn validate_transaction_draft_fails_when_item_tag_is_not_selectable() {
+    fn add_transaction_fails_when_item_tag_is_not_selectable() {
         let mut ledger = Ledger::new();
 
         let asset_id = ledger.add_item("現金", Tag::Asset).unwrap();
@@ -275,7 +292,7 @@ mod tests {
     }
 
     #[test]
-    fn validate_transaction_draft_fails_when_item_and_counterpart_have_same_tag() {
+    fn add_transaction_fails_when_item_and_counterpart_have_same_tag() {
         let mut ledger = Ledger::new();
 
         let income1 = ledger.add_item("収入1", Tag::Income).unwrap();

@@ -96,7 +96,7 @@ impl TransactionDraft {
     }
 
     ///金額と品目のチェック
-    fn validate(&self) -> Result<(), TransactionError> {
+    pub(crate) fn validate(&self) -> Result<(), TransactionError> {
         //金額が正でなければエラー
         if !self.amount.is_positive() {
             return Err(TransactionError::NonPositiveAmount(self.amount));
