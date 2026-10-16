@@ -51,7 +51,7 @@ impl GitRepo {
     }
 
     /// Gitリポジトリのパスを参照として返す。
-    pub(crate) fn get_pathbuf(&self) -> &Path {
+    pub(crate) fn path(&self) -> &Path {
         &self.path
     }
 

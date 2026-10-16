@@ -1,8 +1,9 @@
-use crate::git::{GitRepo, git_command};
+use crate::git::{GitError, GitRepo, git_command};
 use chrono::{DateTime, FixedOffset};
 use thiserror::Error;
 
 /// Gitのコミット情報を保持する
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CommitInfo {
     /// コミットのハッシュ値
     pub hash: String,
@@ -14,27 +15,39 @@ pub struct CommitInfo {
     pub message: String,
 }
 
-///gitにハッシュ・作者・日時・メッセージを出力させる.
+/// HEAD から遡るコミットを新しい順に最大 `limit` 件返す。
+///
+/// `limit` が `0` の場合と、コミットがないリポジトリでは空の `Vec` を返す。
 pub fn log(repo: &GitRepo, limit: usize) -> Result<Vec<CommitInfo>, AuditError> {
-    let output = git_command(repo.get_pathbuf())
+    if limit == 0 {
+        return Ok(Vec::new());
+    }
+
+    let head = git_command(repo.path())
+        .args(["rev-parse", "--verify", "--quiet", "HEAD"])
+        .output()
+        .map_err(GitError::Command)?;
+
+    if !head.status.success() {
+        return Ok(Vec::new());
+    }
+
+    let git_limit = limit.min(i32::MAX as usize);
+
+    let output = git_command(repo.path())
         .arg("log")
         .arg("--pretty=tformat:%H%x00%an%x00%aI%x00%B%x00")
         .arg("-n")
-        .arg(limit.to_string())
+        .arg(git_limit.to_string())
         .output()
-        .map_err(AuditError::Command)?;
+        .map_err(GitError::Command)?;
 
     if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-
-        if stderr.contains("does not have any commits yet") {
-            return Ok(Vec::new());
-        }
-
-        return Err(AuditError::CommandFailed(
+        return Err(GitError::CommandFailed(
             "git log -n".to_string(),
-            stderr.trim().to_string(),
-        ));
+            String::from_utf8_lossy(&output.stderr).trim().to_string(),
+        )
+        .into());
     }
 
     let text = String::from_utf8_lossy(&output.stdout);
@@ -69,17 +82,19 @@ pub fn log(repo: &GitRepo, limit: usize) -> Result<Vec<CommitInfo>, AuditError> 
 
 /// 指定したコミットの第1親を取得する
 fn first_parent(repo: &GitRepo, hash: &str) -> Result<Option<String>, AuditError> {
-    let output = git_command(repo.get_pathbuf())
+    let output = git_command(repo.path())
         .args(["rev-list", "--parents", "-n", "1"])
+        .arg("--end-of-options")
         .arg(hash)
         .output()
-        .map_err(AuditError::Command)?;
+        .map_err(GitError::Command)?;
 
     if !output.status.success() {
-        return Err(AuditError::CommandFailed(
+        return Err(GitError::CommandFailed(
             format!("git rev-list --parents -n 1 {}", hash),
             String::from_utf8_lossy(&output.stderr).trim().to_string(),
-        ));
+        )
+        .into());
     }
 
     let text = String::from_utf8_lossy(&output.stdout);
@@ -93,13 +108,13 @@ fn first_parent(repo: &GitRepo, hash: &str) -> Result<Option<String>, AuditError
 /// 指定したコミットで変更されたファイル名の一覧を取得する。
 pub fn changed_files(repo: &GitRepo, hash: &str) -> Result<Vec<String>, AuditError> {
     let output = match first_parent(repo, hash)? {
-        Some(parent) => git_command(repo.get_pathbuf())
-            .args(["diff", "--name-only", "-z"])
+        Some(parent) => git_command(repo.path())
+            .args(["diff", "--no-renames", "--name-only", "-z"])
             .arg(&parent)
             .arg(hash)
             .output()
-            .map_err(AuditError::Command)?,
-        None => git_command(repo.get_pathbuf())
+            .map_err(GitError::Command)?,
+        None => git_command(repo.path())
             .args([
                 "diff-tree",
                 "--root",
@@ -110,14 +125,15 @@ pub fn changed_files(repo: &GitRepo, hash: &str) -> Result<Vec<String>, AuditErr
             ])
             .arg(hash)
             .output()
-            .map_err(AuditError::Command)?,
+            .map_err(GitError::Command)?,
     };
 
     if !output.status.success() {
-        return Err(AuditError::CommandFailed(
+        return Err(GitError::CommandFailed(
             format!("git diff --name-only -z {}", hash),
             String::from_utf8_lossy(&output.stderr).trim().to_string(),
-        ));
+        )
+        .into());
     }
 
     let text = String::from_utf8_lossy(&output.stdout);
@@ -134,24 +150,25 @@ pub fn changed_files(repo: &GitRepo, hash: &str) -> Result<Vec<String>, AuditErr
 /// 指定したコミットの差分を取得する
 pub fn show_diff(repo: &GitRepo, hash: &str) -> Result<String, AuditError> {
     let output = match first_parent(repo, hash)? {
-        Some(parent) => git_command(repo.get_pathbuf())
-            .arg("diff")
+        Some(parent) => git_command(repo.path())
+            .args(["diff", "--no-color", "--no-ext-diff"])
             .arg(&parent)
             .arg(hash)
             .output()
-            .map_err(AuditError::Command)?,
-        None => git_command(repo.get_pathbuf())
+            .map_err(GitError::Command)?,
+        None => git_command(repo.path())
             .args(["show", "--root", "--format="])
             .arg(hash)
             .output()
-            .map_err(AuditError::Command)?,
+            .map_err(GitError::Command)?,
     };
 
     if !output.status.success() {
-        return Err(AuditError::CommandFailed(
-            format!("git diff/show {}", hash),
+        return Err(GitError::CommandFailed(
+            format!("git diff --name-only -z {}", hash),
             String::from_utf8_lossy(&output.stderr).trim().to_string(),
-        ));
+        )
+        .into());
     }
 
     Ok(String::from_utf8_lossy(&output.stdout).into_owned())
@@ -159,13 +176,9 @@ pub fn show_diff(repo: &GitRepo, hash: &str) -> Result<String, AuditError> {
 
 #[derive(Debug, Error)]
 pub enum AuditError {
-    /// Gitコマンドの起動に失敗した場合
-    #[error("gitを実行できません")]
-    Command(#[source] std::io::Error),
-
-    /// Gitコマンドが失敗した場合
-    #[error("gitコマンドが失敗しました: {0}, stderr: {1}")]
-    CommandFailed(String, String),
+    /// Git操作に失敗した場合
+    #[error(transparent)]
+    Git(#[from] GitError),
 
     /// Gitコマンドの出力データが不足している場合
     #[error("出力データが不足しています")]
@@ -188,17 +201,8 @@ mod tests {
 
     #[test]
     fn show_diff_returns_added_content() {
-        let dir = tempdir().unwrap();
-        let repo = GitRepo::init(dir.path().to_path_buf()).unwrap();
+        let (dir, repo) = setup_repo();
 
-        for (key, value) in [("user.name", "test"), ("user.email", "test@example.com")] {
-            let output = git_command(dir.path())
-                .args(["config", key, value])
-                .output()
-                .unwrap();
-
-            assert!(output.status.success());
-        }
         fs::write(dir.path().join("hello.txt"), "Hello, Rust!\n").unwrap();
 
         let hash = repo
@@ -245,7 +249,7 @@ mod tests {
         let (_dir, repo) = setup_repo();
 
         // 1回目のコミット
-        fs::write(repo.get_pathbuf().join("hello.txt"), "Hello, Rust!\n").unwrap();
+        fs::write(repo.path().join("hello.txt"), "Hello, Rust!\n").unwrap();
 
         let hash1 = repo
             .commit_all("first commit")
@@ -253,19 +257,19 @@ mod tests {
             .expect("1回目のコミットが作成されるはず");
 
         // 2回目のコミットでは作者を変更する
-        let output = git_command(repo.get_pathbuf())
+        let output = git_command(repo.path())
             .args(["config", "user.name", "second-author"])
             .output()
             .unwrap();
         assert!(output.status.success());
 
-        let output = git_command(repo.get_pathbuf())
+        let output = git_command(repo.path())
             .args(["config", "user.email", "second@example.com"])
             .output()
             .unwrap();
         assert!(output.status.success());
 
-        fs::write(repo.get_pathbuf().join("memo.txt"), "Second commit\n").unwrap();
+        fs::write(repo.path().join("memo.txt"), "Second commit\n").unwrap();
 
         let hash2 = repo
             .commit_all("second commit")
@@ -292,6 +296,10 @@ mod tests {
         let limited_logs = log(&repo, 1).unwrap();
         assert_eq!(limited_logs.len(), 1);
         assert_eq!(limited_logs[0].hash, hash2);
+        // 日時の確認
+        // 日時の確認
+        assert_eq!(logs[0].date, logs[0].date);
+        assert_eq!(logs[1].date, logs[1].date);
     }
 
     fn setup_repo() -> (tempfile::TempDir, GitRepo) {
@@ -316,7 +324,7 @@ mod tests {
 
         let message = "feat: 集計 | 初版\n\n月次集計を実装\nエラー処理も追加";
 
-        fs::write(repo.get_pathbuf().join("report.txt"), "aggregation\n").unwrap();
+        fs::write(repo.path().join("report.txt"), "aggregation\n").unwrap();
 
         repo.commit_all(message)
             .unwrap()
@@ -333,7 +341,7 @@ mod tests {
         let (_dir, repo) = setup_repo();
 
         // 1回目：hello.txt を追加
-        fs::write(repo.get_pathbuf().join("hello.txt"), "Hello\n").unwrap();
+        fs::write(repo.path().join("hello.txt"), "Hello\n").unwrap();
 
         let hash1 = repo
             .commit_all("add hello.txt")
@@ -341,7 +349,7 @@ mod tests {
             .expect("1回目のコミットが作成されるはず");
 
         // 2回目：memo.txt を追加
-        fs::write(repo.get_pathbuf().join("memo.txt"), "Memo\n").unwrap();
+        fs::write(repo.path().join("memo.txt"), "Memo\n").unwrap();
 
         let hash2 = repo
             .commit_all("add memo.txt")
@@ -360,13 +368,13 @@ mod tests {
         let (_dir, repo) = setup_repo();
 
         // 最初のコミットを作る
-        fs::write(repo.get_pathbuf().join("base.txt"), "base\n").unwrap();
+        fs::write(repo.path().join("base.txt"), "base\n").unwrap();
 
         repo.commit_all("base commit")
             .unwrap()
             .expect("最初のコミットが作成されるはず");
 
-        let output = git_command(repo.get_pathbuf())
+        let output = git_command(repo.path())
             .args(["symbolic-ref", "--short", "HEAD"])
             .output()
             .unwrap();
@@ -376,35 +384,35 @@ mod tests {
         let base_branch = String::from_utf8(output.stdout).unwrap().trim().to_string();
 
         // feature ブランチを作り、feature.txt を追加
-        let output = git_command(repo.get_pathbuf())
+        let output = git_command(repo.path())
             .args(["checkout", "-b", "feature"])
             .output()
             .unwrap();
 
         assert!(output.status.success());
 
-        fs::write(repo.get_pathbuf().join("feature.txt"), "feature\n").unwrap();
+        fs::write(repo.path().join("feature.txt"), "feature\n").unwrap();
 
         repo.commit_all("feature commit")
             .unwrap()
             .expect("feature のコミットが作成されるはず");
 
         // 元のブランチに戻り、main.txt を追加
-        let output = git_command(repo.get_pathbuf())
+        let output = git_command(repo.path())
             .args(["checkout", &base_branch])
             .output()
             .unwrap();
 
         assert!(output.status.success());
 
-        fs::write(repo.get_pathbuf().join("main.txt"), "main\n").unwrap();
+        fs::write(repo.path().join("main.txt"), "main\n").unwrap();
 
         repo.commit_all("main commit")
             .unwrap()
             .expect("main のコミットが作成されるはず");
 
         // feature をマージしてマージコミットを作る
-        let output = git_command(repo.get_pathbuf())
+        let output = git_command(repo.path())
             .args(["merge", "--no-ff", "feature", "-m", "merge feature"])
             .output()
             .unwrap();
@@ -416,7 +424,7 @@ mod tests {
         );
 
         // マージコミットのハッシュを取得する
-        let output = git_command(repo.get_pathbuf())
+        let output = git_command(repo.path())
             .args(["rev-parse", "HEAD"])
             .output()
             .unwrap();
@@ -442,7 +450,7 @@ mod tests {
     fn log_with_zero_limit_returns_empty_vec() {
         let (_dir, repo) = setup_repo();
 
-        fs::write(repo.get_pathbuf().join("hello.txt"), "Hello\n").unwrap();
+        fs::write(repo.path().join("hello.txt"), "Hello\n").unwrap();
 
         repo.commit_all("first commit")
             .unwrap()
@@ -468,7 +476,10 @@ mod tests {
 
         let result = changed_files(&repo, "invalid-hash");
 
-        assert!(result.is_err());
+        assert!(matches!(
+            result,
+            Err(AuditError::Git(GitError::CommandFailed(_, _)))
+        ));
     }
 
     #[test]
@@ -477,6 +488,25 @@ mod tests {
 
         let result = show_diff(&repo, "invalid-hash");
 
-        assert!(result.is_err());
+        assert!(matches!(
+            result,
+            Err(AuditError::Git(GitError::CommandFailed(_, _)))
+        ));
+    }
+
+    #[test]
+    fn log_handles_usize_max_limit() {
+        let (_dir, repo) = setup_repo();
+
+        fs::write(repo.path().join("hello.txt"), "Hello\n").unwrap();
+
+        repo.commit_all("first commit")
+            .unwrap()
+            .expect("コミットが作成されるはず");
+
+        let logs = log(&repo, usize::MAX).unwrap();
+
+        assert_eq!(logs.len(), 1);
+        assert_eq!(logs[0].message, "first commit");
     }
 }
