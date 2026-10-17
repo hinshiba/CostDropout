@@ -127,6 +127,8 @@ impl Period {
     }
 
     /// 1月1日から12月31日までの期間
+    ///
+    /// 年が chrono の扱える範囲外のときは panic する
     pub fn year(year: i32) -> Self {
         let jan = YearMonth::new(year, 1).expect("1 is a valid month");
         let dec = YearMonth::new(year, 12).expect("12 is a valid month");
