@@ -15,7 +15,7 @@ impl Render for TransactionForm {
         div()
             .size_full()
             .flex()
-            .bg(rgb(0x2e7d32))
+            .bg(rgb(0x2e7d87))
             .justify_center()
             .items_center()
             .text_xl()
