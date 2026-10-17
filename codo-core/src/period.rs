@@ -323,4 +323,48 @@ mod tests {
             NaiveDate::from_ymd_opt(2026, 5, 31).unwrap()
         );
     }
+
+    #[test]
+    fn test_year_month_valid_bounds_and_getters() {
+        let jan = YearMonth::new(2026, 1).unwrap();
+        let dec = YearMonth::new(2026, 12).unwrap();
+        assert_eq!((jan.year(), jan.month()), (2026, 1));
+        assert_eq!((dec.year(), dec.month()), (2026, 12));
+    }
+
+    #[test]
+    fn test_year_month_display_pads_zero() {
+        assert_eq!(YearMonth::new(2026, 1).unwrap().to_string(), "2026-01");
+        assert_eq!(YearMonth::new(2026, 9).unwrap().to_string(), "2026-09");
+        assert_eq!(YearMonth::new(2026, 12).unwrap().to_string(), "2026-12");
+        assert_eq!(YearMonth::new(999, 5).unwrap().to_string(), "0999-05");
+    }
+
+    #[test]
+    fn test_days_in_month_all_months() {
+        let expected = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+        for (i, days) in expected.into_iter().enumerate() {
+            let ym = YearMonth::new(2026, i as u32 + 1).unwrap();
+            assert_eq!(ym.days_in_month(), days, "{ym}");
+        }
+    }
+
+    #[test]
+    fn test_period_adjacent_days() {
+        let d1 = NaiveDate::from_ymd_opt(2026, 10, 14).unwrap();
+        let d2 = NaiveDate::from_ymd_opt(2026, 10, 15).unwrap();
+        assert!(Period::new(d1, d2).is_ok());
+        assert_eq!(
+            Period::new(d2, d1),
+            Err(PeriodError::StartAfterEnd { start: d2, end: d1 })
+        );
+    }
+
+    #[test]
+    fn test_period_year_leap() {
+        let p = Period::year(2024);
+        assert_eq!(p.start(), NaiveDate::from_ymd_opt(2024, 1, 1).unwrap());
+        assert_eq!(p.end(), NaiveDate::from_ymd_opt(2024, 12, 31).unwrap());
+        assert_eq!(p.months().len(), 12);
+    }
 }
