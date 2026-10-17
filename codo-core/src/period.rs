@@ -14,6 +14,7 @@ pub struct YearMonth {
 }
 
 impl YearMonth {
+    /// 月が1から12以外なら `InvalidMonth`
     pub fn new(year: i32, month: u32) -> Result<Self, PeriodError> {
         if !(1..=12).contains(&month) {
             return Err(PeriodError::InvalidMonth(month));
@@ -21,7 +22,7 @@ impl YearMonth {
         Ok(Self { year, month })
     }
 
-    /// 年月をインポート
+    /// 日付が属する年月
     pub fn from_date(date: NaiveDate) -> Self {
         Self {
             year: date.year(),
@@ -29,25 +30,24 @@ impl YearMonth {
         }
     }
 
-    /// 年を取得
+    /// 年
     pub fn year(&self) -> i32 {
         self.year
     }
 
-    /// 月を取得 (1〜12)
+    /// 月 (1から12)
     pub fn month(&self) -> u32 {
         self.month
     }
 
-    /// 月の初めの日
+    /// 月の初日
     pub fn first_day(&self) -> NaiveDate {
         NaiveDate::from_ymd_opt(self.year, self.month, 1)
             .expect("Year and month in YearMonth are always valid")
     }
 
-    /// 末日を含む（翌月の前日として取得）
+    /// 月の末日．末日を含む
     pub fn last_day(&self) -> NaiveDate {
-        // 翌月1日の前日として末日を取得（閏年の手動判定を回避）
         self.next()
             .first_day()
             .pred_opt()
@@ -59,7 +59,7 @@ impl YearMonth {
         self.last_day().day()
     }
 
-    /// 前月，来月
+    /// 翌月．12月なら翌年1月
     pub fn next(&self) -> Self {
         if self.month == 12 {
             Self {
@@ -74,6 +74,7 @@ impl YearMonth {
         }
     }
 
+    /// 前月．1月なら前年12月
     pub fn prev(&self) -> Self {
         if self.month == 1 {
             Self {
@@ -88,14 +89,14 @@ impl YearMonth {
         }
     }
 
-    /// 年月の一致の確認
+    /// 日付がこの年月に属するか
     pub fn contains(&self, date: NaiveDate) -> bool {
         date.year() == self.year && date.month() == self.month
     }
 }
 
-/// 2026-12のようなフォーマット化
 impl fmt::Display for YearMonth {
+    /// `2026-12` のように，月をゼロ埋め2桁で書く
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{:04}-{:02}", self.year, self.month)
     }
@@ -109,6 +110,7 @@ pub struct Period {
 }
 
 impl Period {
+    /// `end < start` なら `StartAfterEnd`．`start == end` は1日だけの期間
     pub fn new(start: NaiveDate, end: NaiveDate) -> Result<Self, PeriodError> {
         if end < start {
             return Err(PeriodError::StartAfterEnd { start, end });
@@ -116,7 +118,7 @@ impl Period {
         Ok(Self { start, end })
     }
 
-    /// 月全体，年全体の構築
+    /// 月の1日から末日までの期間
     pub fn month(ym: YearMonth) -> Self {
         Self {
             start: ym.first_day(),
@@ -124,28 +126,32 @@ impl Period {
         }
     }
 
+    /// 1月1日から12月31日までの期間
     pub fn year(year: i32) -> Self {
-        let start = YearMonth::new(year, 1).unwrap().first_day();
-        let end = YearMonth::new(year, 12).unwrap().last_day();
-        Self { start, end }
+        let jan = YearMonth::new(year, 1).expect("1 is a valid month");
+        let dec = YearMonth::new(year, 12).expect("12 is a valid month");
+        Self {
+            start: jan.first_day(),
+            end: dec.last_day(),
+        }
     }
 
-    /// 開始日を取得
+    /// 開始日
     pub fn start(&self) -> NaiveDate {
         self.start
     }
 
-    /// 終了日を取得
+    /// 終了日
     pub fn end(&self) -> NaiveDate {
         self.end
     }
 
-    /// 日付の確認
+    /// 日付が期間内か．`start` と `end` を含む
     pub fn contains(&self, date: NaiveDate) -> bool {
         self.start <= date && date <= self.end
     }
 
-    /// 期間内の年月の列挙
+    /// 期間に含まれる年月を古い順に返す
     pub fn months(&self) -> Vec<YearMonth> {
         let start_ym = YearMonth::from_date(self.start);
         let end_ym = YearMonth::from_date(self.end);
@@ -183,7 +189,6 @@ mod tests {
 
     #[test]
     fn test_leap_year_days() {
-        // 閏年 (2024-02 は 29日)
         let ym_leap = YearMonth::new(2024, 2).unwrap();
         assert_eq!(ym_leap.days_in_month(), 29);
         assert_eq!(
@@ -191,7 +196,6 @@ mod tests {
             NaiveDate::from_ymd_opt(2024, 2, 29).unwrap()
         );
 
-        // 平年 (2026-02 は 28日)
         let ym_normal = YearMonth::new(2026, 2).unwrap();
         assert_eq!(ym_normal.days_in_month(), 28);
         assert_eq!(
@@ -202,7 +206,6 @@ mod tests {
 
     #[test]
     fn test_year_boundary_next_prev() {
-        // 年またぎの next / prev
         let ym_dec = YearMonth::new(2026, 12).unwrap();
         assert_eq!(ym_dec.next(), YearMonth::new(2027, 1).unwrap());
 
@@ -221,7 +224,6 @@ mod tests {
         let d1 = NaiveDate::from_ymd_opt(2026, 10, 1).unwrap();
         let d2 = NaiveDate::from_ymd_opt(2026, 10, 31).unwrap();
 
-        // start > end のエラーテスト
         assert_eq!(
             Period::new(d2, d1),
             Err(PeriodError::StartAfterEnd { start: d2, end: d1 })
@@ -239,7 +241,6 @@ mod tests {
 
     #[test]
     fn test_period_months_with_year_boundary() {
-        // 2026-11-15 .. 2027-01-10 の年またぎ期間における月一覧の算出
         let start = NaiveDate::from_ymd_opt(2026, 11, 15).unwrap();
         let end = NaiveDate::from_ymd_opt(2027, 1, 10).unwrap();
         let period = Period::new(start, end).unwrap();
@@ -254,7 +255,6 @@ mod tests {
 
     #[test]
     fn test_period_constructors_month_and_year() {
-        // Period::month のテスト
         let ym = YearMonth::new(2026, 10).unwrap();
         let p_month = Period::month(ym);
         assert_eq!(
@@ -266,7 +266,6 @@ mod tests {
             NaiveDate::from_ymd_opt(2026, 10, 31).unwrap()
         );
 
-        // Period::year のテスト
         let p_year = Period::year(2026);
         assert_eq!(p_year.start(), NaiveDate::from_ymd_opt(2026, 1, 1).unwrap());
         assert_eq!(p_year.end(), NaiveDate::from_ymd_opt(2026, 12, 31).unwrap());
@@ -278,7 +277,6 @@ mod tests {
         let ym = YearMonth::from_date(date);
         assert_eq!(ym, YearMonth::new(2026, 10).unwrap());
 
-        // contains のテスト
         assert!(ym.contains(date));
         assert!(ym.contains(NaiveDate::from_ymd_opt(2026, 10, 1).unwrap()));
         assert!(ym.contains(NaiveDate::from_ymd_opt(2026, 10, 31).unwrap()));
@@ -288,7 +286,6 @@ mod tests {
 
     #[test]
     fn test_non_december_next_prev() {
-        // 12月以外（例: 3月）の next / prev
         let ym = YearMonth::new(2026, 3).unwrap();
         assert_eq!(ym.next(), YearMonth::new(2026, 4).unwrap());
         assert_eq!(ym.prev(), YearMonth::new(2026, 2).unwrap());
@@ -296,7 +293,6 @@ mod tests {
 
     #[test]
     fn test_single_day_period() {
-        // start == end の1日だけの期間
         let d = NaiveDate::from_ymd_opt(2026, 10, 15).unwrap();
         let period = Period::new(d, d).unwrap();
         assert!(period.contains(d));
@@ -305,7 +301,6 @@ mod tests {
 
     #[test]
     fn test_same_month_period_months() {
-        // 同じ月に収まる期間の months()
         let start = NaiveDate::from_ymd_opt(2026, 10, 5).unwrap();
         let end = NaiveDate::from_ymd_opt(2026, 10, 20).unwrap();
         let period = Period::new(start, end).unwrap();
@@ -314,7 +309,6 @@ mod tests {
 
     #[test]
     fn test_various_months_last_day() {
-        // 12月以外の月（30日までの月＝4月、31日までの月＝5月）の last_day
         let ym_apr = YearMonth::new(2026, 4).unwrap();
         assert_eq!(ym_apr.days_in_month(), 30);
         assert_eq!(
