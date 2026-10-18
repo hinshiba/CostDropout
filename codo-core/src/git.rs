@@ -5,7 +5,7 @@ use thiserror::Error;
 
 /// Gitコマンドを生成する。
 /// 指定したパスを使い、リポジトリを切り替える環境変数を除去する。
-fn git_command(path: &Path) -> Command {
+pub(crate) fn git_command(path: &Path) -> Command {
     let mut command = Command::new("git");
 
     command
@@ -48,6 +48,11 @@ impl GitRepo {
         }
 
         Ok(GitRepo { path })
+    }
+
+    /// Gitリポジトリのパスを参照として返す。
+    pub(crate) fn path(&self) -> &Path {
+        &self.path
     }
 
     /// 指定されたパスにGitリポジトリを初期化する。
