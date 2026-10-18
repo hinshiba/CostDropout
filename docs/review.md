@@ -16,7 +16,7 @@
 ## テスト
 
 - 条件を1つ壊してもテストが全部通る分岐がないか
-  - `cargo mutants --in-diff`
+  - CI の mutants ジョブが PR の差分について調べる．手元では `git diff origin/main... > pr.diff` のあと `cargo mutants --in-diff pr.diff`
 - 失敗する場合だけでなく成功する場合もテストしているか
 - 失敗したとき状態が変わっていないことを確かめているか
 - エラーは種類だけでなく保持する値も確かめているか

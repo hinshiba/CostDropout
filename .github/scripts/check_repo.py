@@ -47,6 +47,7 @@ def dependency_errors() -> Iterator[str]:
     for manifest in tracked("**Cargo.toml"):
         data = tomllib.loads(manifest.read_text(encoding="utf-8"))
         tables = [data.get(t, {}) for t in DEP_TABLES]
+        tables += [cfg.get(t, {}) for cfg in data.get("target", {}).values() for t in DEP_TABLES]
         tables.append(data.get("workspace", {}).get("dependencies", {}))
         for table in tables:
             for name, spec in table.items():
