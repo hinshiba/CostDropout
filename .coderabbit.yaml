@@ -1,0 +1,29 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+language: ja-JP
+
+knowledge_base:
+  code_guidelines:
+    enabled: true
+    filePatterns:
+      - docs/coding.md
+      - CONTRIBUTING.md
+      - docs/design.md
+      - docs/review.md
+
+reviews:
+  profile: assertive
+  poem: false
+  pre_merge_checks:
+    # 閉じる Issue と変更内容が食い違う PR を失敗として示す．
+    # request_changes_workflow は全指摘で変更要求になるので使わず，マージ可否はレビュアーが判断する
+    issue_assessment:
+      mode: error
+    docstrings:
+      mode: "off"
+  path_instructions:
+    - path: "**/*.rs"
+      instructions: |
+        規約ファイル
+        - docs/review.md
+        - docs/coding.md
+        cargo fmt，cargo clippy，.github/scripts/ の検査が検出するものは指摘しない．

@@ -4,6 +4,7 @@
 
 - 仕様: [docs/plan.md](docs/plan.md)
 - コーディング規約: [docs/coding.md](docs/coding.md)
+- レビュー観点: [docs/review.md](docs/review.md)
 
 ## 作業の流れ
 
@@ -87,6 +88,7 @@ chrono = "0.4"       # v1未満なのにパッチがない
 `cargo add` はパッチまで書き込むため，v1 以上のクレートは手動でマイナーまでに直してください．
 
 `Cargo.lock` はコミットに含めます．
+`Cargo.toml` を変えずに `Cargo.lock` だけを変えるのは `chore/` ブランチでの依存関係の更新に限ります．PR lint が検出します．
 
 
 ## PR
