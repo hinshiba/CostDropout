@@ -23,6 +23,11 @@ pub enum Page {
 
 /// 画面の管理
 pub struct App {
+    // 今後の開発でledgerを更新するための布石：：開発者は#[allow(dead_code)]を削除すること
+    // また，実験で，ある一画面がAppStateを変更したら，他の画面描画されると確認済み
+    #[allow(dead_code)]
+    state: Entity<AppState>,
+
     transaction_form: Entity<TransactionForm>,
     transaction_list: Entity<TransactionList>,
     items: Entity<Items>,
@@ -42,6 +47,7 @@ impl App {
         let items = cx.new(|_| Items::new(state.clone()));
 
         Self {
+            state,
             transaction_form,
             transaction_list,
             items,
@@ -50,10 +56,12 @@ impl App {
         }
     }
 
+    /// 開いているページを見る
     fn show_page(&mut self, page: Page) {
         self.page = page;
     }
 
+    /// サイドバーの開閉を操作
     fn toggle_sidebar(&mut self) {
         self.sidebar_open = !self.sidebar_open;
     }

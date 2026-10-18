@@ -15,8 +15,14 @@ impl TransactionForm {
     }
 }
 
+// 画面開発者は自由に変更してよい
 impl Render for TransactionForm {
-    fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let state = self.state.read(cx);
+
+        let _ledger = &state.ledger;
+
+        // 実際の取引フォーム表示
         div()
             .size_full()
             .flex()
@@ -25,6 +31,6 @@ impl Render for TransactionForm {
             .items_center()
             .text_xl()
             .text_color(rgb(0xffffff))
-            .child(format!("取引入力"))
+            .child("取引入力")
     }
 }

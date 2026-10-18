@@ -1,7 +1,6 @@
 //! 品目管理表示画面
 
 use crate::app::AppState;
-use crate::item::Item;
 use gpui_kit::*;
 
 // 品目画面
@@ -16,10 +15,14 @@ impl Items {
     }
 }
 
+// 画面開発者は自由に変更してよい
 impl Render for Items {
-    fn render(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
-        let item_count = self.state.read(cx).ledger.items().iter();
+    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let state = self.state.read(cx);
 
+        let _ledger = &state.ledger;
+
+        // 実際の品目画面表示
         div()
             .flex()
             .bg(rgb(0x2e7d32))
@@ -28,6 +31,6 @@ impl Render for Items {
             .items_center()
             .text_xl()
             .text_color(rgb(0xffffff))
-            .child(format!("品目"))
+            .child("品目")
     }
 }
