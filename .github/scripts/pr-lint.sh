@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# PR のタイトル，ブランチ名，リンクした Issue，Cargo.lock の差分を CONTRIBUTING.md の規則に照らす
+# PR のブランチ名，コミット，リンクした Issue，Cargo.lock の差分を CONTRIBUTING.md の規則に照らす
 set -euo pipefail
 
 prefixes='feat|fix|doc|refactor|test|style|chore'
@@ -9,11 +9,6 @@ fail() {
   echo "::error::$1"
   status=1
 }
-
-title=$(gh pr view "$PR_NUMBER" --json title --jq .title)
-if ! grep -qE "^($prefixes): \S" <<<"$title"; then
-  fail "PR タイトル '$title' が '<prefix>: <要約>' の形式ではありません．prefix は CONTRIBUTING.md を参照"
-fi
 
 # agent/ は AGENTS.md でエージェントの作業ブランチに使う．
 # ブランチ名は PR を作り直さないと直せないので警告に留める
@@ -27,19 +22,24 @@ while read -r subject; do
   fi
 done < <(gh pr view "$PR_NUMBER" --json commits --jq '.commits[].messageHeadline')
 
+# Issue のない PR も認める (PR テンプレート)．書いたつもりで無効になっている場合に気づけるよう警告は出す
 issues=$(gh pr view "$PR_NUMBER" --json closingIssuesReferences --jq '.closingIssuesReferences[].number')
-if [ -z "$issues" ] && ! grep -qE '^(doc|chore|style): ' <<<"$title"; then
-  fail "閉じる Issue がリンクされていません．本文に 'Closes #番号' を書いてください．HTML コメントの中や 'Closes #1,#2' の2つ目以降は無効です"
+if [ -z "$issues" ]; then
+  echo "::warning::閉じる Issue がありません．Issue に対応する PR なら本文に 'Closes #番号' を書いてください．HTML コメントの中や 'Closes #1,#2' の2つ目以降は無効です"
 fi
 
 {
   echo "### この PR が閉じる Issue"
   echo
-  echo "変更内容と一致しているか確認してください．"
-  echo
-  for n in $issues; do
-    echo "- #$n $(gh issue view "$n" --json title --jq .title)"
-  done
+  if [ -z "$issues" ]; then
+    echo "なし"
+  else
+    echo "変更内容と一致しているか確認してください．"
+    echo
+    for n in $issues; do
+      echo "- #$n $(gh issue view "$n" --json title --jq .title)"
+    done
+  fi
 } >>"$GITHUB_STEP_SUMMARY"
 
 files=$(gh pr view "$PR_NUMBER" --json files --jq '.files[].path')
