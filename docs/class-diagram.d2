@@ -1,0 +1,252 @@
+# CostDropout の完成形のクラス図(UML)
+#
+# 出典: docs/plan.md，docs/design.md，Issue #1 から #32 の仕様．未実装の型も含む
+#
+# 記法
+# - 属性と操作の区画は省略し，クラス名だけを描く
+# - どの関係も依存する側を辺の始点に書き，ELK の direction: down で依存する側を上に置く
+# - 関係
+#   - 実現(trait の impl): 破線 + 白抜き三角．impl する側が上
+#   - コンポジション(値として所有): 黒菱形が全体側で，全体が上．部分側の矢印は誘導可能性
+#   - 誘導可能な関連(Entity などの共有参照): 実線 + 矢印
+#   - 依存: 破線 + 矢印．«create» は生成，«use» は利用
+#   - D2 には開いた矢じりが無いので，関連と依存の矢じりは塗りの arrow で代用する
+# - «dataType» と «enumeration» への関連は，帳簿の実体(Item，Transaction，TransactionDraft，Budget)と GUI の状態からだけ描く
+# - モジュール単位のパッケージは描かない．book と git，budget と report が相互に依存し，上下に並べられないため
+# - ステレオタイプ
+#   - «interface»: Rust の trait
+#   - «dataType»: Copy な値型．値で同一性が決まる
+#   - «enumeration»: データを持たない enum
+#   - «variant»: データを持つ enum(UML に直和型が無いので独自に定義する)
+#   - «utility»: モジュールの自由関数．名前はモジュールのパス
+
+vars: {
+  d2-config: {
+    layout-engine: elk
+  }
+}
+
+direction: down
+
+classes: {
+  realize: {
+    style.stroke-dash: 4
+    target-arrowhead: {
+      shape: triangle
+      style.filled: false
+    }
+  }
+  compose: {
+    source-arrowhead: {
+      shape: diamond
+      style.filled: true
+    }
+    target-arrowhead.shape: arrow
+  }
+  assoc: {
+    target-arrowhead.shape: arrow
+  }
+  dep: {
+    style.stroke-dash: 4
+    target-arrowhead.shape: arrow
+  }
+}
+
+gui: codo-gui {
+  AppState: {shape: class}
+  RootView: {shape: class}
+  Page: "«enumeration»\nPage" {shape: class}
+  TransactionFields: {shape: class}
+  DashboardPage: {shape: class}
+  TransactionFormPage: {shape: class}
+  TransactionListPage: {shape: class}
+  ItemsPage: {shape: class}
+  BudgetSettingsPage: {shape: class}
+  ExpensePiePage: {shape: class}
+  ItemTrendPage: {shape: class}
+  PeriodTrendPage: {shape: class}
+  TrendMode: "«enumeration»\nTrendMode" {shape: class}
+  MonthlySummaryPage: {shape: class}
+  ExpenseCalendarPage: {shape: class}
+  AuditPage: {shape: class}
+}
+
+gpui: gpui (external) {
+  Render: "«interface»\nRender" {shape: class}
+}
+
+core: codo-core {
+  Book: {shape: class}
+  History: "«interface»\nHistory" {shape: class}
+  SyncOutcome: "«enumeration»\nSyncOutcome" {shape: class}
+  BookError: "«variant»\nBookError" {shape: class}
+
+  LedgerStore: "«interface»\nLedgerStore" {shape: class}
+  TomlStore: {shape: class}
+  MemoryStore: {shape: class}
+  StorageError: "«variant»\nStorageError" {shape: class}
+
+  GitRepo: {shape: class}
+  GitError: "«variant»\nGitError" {shape: class}
+
+  audit: "«utility»\naudit" {shape: class}
+  CommitInfo: {shape: class}
+
+  report: "«utility»\nreport" {shape: class}
+  Flow: "«enumeration»\nFlow" {shape: class}
+  category: "«utility»\nreport::category" {shape: class}
+  ItemExpense: {shape: class}
+  trend: "«utility»\nreport::trend" {shape: class}
+  monthly: "«utility»\nreport::monthly" {shape: class}
+  MonthlySummary: {shape: class}
+  DailySummary: {shape: class}
+
+  budget_fns: "«utility»\nbudget" {shape: class}
+  BudgetStatus: {shape: class}
+
+  Ledger: {shape: class}
+  LedgerError: "«variant»\nLedgerError" {shape: class}
+  preset: "«utility»\npreset" {shape: class}
+
+  ItemList: {shape: class}
+  Item: {shape: class}
+  ItemError: "«variant»\nItemError" {shape: class}
+  ItemId: "«dataType»\nItemId" {shape: class}
+  Tag: "«enumeration»\nTag" {shape: class}
+
+  TransactionList: {shape: class}
+  Transaction: {shape: class}
+  TransactionDraft: {shape: class}
+  TransactionError: "«variant»\nTransactionError" {shape: class}
+  TransactionId: "«dataType»\nTransactionId" {shape: class}
+
+  BudgetList: {shape: class}
+  Budget: {shape: class}
+  BudgetError: "«variant»\nBudgetError" {shape: class}
+  BudgetId: "«dataType»\nBudgetId" {shape: class}
+
+  Money: "«dataType»\nMoney" {shape: class}
+  MoneyError: "«variant»\nMoneyError" {shape: class}
+  YearMonth: "«dataType»\nYearMonth" {shape: class}
+  Period: "«dataType»\nPeriod" {shape: class}
+  PeriodError: "«variant»\nPeriodError" {shape: class}
+}
+
+# codo-gui
+gui.RootView -> gui.AppState: {class: assoc; target-arrowhead.label: "1"}
+gui.RootView -> gpui.Render: {class: assoc; target-arrowhead.label: "1"}
+gui.RootView -> gpui.Render: {class: realize}
+gui.RootView <-> gui.Page: {class: compose; source-arrowhead.label: "1"; target-arrowhead.label: "1"}
+gui.AppState <-> core.Book: {class: compose; source-arrowhead.label: "1"; target-arrowhead.label: "1"}
+
+gui.TransactionFormPage <-> gui.TransactionFields: {class: compose; source-arrowhead.label: "1"; target-arrowhead.label: "1"}
+gui.TransactionListPage <-> gui.TransactionFields: {class: compose; source-arrowhead.label: "1"; target-arrowhead.label: "0..1"}
+gui.PeriodTrendPage <-> gui.TrendMode: {class: compose; source-arrowhead.label: "1"; target-arrowhead.label: "1"}
+gui.AuditPage -> core.CommitInfo: {class: assoc; target-arrowhead.label: "0..*"}
+
+gui.DashboardPage -> gui.AppState: {class: assoc; target-arrowhead.label: "1"}
+gui.TransactionFormPage -> gui.AppState: {class: assoc; target-arrowhead.label: "1"}
+gui.TransactionListPage -> gui.AppState: {class: assoc; target-arrowhead.label: "1"}
+gui.ItemsPage -> gui.AppState: {class: assoc; target-arrowhead.label: "1"}
+gui.BudgetSettingsPage -> gui.AppState: {class: assoc; target-arrowhead.label: "1"}
+gui.ExpensePiePage -> gui.AppState: {class: assoc; target-arrowhead.label: "1"}
+gui.ItemTrendPage -> gui.AppState: {class: assoc; target-arrowhead.label: "1"}
+gui.PeriodTrendPage -> gui.AppState: {class: assoc; target-arrowhead.label: "1"}
+gui.MonthlySummaryPage -> gui.AppState: {class: assoc; target-arrowhead.label: "1"}
+gui.ExpenseCalendarPage -> gui.AppState: {class: assoc; target-arrowhead.label: "1"}
+gui.AuditPage -> gui.AppState: {class: assoc; target-arrowhead.label: "1"}
+
+gui.DashboardPage -> gpui.Render: {class: realize}
+gui.TransactionFormPage -> gpui.Render: {class: realize}
+gui.TransactionListPage -> gpui.Render: {class: realize}
+gui.ItemsPage -> gpui.Render: {class: realize}
+gui.BudgetSettingsPage -> gpui.Render: {class: realize}
+gui.ExpensePiePage -> gpui.Render: {class: realize}
+gui.ItemTrendPage -> gpui.Render: {class: realize}
+gui.PeriodTrendPage -> gpui.Render: {class: realize}
+gui.MonthlySummaryPage -> gpui.Render: {class: realize}
+gui.ExpenseCalendarPage -> gpui.Render: {class: realize}
+gui.AuditPage -> gpui.Render: {class: realize}
+
+gui.TransactionFields -> core.TransactionDraft: «create» {class: dep}
+gui.DashboardPage -> core.budget_fns: «use» {class: dep}
+gui.ExpensePiePage -> core.category: «use» {class: dep}
+gui.ItemTrendPage -> core.trend: «use» {class: dep}
+gui.PeriodTrendPage -> core.trend: «use» {class: dep}
+gui.MonthlySummaryPage -> core.monthly: «use» {class: dep}
+gui.ExpenseCalendarPage -> core.monthly: «use» {class: dep}
+gui.AuditPage -> core.audit: «use» {class: dep}
+
+# codo-core: 帳簿と保存
+core.Book <-> core.Ledger: {class: compose; source-arrowhead.label: "1"; target-arrowhead.label: "1"}
+core.Book <-> core.LedgerStore: {class: compose; source-arrowhead.label: "1"; target-arrowhead.label: "1"}
+core.Book <-> core.History: {class: compose; source-arrowhead.label: "1"; target-arrowhead.label: "1"}
+core.Book -> core.TomlStore: «create» {class: dep}
+core.Book -> core.GitRepo: «create» {class: dep}
+core.Book -> core.SyncOutcome: «create» {class: dep}
+core.Book -> core.BookError: «create» {class: dep}
+core.BookError <-> core.StorageError: {class: compose; source-arrowhead.label: "1"; target-arrowhead.label: "0..1"}
+core.BookError <-> core.GitError: {class: compose; source-arrowhead.label: "1"; target-arrowhead.label: "0..1"}
+
+core.TomlStore -> core.LedgerStore: {class: realize}
+core.MemoryStore -> core.LedgerStore: {class: realize}
+core.MemoryStore <-> core.Ledger: {class: compose; source-arrowhead.label: "1"; target-arrowhead.label: "0..1"}
+core.LedgerStore -> core.Ledger: «use» {class: dep}
+core.LedgerStore -> core.StorageError: «create» {class: dep}
+
+core.GitRepo -> core.History: {class: realize}
+core.GitRepo -> core.GitError: «create» {class: dep}
+core.History -> core.GitError: «use» {class: dep}
+
+core.audit -> core.GitRepo: «use» {class: dep}
+core.audit -> core.CommitInfo: «create» {class: dep}
+
+# codo-core: 集計
+core.report -> core.Ledger: «use» {class: dep}
+core.report -> core.Flow: «create» {class: dep}
+core.category -> core.report: «use» {class: dep}
+core.category -> core.ItemExpense: «create» {class: dep}
+core.trend -> core.report: «use» {class: dep}
+core.monthly -> core.report: «use» {class: dep}
+core.monthly -> core.MonthlySummary: «create» {class: dep}
+core.MonthlySummary <-> core.DailySummary: {class: compose; source-arrowhead.label: "1"; target-arrowhead.label: "28..31"}
+core.budget_fns -> core.report: «use» {class: dep}
+core.budget_fns -> core.BudgetStatus: «create» {class: dep}
+core.BudgetStatus <-> core.Budget: {class: compose; source-arrowhead.label: "1"; target-arrowhead.label: "1"}
+
+# codo-core: 帳簿の中身
+core.Ledger <-> core.ItemList: {class: compose; source-arrowhead.label: "1"; target-arrowhead.label: "1"}
+core.Ledger <-> core.TransactionList: {class: compose; source-arrowhead.label: "1"; target-arrowhead.label: "1"}
+core.Ledger <-> core.BudgetList: {class: compose; source-arrowhead.label: "1"; target-arrowhead.label: "1"}
+core.Ledger -> core.preset: «use» {class: dep}
+core.Ledger -> core.TransactionDraft: «use» {class: dep}
+core.Ledger -> core.LedgerError: «create» {class: dep}
+core.LedgerError <-> core.ItemError: {class: compose; source-arrowhead.label: "1"; target-arrowhead.label: "0..1"}
+core.LedgerError <-> core.TransactionError: {class: compose; source-arrowhead.label: "1"; target-arrowhead.label: "0..1"}
+core.LedgerError <-> core.BudgetError: {class: compose; source-arrowhead.label: "1"; target-arrowhead.label: "0..1"}
+core.preset -> core.Item: «create» {class: dep}
+
+core.ItemList <-> core.Item: {class: compose; source-arrowhead.label: "1"; target-arrowhead.label: "0..*"}
+core.ItemList -> core.ItemError: «create» {class: dep}
+core.Item <-> core.ItemId: {class: compose; source-arrowhead.label: "1"; target-arrowhead.label: "1"}
+core.Item <-> core.Tag: {class: compose; source-arrowhead.label: "1"; target-arrowhead.label: "1"}
+
+core.TransactionList <-> core.Transaction: {class: compose; source-arrowhead.label: "1"; target-arrowhead.label: "0..*"}
+core.TransactionList -> core.TransactionDraft: «use» {class: dep}
+core.TransactionList -> core.TransactionError: «create» {class: dep}
+core.Transaction <-> core.TransactionId: {class: compose; source-arrowhead.label: "1"; target-arrowhead.label: "1"}
+core.Transaction <-> core.Money: {class: compose; source-arrowhead.label: "1"; target-arrowhead.label: "1"}
+core.Transaction <-> core.ItemId: {class: compose; source-arrowhead.label: "1"; target-arrowhead.label: "2"}
+core.TransactionDraft <-> core.Money: {class: compose; source-arrowhead.label: "1"; target-arrowhead.label: "1"}
+core.TransactionDraft <-> core.ItemId: {class: compose; source-arrowhead.label: "1"; target-arrowhead.label: "2"}
+
+core.BudgetList <-> core.Budget: {class: compose; source-arrowhead.label: "1"; target-arrowhead.label: "0..*"}
+core.BudgetList -> core.BudgetError: «create» {class: dep}
+core.Budget <-> core.BudgetId: {class: compose; source-arrowhead.label: "1"; target-arrowhead.label: "1"}
+core.Budget <-> core.Money: {class: compose; source-arrowhead.label: "1"; target-arrowhead.label: "1"}
+core.Budget <-> core.Period: {class: compose; source-arrowhead.label: "1"; target-arrowhead.label: "1"}
+
+core.Money -> core.MoneyError: «create» {class: dep}
+core.Period -> core.YearMonth: «use» {class: dep}
+core.Period -> core.PeriodError: «create» {class: dep}
+core.YearMonth -> core.PeriodError: «create» {class: dep}
