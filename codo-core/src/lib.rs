@@ -2,6 +2,7 @@
 
 pub mod git;
 pub mod item;
+pub mod ledger;
 pub mod money;
 pub mod period;
 pub mod preset;
