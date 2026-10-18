@@ -20,6 +20,7 @@ overflow したときに黙って誤った額にしない．i32 の上限は約2
 `Display` は `¥` と3桁区切りで表示する．負の値は符号を通貨記号より前に置く．
 
 根拠: Unicode CLDR の ja ロケールの通貨書式は `¤#,##0.00` で，負の書式を別に持たないため先頭に `-` を付けた `-¤#,##0.00` になる．JPY の小数桁は 0 なので `-¥1,234` となる．
+ただし記号は CLDR に従わない．CLDR の ja は JPY の記号を U+FFE5 とするが，この仕様は U+00A5 を使う．
 
 - <https://github.com/unicode-org/cldr-json/blob/main/cldr-json/cldr-numbers-full/main/ja/numbers.json>
 - <https://unicode.org/reports/tr35/tr35-numbers.html#Number_Format_Patterns>
