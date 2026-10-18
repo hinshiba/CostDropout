@@ -4,6 +4,7 @@
 
 - 仕様: [docs/plan.md](docs/plan.md)
 - コーディング規約: [docs/coding.md](docs/coding.md)
+- レビュー観点: [docs/review.md](docs/review.md)
 
 ## 作業の流れ
 
