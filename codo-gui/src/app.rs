@@ -1,4 +1,5 @@
-//! 画面切り替え
+//! 画面切り替えと共有画面の作成
+
 use crate::pages::{
     items::Items, transaction_form::TransactionForm, transaction_list::TransactionList,
 };
@@ -7,9 +8,11 @@ use gpui_kit::component::button::Button;
 use gpui_kit::prelude::FluentBuilder;
 use gpui_kit::*;
 
+/// ledgerの共有
 pub struct AppState {
     pub ledger: Ledger,
 }
+
 /// 現在の画面のenum
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Page {
@@ -18,8 +21,8 @@ pub enum Page {
     Items,
 }
 
+/// 画面の管理
 pub struct App {
-    state: Entity<AppState>,
     transaction_form: Entity<TransactionForm>,
     transaction_list: Entity<TransactionList>,
     items: Entity<Items>,
@@ -39,7 +42,6 @@ impl App {
         let items = cx.new(|_| Items::new(state.clone()));
 
         Self {
-            state,
             transaction_form,
             transaction_list,
             items,
@@ -58,12 +60,13 @@ impl App {
 }
 
 impl Render for App {
+    /// 画面表示の処理
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         div()
             .size_full()
             .flex()
             .child(
-                // 上側：画面切り替えバー
+                // サイドバーを作る
                 div()
                     .w(px(if self.sidebar_open { 200.0 } else { 70.0 }))
                     .h_full()
@@ -99,8 +102,9 @@ impl Render for App {
                             )))
                     }),
             )
+            // メイン画面
             .child(div().flex_1().h_full().child(
-                // 下側：選択された画面
+                // 画面選択
                 div().flex_1().child(match self.page {
                     Page::TransactionForm => div().child(self.transaction_form.clone()),
                     Page::TransactionList => div().child(self.transaction_list.clone()),

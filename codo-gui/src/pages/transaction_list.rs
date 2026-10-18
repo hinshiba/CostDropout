@@ -1,6 +1,11 @@
+//! 取引リスト表示画面
+
 use crate::app::AppState;
 use gpui_kit::*;
+
+// 取引リスト画面
 pub struct TransactionList {
+    // 共有されているAppState
     state: Entity<AppState>,
 }
 
@@ -11,7 +16,6 @@ impl TransactionList {
 }
 
 impl Render for TransactionList {
-    /// TransactionListを画面に表示する
     fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
         div()
             .size_full()
