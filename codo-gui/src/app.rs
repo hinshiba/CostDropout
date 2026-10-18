@@ -57,13 +57,15 @@ impl App {
     }
 
     /// 開いているページを見る
-    fn show_page(&mut self, page: Page) {
+    fn show_page(&mut self, page: Page, cx: &mut Context<Self>) {
         self.page = page;
+        cx.notify();
     }
 
     /// サイドバーの開閉を操作
-    fn toggle_sidebar(&mut self) {
+    fn toggle_sidebar(&mut self, cx: &mut Context<Self>) {
         self.sidebar_open = !self.sidebar_open;
+        cx.notify();
     }
 }
 
@@ -87,25 +89,25 @@ impl Render for App {
                         Button::new("toggle-sidebar")
                             .label("☰")
                             .bg(rgb(0xafdfe4))
-                            .on_click(cx.listener(|app, _, _, _| {
-                                app.toggle_sidebar();
+                            .on_click(cx.listener(|app, _, _, cx| {
+                                app.toggle_sidebar(cx);
                             })),
                     )
                     .when(self.sidebar_open, |sidebar| {
                         sidebar
                             .child(Button::new("transaction-form").label("取引入力").on_click(
-                                cx.listener(|app, _, _, _| {
-                                    app.show_page(Page::TransactionForm);
+                                cx.listener(|app, _, _, cx| {
+                                    app.show_page(Page::TransactionForm, cx);
                                 }),
                             ))
                             .child(Button::new("transaction-list").label("取引一覧").on_click(
-                                cx.listener(|app, _, _, _| {
-                                    app.show_page(Page::TransactionList);
+                                cx.listener(|app, _, _, cx| {
+                                    app.show_page(Page::TransactionList, cx);
                                 }),
                             ))
                             .child(Button::new("items").label("品目").on_click(cx.listener(
-                                |app, _, _, _| {
-                                    app.show_page(Page::Items);
+                                |app, _, _, cx| {
+                                    app.show_page(Page::Items, cx);
                                 },
                             )))
                     }),
