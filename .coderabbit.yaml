@@ -1,0 +1,26 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+language: ja-JP
+
+knowledge_base:
+  code_guidelines:
+    enabled: true
+    filePatterns:
+      - docs/coding.md
+      - CONTRIBUTING.md
+      - docs/design.md
+      - docs/review.md
+
+reviews:
+  profile: assertive
+  poem: false
+  pre_merge_checks:
+    # 閉じる Issue と変更内容が食い違う PR (#39 が #7 を閉じようとした例) を止める
+    issue_assessment:
+      mode: error
+  path_instructions:
+    - path: "**/*.rs"
+      instructions: |
+        規約ファイル
+        - docs/review.md
+        - docs/coding.md
+        cargo fmt，cargo clippy，.github/scripts/ の検査が検出するものは指摘しない．
