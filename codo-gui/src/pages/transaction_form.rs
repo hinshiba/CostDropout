@@ -3,7 +3,7 @@
 use crate::app::AppState;
 use gpui_kit::*;
 
-// 取引入力画面
+/// 取引入力画面
 pub struct TransactionForm {
     // 共有されているAppState
     state: Entity<AppState>,

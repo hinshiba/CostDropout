@@ -3,7 +3,7 @@
 use crate::app::AppState;
 use gpui_kit::*;
 
-// 取引リスト画面
+/// 取引リスト画面
 pub struct TransactionList {
     // 共有されているAppState
     state: Entity<AppState>,

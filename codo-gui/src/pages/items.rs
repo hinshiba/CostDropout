@@ -3,7 +3,7 @@
 use crate::app::AppState;
 use gpui_kit::*;
 
-// 品目画面
+/// 品目画面
 pub struct Items {
     // 共有されているAppState
     state: Entity<AppState>,

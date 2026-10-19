@@ -50,7 +50,7 @@ impl App {
         }
     }
 
-    /// 開いているページを見る
+    /// 開いているページを切り替える
     fn show_page(&mut self, page: Page, cx: &mut Context<Self>) {
         self.page = page;
         cx.notify();
