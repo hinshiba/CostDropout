@@ -5,7 +5,7 @@ use crate::pages::{
 };
 use codo_core::ledger::Ledger;
 use gpui_kit::component::button::Button;
-use gpui_kit::prelude::FluentBuilder;
+use gpui_kit::component::sidebar::{Sidebar, SidebarMenuItem};
 use gpui_kit::*;
 
 /// ledgerの共有
@@ -23,11 +23,6 @@ pub enum Page {
 
 /// 画面の管理
 pub struct App {
-    // 今後の開発でledgerを更新するための布石：：開発者は#[allow(dead_code)]を削除すること
-    // また，実験で，ある一画面がAppStateを変更したら，他の画面描画されると確認済み
-    #[allow(dead_code)]
-    state: Entity<AppState>,
-
     transaction_form: Entity<TransactionForm>,
     transaction_list: Entity<TransactionList>,
     items: Entity<Items>,
@@ -47,7 +42,6 @@ impl App {
         let items = cx.new(|_| Items::new(state.clone()));
 
         Self {
-            state,
             transaction_form,
             transaction_list,
             items,
@@ -72,45 +66,68 @@ impl App {
 impl Render for App {
     /// 画面表示の処理
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        // 自分自身のEntityを取得する
+        let app = cx.entity();
+
+        // 取引入力
+        let transaction_form = SidebarMenuItem::new("取引入力")
+            .active(self.page == Page::TransactionForm)
+            .on_click({
+                let app = app.clone();
+
+                move |_, _, cx| {
+                    app.update(cx, |app, cx| {
+                        app.show_page(Page::TransactionForm, cx);
+                    });
+                }
+            });
+
+        // 取引一覧
+        let transaction_list = SidebarMenuItem::new("取引一覧")
+            .active(self.page == Page::TransactionList)
+            .on_click({
+                let app = app.clone();
+
+                move |_, _, cx| {
+                    app.update(cx, |app, cx| {
+                        app.show_page(Page::TransactionList, cx);
+                    });
+                }
+            });
+
+        // 品目
+        let items = SidebarMenuItem::new("品目")
+            .active(self.page == Page::Items)
+            .on_click({
+                let app = app.clone();
+
+                move |_, _, cx| {
+                    app.update(cx, |app, cx| {
+                        app.show_page(Page::Items, cx);
+                    });
+                }
+            });
+
         div()
             .size_full()
             .flex()
+            // サイドバー
             .child(
-                // サイドバーを作る
-                div()
-                    .w(px(if self.sidebar_open { 200.0 } else { 70.0 }))
-                    .h_full()
-                    .flex()
-                    .flex_col()
-                    .p_4()
-                    .gap_4()
-                    .child(
-                        // サイドバー開閉ボタン
-                        Button::new("toggle-sidebar")
-                            .label("☰")
-                            .bg(rgb(0xafdfe4))
-                            .on_click(cx.listener(|app, _, _, cx| {
+                Sidebar::new("sidebar")
+                    .collapsed(!self.sidebar_open)
+                    .collapsible(true)
+                    .header(Button::new("toggle-sidebar").label("☰").on_click({
+                        let app = app.clone();
+
+                        move |_, _, cx| {
+                            app.update(cx, |app, cx| {
                                 app.toggle_sidebar(cx);
-                            })),
-                    )
-                    .when(self.sidebar_open, |sidebar| {
-                        sidebar
-                            .child(Button::new("transaction-form").label("取引入力").on_click(
-                                cx.listener(|app, _, _, cx| {
-                                    app.show_page(Page::TransactionForm, cx);
-                                }),
-                            ))
-                            .child(Button::new("transaction-list").label("取引一覧").on_click(
-                                cx.listener(|app, _, _, cx| {
-                                    app.show_page(Page::TransactionList, cx);
-                                }),
-                            ))
-                            .child(Button::new("items").label("品目").on_click(cx.listener(
-                                |app, _, _, cx| {
-                                    app.show_page(Page::Items, cx);
-                                },
-                            )))
-                    }),
+                            });
+                        }
+                    }))
+                    .child(transaction_form)
+                    .child(transaction_list)
+                    .child(items),
             )
             // メイン画面
             .child(div().flex_1().h_full().child(
