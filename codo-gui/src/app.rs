@@ -5,7 +5,7 @@ use crate::pages::{
 };
 use codo_core::ledger::Ledger;
 use gpui_kit::component::button::Button;
-use gpui_kit::component::sidebar::{Sidebar, SidebarMenuItem};
+use gpui_kit::component::sidebar::{Sidebar, SidebarMenu, SidebarMenuItem};
 use gpui_kit::*;
 
 /// ledgerの共有
@@ -125,9 +125,14 @@ impl Render for App {
                             });
                         }
                     }))
-                    .child(transaction_form)
-                    .child(transaction_list)
-                    .child(items),
+                    .child(
+                        SidebarMenu::new()
+                            .gap_4()
+                            .py_4()
+                            .child(transaction_form)
+                            .child(transaction_list)
+                            .child(items),
+                    ),
             )
             // メイン画面
             .child(div().flex_1().h_full().child(
