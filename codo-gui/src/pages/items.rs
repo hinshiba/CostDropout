@@ -4,7 +4,7 @@ use crate::app::AppState;
 use codo_core::item::{ItemId, Tag};
 use gpui_kit::component::button::Button;
 use gpui_kit::component::input::{Input, InputState};
-use gpui_kit::component::scroll::ScrollableElement;
+use gpui_kit::prelude::FluentBuilder;
 use gpui_kit::*;
 
 /// 品目画面
@@ -186,6 +186,11 @@ impl Render for Items {
                             // 見出し
                             .child(div().text_lg().child("品目の追加"))
                             .child(Input::new(&name_input))
+                            .child(
+                                div().when_some(self.error_message.clone(), |this, message| {
+                                    this.text_color(rgb(0xc62828)).child(message)
+                                }),
+                            )
                             // タグ選択欄
                             .child(div().flex().flex_row().gap_2().children(
                                 Tag::ALL_TAGS.into_iter().map(|tag| {
