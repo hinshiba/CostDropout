@@ -94,6 +94,10 @@ impl ItemList {
         Self { items: Vec::new() }
     }
 
+    pub fn iter(&self) -> impl Iterator<Item = &Item> {
+        self.items.iter()
+    }
+
     /// アプリ再起動時にファイルを復元する
     /// エラー検証はしない
     pub fn from_items(items: Vec<Item>) -> Self {
