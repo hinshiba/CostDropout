@@ -1,6 +1,7 @@
 //! 取引
 
 use chrono::NaiveDate;
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
 
@@ -10,10 +11,10 @@ use crate::money::Money;
 /// 取引 ID
 ///
 /// 別の月ファイルへ同時に追加されても衝突しないよう uuid を使う
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct TransactionId(Uuid);
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Transaction {
     id: TransactionId,
     date: NaiveDate,

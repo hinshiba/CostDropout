@@ -1,9 +1,10 @@
 //! 品目
 
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 /// 品目 ID(連番)
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct ItemId(u32);
 
 impl ItemId {
@@ -16,7 +17,8 @@ impl ItemId {
     }
 }
 /// 分類タグ
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum Tag {
     /// 資産
     Asset,
@@ -57,7 +59,7 @@ impl Tag {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Item {
     id: ItemId,
     name: String,
@@ -83,7 +85,7 @@ impl Item {
 }
 
 /// 品目の一覧
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ItemList {
     items: Vec<Item>,
 }
