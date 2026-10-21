@@ -233,8 +233,8 @@ impl Render for Items {
         };
         let item_form_height = px(120.);
         let page_title_height = px(32.);
-        let item_list_height = (window.viewport_size().height - item_form_height - page_title_height)
-            .max(px(0.));
+        let item_list_height =
+            (window.viewport_size().height - item_form_height - page_title_height).max(px(0.));
 
         let mut item_sections = Vec::with_capacity(item_groups.len());
         for (tag, items) in item_groups {
