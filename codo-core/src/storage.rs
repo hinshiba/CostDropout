@@ -51,6 +51,7 @@ impl LedgerStore for TomlStore {
         };
 
         // 取引の読み込み
+        // TODO: Pathを外部から注入する
         let transactions_dir = self.dir.join("transactions");
         let mut all = Vec::new();
         if transactions_dir.exists() {
