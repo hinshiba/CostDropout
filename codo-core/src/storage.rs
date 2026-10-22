@@ -1,4 +1,4 @@
-//!帳簿の保存・読み込み
+//! 帳簿の保存・読み込み
 
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -10,22 +10,22 @@ use crate::ledger::Ledger;
 use crate::period::YearMonth;
 use crate::transaction::{Transaction, TransactionList};
 
-///1か月分の取引ファイル
+/// 1か月分の取引ファイル
 #[derive(Serialize, Deserialize)]
 struct MonthFile {
     transactions: Vec<Transaction>,
 }
 
-///帳簿の保存先
+/// 帳簿の保存先
 pub trait LedgerStore {
-    ///帳簿を読み込む
+    /// 帳簿を読み込む
     fn load(&self) -> Result<Ledger, StorageError>;
 
-    ///帳簿を保存する
+    /// 帳簿を保存する
     fn save(&self, ledger: &Ledger) -> Result<(), StorageError>;
 }
 
-///TOMLファイルに帳簿を保存する保存先
+/// TOMLファイルに帳簿を保存する保存先
 #[derive(Debug, Clone)]
 pub struct TomlStore {
     dir: PathBuf,
@@ -38,7 +38,8 @@ impl TomlStore {
 }
 
 impl LedgerStore for TomlStore {
-    ///ファイルの読み込みを行う
+    /// ファイルの読み込みを行う
+    ///
     /// ファイルがなければ空の帳簿を返す
     fn load(&self) -> Result<Ledger, StorageError> {
         let items_path = self.dir.join("items.toml");
@@ -49,7 +50,7 @@ impl LedgerStore for TomlStore {
             ItemList::new()
         };
 
-        //取引の読み込み
+        // 取引の読み込み
         let transactions_dir = self.dir.join("transactions");
         let mut all = Vec::new();
         if transactions_dir.exists() {
@@ -66,7 +67,7 @@ impl LedgerStore for TomlStore {
         Ok(Ledger::from_parts(items, transactions))
     }
 
-    ///ファイルの保存を行う
+    /// ファイルの保存を行う
     fn save(&self, ledger: &Ledger) -> Result<(), StorageError> {
         std::fs::create_dir_all(&self.dir)?;
         let items_path = self.dir.join("items.toml");
@@ -89,7 +90,7 @@ impl LedgerStore for TomlStore {
             written.push(month_path);
         }
 
-        //取引がなくなった月のファイルの削除
+        // 取引がなくなった月のファイルの削除
         for entry in std::fs::read_dir(&transactions_dir)? {
             let path = entry?.path();
 
@@ -101,7 +102,7 @@ impl LedgerStore for TomlStore {
     }
 }
 
-///帳簿の保存・読み込みで発生するエラー
+/// 帳簿の保存・読み込みで発生するエラー
 #[derive(Debug, Error)]
 pub enum StorageError {
     #[error("ファイルの読み書きに失敗しました: {0}")]
@@ -130,20 +131,20 @@ mod tests {
         NaiveDate::from_ymd_opt(2026, month, day).unwrap()
     }
 
-    ///メモリ上の帳簿に置く保存先
+    /// メモリ上の帳簿に置く保存先
     #[derive(Debug, Default)]
     struct MemoryStore {
         ledger: RefCell<Option<Ledger>>,
     }
 
     impl LedgerStore for MemoryStore {
-        ///帳簿を保存する
+        /// 帳簿を保存する
         fn save(&self, ledger: &Ledger) -> Result<(), StorageError> {
             *self.ledger.borrow_mut() = Some(ledger.clone());
             Ok(())
         }
 
-        ///帳簿を読み込む
+        /// 帳簿を読み込む
         fn load(&self) -> Result<Ledger, StorageError> {
             Ok(self.ledger.borrow().clone().unwrap_or_default())
         }
