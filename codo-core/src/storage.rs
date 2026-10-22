@@ -108,11 +108,11 @@ pub enum StorageError {
     #[error("ファイルの読み書きに失敗しました: {0}")]
     Io(#[from] std::io::Error),
 
-    #[error("ファイルの中身が正しくないです: {0}")]
-    FailToReadToml(#[from] toml::de::Error),
+    #[error("TOMLの解析に失敗しました: {0}")]
+    ParseToml(#[from] toml::de::Error),
 
-    #[error("変換することができないです: {0}")]
-    FailToWriteToml(#[from] toml::ser::Error),
+    #[error("TOMLへの変換に失敗しました: {0}")]
+    SerializeToml(#[from] toml::ser::Error),
 }
 
 #[cfg(test)]
