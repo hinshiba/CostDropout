@@ -31,18 +31,19 @@ pub fn flows_in(ledger: &Ledger, period: Period) -> impl Iterator<Item = (&Trans
         .map(move |tx| (tx, flow_of(ledger, tx)))
 }
 
-pub fn income_total(ledger: &Ledger, period: Period) -> Money {
+pub fn total(ledger: &Ledger, period: Period, target_flow: Flow) -> Money {
     flows_in(ledger, period)
-        .filter(|(_, flow)| *flow == Flow::Income)
+        .filter(|(_, flow)| *flow == target_flow)
         .map(|(tx, _)| tx.amount())
         .fold(Money(0), |acc, amount| acc + amount)
 }
 
+pub fn income_total(ledger: &Ledger, period: Period) -> Money {
+    total(ledger, period, Flow::Income)
+}
+
 pub fn expense_total(ledger: &Ledger, period: Period) -> Money {
-    flows_in(ledger, period)
-        .filter(|(_, flow)| *flow == Flow::Expense)
-        .map(|(tx, _)| tx.amount())
-        .fold(Money(0), |acc, amount| acc + amount)
+    total(ledger, period, Flow::Expense)
 }
 
 #[cfg(test)]
