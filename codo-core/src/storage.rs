@@ -2,7 +2,8 @@
 
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
-use std::path::PathBuf;
+use std::ffi::OsStr;
+use std::path::{Path, PathBuf};
 use thiserror::Error;
 
 use crate::item::ItemList;
@@ -14,6 +15,11 @@ use crate::transaction::{Transaction, TransactionList};
 #[derive(Serialize, Deserialize)]
 struct MonthFile {
     transactions: Vec<Transaction>,
+}
+
+/// 拡張子がtomlかの判断
+fn is_toml(path: &Path) -> bool {
+    Some(OsStr::new("toml")) == path.extension()
 }
 
 /// 帳簿の保存先
@@ -57,6 +63,9 @@ impl LedgerStore for TomlStore {
         if transactions_dir.exists() {
             for entry in std::fs::read_dir(transactions_dir)? {
                 let path = entry?.path();
+                if !is_toml(&path) {
+                    continue;
+                }
                 let month_toml = std::fs::read_to_string(&path)?;
                 let month_file: MonthFile = toml::from_str(&month_toml)?;
                 all.extend(month_file.transactions);
@@ -94,7 +103,7 @@ impl LedgerStore for TomlStore {
         for entry in std::fs::read_dir(&transactions_dir)? {
             let path = entry?.path();
 
-            if !written.contains(&path) {
+            if !written.contains(&path) && is_toml(&path) {
                 std::fs::remove_file(&path)?;
             }
         }
@@ -120,7 +129,6 @@ mod tests {
     use super::*;
     use chrono::NaiveDate;
     use std::cell::RefCell;
-    use std::path::Path;
 
     use crate::item::Tag;
     use crate::money::Money;
@@ -261,6 +269,34 @@ mod tests {
         assert!(transactions_dir.join("2026-10.toml").exists());
         assert!(!transactions_dir.join("2026-11.toml").exists());
         assert_eq!(store.load().unwrap(), ledger);
+    }
+
+    #[test]
+    fn toml_store_load_ignores_non_toml_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = TomlStore::new(dir.path().to_path_buf());
+        let (ledger, _) = sample_ledger();
+        store.save(&ledger).unwrap();
+
+        // TOMLとして読めない中身のファイルを置いても，読み込みは失敗しない
+        let memo_path = dir.path().join("transactions").join("memo.txt");
+        std::fs::write(&memo_path, "TOMLではないメモ").unwrap();
+
+        assert_eq!(store.load().unwrap(), ledger);
+    }
+
+    #[test]
+    fn toml_store_save_keeps_non_toml_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = TomlStore::new(dir.path().to_path_buf());
+        let (ledger, _) = sample_ledger();
+        store.save(&ledger).unwrap();
+
+        let memo_path = dir.path().join("transactions").join("memo.txt");
+        std::fs::write(&memo_path, "TOMLではないメモ").unwrap();
+        store.save(&ledger).unwrap();
+
+        assert!(memo_path.exists());
     }
 
     #[test]
