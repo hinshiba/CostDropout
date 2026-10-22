@@ -94,6 +94,11 @@ impl ItemList {
         Self { items: Vec::new() }
     }
 
+    /// 登録順に品目を走査するイテレーターを返す。
+    pub fn iter(&self) -> impl Iterator<Item = &Item> {
+        self.items.iter()
+    }
+
     /// アプリ再起動時にファイルを復元する
     /// エラー検証はしない
     pub fn from_items(items: Vec<Item>) -> Self {
@@ -243,6 +248,31 @@ mod tests {
         let list = ItemList::new();
 
         assert_eq!(list.get_item(ItemId(999)), None);
+    }
+
+    // ---------------------
+    // ItemList::iter のテスト
+    // ---------------------
+
+    #[test]
+    fn item_list_iter_returns_all_items_in_insertion_order() {
+        let mut list = ItemList::new();
+
+        list.add("食費", Tag::Expense).unwrap();
+        list.add("給与", Tag::Income).unwrap();
+
+        let items = list
+            .iter()
+            .map(|item| (item.id(), item.name(), item.tag()))
+            .collect::<Vec<_>>();
+
+        assert_eq!(
+            items,
+            vec![
+                (ItemId(1), "食費", Tag::Expense),
+                (ItemId(2), "給与", Tag::Income),
+            ]
+        );
     }
 
     // ---------------------
