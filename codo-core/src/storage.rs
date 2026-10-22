@@ -56,8 +56,7 @@ impl LedgerStore for TomlStore {
         let mut all = Vec::new();
         if transactions_dir.exists() {
             for entry in std::fs::read_dir(transactions_dir)? {
-                let entry = entry?;
-                let path = entry.path();
+                let path = entry?.path();
                 let month_toml = std::fs::read_to_string(&path)?;
                 let month_file: MonthFile = toml::from_str(&month_toml)?;
                 all.extend(month_file.transactions);
