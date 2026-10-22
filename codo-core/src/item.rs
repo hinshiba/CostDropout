@@ -251,11 +251,11 @@ mod tests {
     }
 
     // ---------------------
-    // iter のテスト
+    // ItemList::iter のテスト
     // ---------------------
 
     #[test]
-    fn iter_returns_all_items_in_insertion_order() {
+    fn item_list_iter_returns_all_items_in_insertion_order() {
         let mut list = ItemList::new();
 
         list.add("食費", Tag::Expense).unwrap();

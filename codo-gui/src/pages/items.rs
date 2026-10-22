@@ -3,6 +3,7 @@
 use crate::app::AppState;
 use codo_core::item::{ItemError, ItemId, Tag};
 use codo_core::ledger::LedgerError;
+use gpui_kit::component::Selectable;
 use gpui_kit::component::WindowExt;
 use gpui_kit::component::button::Button;
 use gpui_kit::component::input::{Input, InputState};
@@ -307,6 +308,7 @@ impl Render for Items {
 
             Button::new(format!("tag-{}", tag.label()))
                 .label(tag.label())
+                .selected(is_selected)
                 .bg(button_background)
                 .text_color(button_text_color)
                 .on_click(cx.listener(move |this, _, _, cx| {
