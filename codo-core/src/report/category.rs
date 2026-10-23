@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+//! 品目別の支出集計
 
 use crate::item::ItemId;
 use crate::ledger::Ledger;
@@ -6,7 +6,9 @@ use crate::money::Money;
 use crate::period::Period;
 use crate::report::Flow;
 use crate::report::flow_of;
+use std::collections::BTreeMap;
 
+/// 品目ごとの支出情報
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ItemExpense {
     item: ItemId,
@@ -28,6 +30,8 @@ impl ItemExpense {
     }
 }
 
+/// 期間内の支出を品目ごとに集計する。
+/// 各品目の支出額と、全支出額に対する割合を返す。
 pub fn expense_by_item(ledger: &Ledger, period: Period) -> Vec<ItemExpense> {
     let mut amounts: BTreeMap<ItemId, Money> = BTreeMap::new();
 
@@ -216,6 +220,10 @@ mod tests {
 
         assert_eq!(result[1].item(), food);
         assert_eq!(result[1].amount(), Money(3_000));
+
+        // 割合
+        assert!((result[0].ratio() - 10.0 / 13.0).abs() < 1e-10);
+        assert!((result[1].ratio() - 3.0 / 13.0).abs() < 1e-10);
     }
 
     #[test]
@@ -247,5 +255,145 @@ mod tests {
         let result = expense_by_item(&ledger, period);
 
         assert!(result.is_empty());
+    }
+
+    #[test]
+    fn expense_by_item_excludes_income_and_liability() {
+        let mut items = ItemList::new();
+
+        let food = items.add("食費", Tag::Expense).unwrap();
+        let income = items.add("給与", Tag::Income).unwrap();
+        let liability = items.add("借入", Tag::Liability).unwrap();
+        let cash = items.add("現金", Tag::Asset).unwrap();
+
+        let mut transactions = TransactionList::new();
+
+        // 支出
+        transactions
+            .add(TransactionDraft::new(
+                date(1),
+                Money(3_000),
+                food,
+                cash,
+                "食費".to_string(),
+            ))
+            .unwrap();
+
+        // 収入
+        transactions
+            .add(TransactionDraft::new(
+                date(2),
+                Money(100_000),
+                income,
+                cash,
+                "給与".to_string(),
+            ))
+            .unwrap();
+
+        // 負債
+        transactions
+            .add(TransactionDraft::new(
+                date(3),
+                Money(50_000),
+                liability,
+                cash,
+                "借入".to_string(),
+            ))
+            .unwrap();
+
+        let ledger = Ledger::from_parts(items, transactions);
+
+        let period = Period::month(YearMonth::new(2026, 10).unwrap());
+
+        let result = expense_by_item(&ledger, period);
+
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].item(), food);
+        assert_eq!(result[0].amount(), Money(3_000));
+    }
+
+    #[test]
+    fn expense_by_item_includes_period_end_date() {
+        let mut items = ItemList::new();
+
+        let food = items.add("食費", Tag::Expense).unwrap();
+        let cash = items.add("現金", Tag::Asset).unwrap();
+
+        let mut transactions = TransactionList::new();
+
+        // 期間開始日
+        transactions
+            .add(TransactionDraft::new(
+                date(1),
+                Money(3_000),
+                food,
+                cash,
+                "食費".to_string(),
+            ))
+            .unwrap();
+
+        // 期間終了日
+        transactions
+            .add(TransactionDraft::new(
+                date(31),
+                Money(2_000),
+                food,
+                cash,
+                "食費".to_string(),
+            ))
+            .unwrap();
+
+        let ledger = Ledger::from_parts(items, transactions);
+
+        let period = Period::month(YearMonth::new(2026, 10).unwrap());
+
+        let result = expense_by_item(&ledger, period);
+
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].item(), food);
+        assert_eq!(result[0].amount(), Money(5_000));
+    }
+
+    #[test]
+    fn expense_by_item_excludes_expenses_outside_period() {
+        let mut items = ItemList::new();
+
+        let food = items.add("食費", Tag::Expense).unwrap();
+        let cash = items.add("現金", Tag::Asset).unwrap();
+
+        let mut transactions = TransactionList::new();
+
+        // 期間内
+        transactions
+            .add(TransactionDraft::new(
+                date(10),
+                Money(3_000),
+                food,
+                cash,
+                "期間内".to_string(),
+            ))
+            .unwrap();
+
+        // 期間外
+        transactions
+            .add(TransactionDraft::new(
+                date(31),
+                Money(100_000),
+                food,
+                cash,
+                "期間外".to_string(),
+            ))
+            .unwrap();
+
+        let ledger = Ledger::from_parts(items, transactions);
+
+        // 10月1日〜10月30日を対象
+        let period = Period::new(date(1), date(30)).unwrap();
+
+        let result = expense_by_item(&ledger, period);
+
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].item(), food);
+        assert_eq!(result[0].amount(), Money(3_000));
     }
 }
