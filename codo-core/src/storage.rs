@@ -6,7 +6,7 @@ use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 use thiserror::Error;
 
-use crate::item::ItemList;
+use crate::item::{Item, ItemList};
 use crate::ledger::Ledger;
 use crate::period::YearMonth;
 use crate::transaction::{Transaction, TransactionList};
@@ -15,6 +15,12 @@ use crate::transaction::{Transaction, TransactionList};
 #[derive(Serialize, Deserialize)]
 struct MonthFile {
     transactions: Vec<Transaction>,
+}
+
+/// 品目ファイル
+#[derive(Serialize, Deserialize)]
+struct ItemsFile {
+    items: Vec<Item>,
 }
 
 /// 拡張子がtomlかの判断
@@ -51,7 +57,8 @@ impl LedgerStore for TomlStore {
         let items_path = self.dir.join("items.toml");
         let items = if items_path.exists() {
             let items_toml = std::fs::read_to_string(items_path)?;
-            toml::from_str(&items_toml)?
+            let items_file: ItemsFile = toml::from_str(&items_toml)?;
+            ItemList::from_items(items_file.items)
         } else {
             ItemList::new()
         };
