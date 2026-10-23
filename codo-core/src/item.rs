@@ -97,8 +97,10 @@ impl ItemList {
     }
 
     /// アプリ再起動時にファイルを復元する
-    /// エラー検証はしない
-    pub fn from_items(items: Vec<Item>) -> Self {
+    ///
+    /// エラー検証はしない．品目はID順に並べ替える
+    pub fn from_items(mut items: Vec<Item>) -> Self {
+        items.sort_by_key(|item| item.id());
         Self { items }
     }
 
@@ -215,6 +217,21 @@ pub enum ItemError {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // ---------------------
+    // from_items のテスト
+    // ---------------------
+
+    #[test]
+    fn from_items_sorts_by_id() {
+        let food = Item::new(ItemId(1), "食費".to_string(), Tag::Expense);
+        let cash = Item::new(ItemId(2), "現金".to_string(), Tag::Asset);
+
+        let reversed = ItemList::from_items(vec![cash.clone(), food.clone()]);
+        let sorted = ItemList::from_items(vec![food, cash]);
+
+        assert_eq!(reversed, sorted);
+    }
 
     // ---------------------
     // get_item のテスト
