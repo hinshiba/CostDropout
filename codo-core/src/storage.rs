@@ -28,6 +28,24 @@ fn is_toml(path: &Path) -> bool {
     Some(OsStr::new("toml")) == path.extension()
 }
 
+/// 月ファイル(2026-10.tomlなど)なら，その年月を返す
+fn month_of_file(path: &Path) -> Option<YearMonth> {
+    if !is_toml(path) {
+        return None;
+    }
+
+    let stem = path.file_stem()?.to_str()?;
+    let (year, month) = stem.split_once('-')?;
+    let toml_year = year.parse::<i32>().ok()?;
+    let toml_month = month.parse::<u32>().ok()?;
+    let ym = YearMonth::new(toml_year, toml_month).ok()?;
+    if ym.to_string() == stem {
+        Some(ym)
+    } else {
+        None
+    }
+}
+
 /// 帳簿の保存先
 pub trait LedgerStore {
     /// 帳簿を読み込む
@@ -70,7 +88,7 @@ impl LedgerStore for TomlStore {
         if transactions_dir.try_exists()? {
             for entry in std::fs::read_dir(transactions_dir)? {
                 let path = entry?.path();
-                if !is_toml(&path) {
+                if month_of_file(&path).is_none() {
                     continue;
                 }
                 let month_toml = std::fs::read_to_string(&path)?;
@@ -110,7 +128,7 @@ impl LedgerStore for TomlStore {
         for entry in std::fs::read_dir(&transactions_dir)? {
             let path = entry?.path();
 
-            if !written.contains(&path) && is_toml(&path) {
+            if !written.contains(&path) && month_of_file(&path).is_some() {
                 std::fs::remove_file(&path)?;
             }
         }
@@ -335,6 +353,63 @@ mod tests {
         store.save(&ledger).unwrap();
 
         assert!(memo_path.exists());
+    }
+
+    /// 月ファイルと同じ中身で，月ファイルではない名前のファイルを置く
+    fn put_non_month_files(dir: &Path) -> Vec<PathBuf> {
+        let transactions_dir = dir.join("transactions");
+        let month_toml = std::fs::read_to_string(transactions_dir.join("2026-10.toml")).unwrap();
+
+        let mut paths = Vec::new();
+        for name in ["2026-10 - コピー.toml", "2026-1.toml", "2026-13.toml"] {
+            let path = transactions_dir.join(name);
+            std::fs::write(&path, &month_toml).unwrap();
+            paths.push(path);
+        }
+        paths
+    }
+
+    #[test]
+    fn toml_store_load_ignores_non_month_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = TomlStore::new(dir.path().to_path_buf());
+        let (ledger, _) = sample_ledger();
+        store.save(&ledger).unwrap();
+
+        // コピーなどを読み込むと取引が重複するので，月ファイルだけを読む
+        put_non_month_files(dir.path());
+
+        assert_eq!(store.load().unwrap(), ledger);
+    }
+
+    #[test]
+    fn toml_store_save_keeps_non_month_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = TomlStore::new(dir.path().to_path_buf());
+        let (ledger, _) = sample_ledger();
+        store.save(&ledger).unwrap();
+
+        let paths = put_non_month_files(dir.path());
+        store.save(&ledger).unwrap();
+
+        for path in paths {
+            assert!(path.exists(), "{path:?} が削除された");
+        }
+    }
+
+    #[test]
+    fn month_of_file_returns_year_month_only_for_month_file() {
+        let month = |name: &str| month_of_file(Path::new(name));
+
+        assert_eq!(
+            month("2026-10.toml"),
+            Some(YearMonth::new(2026, 10).unwrap())
+        );
+        assert_eq!(month("2026-10.txt"), None);
+        assert_eq!(month("2026-10 - コピー.toml"), None);
+        assert_eq!(month("2026-1.toml"), None);
+        assert_eq!(month("2026-13.toml"), None);
+        assert_eq!(month("items.toml"), None);
     }
 
     #[test]
