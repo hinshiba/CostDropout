@@ -246,6 +246,37 @@ mod tests {
     }
 
     #[test]
+    fn toml_store_writes_date_as_toml_date() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = TomlStore::new(dir.path().to_path_buf());
+        let (ledger, _) = sample_ledger();
+
+        store.save(&ledger).unwrap();
+
+        // 日付は文字列ではなく，design.md の形式どおり TOML の日付型で書き出す
+        let month_path = dir.path().join("transactions").join("2026-10.toml");
+        let month_toml = std::fs::read_to_string(month_path).unwrap();
+        assert!(month_toml.contains("date = 2026-10-02"));
+        assert!(!month_toml.contains("\"2026-10-02\""));
+    }
+
+    #[test]
+    fn toml_store_load_rejects_date_with_time() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = TomlStore::new(dir.path().to_path_buf());
+        let (ledger, _) = sample_ledger();
+        store.save(&ledger).unwrap();
+
+        // 日付に時刻が付いていると，日付として読めないのでエラーになる
+        let month_path = dir.path().join("transactions").join("2026-10.toml");
+        let month_toml = std::fs::read_to_string(&month_path).unwrap();
+        let with_time = month_toml.replace("date = 2026-10-02", "date = 2026-10-02T12:34:00");
+        std::fs::write(&month_path, with_time).unwrap();
+
+        assert!(matches!(store.load(), Err(StorageError::ParseToml(_))));
+    }
+
+    #[test]
     fn toml_store_load_empty_dir_returns_empty_ledger() {
         let dir = tempfile::tempdir().unwrap();
         let store = TomlStore::new(dir.path().to_path_buf());
