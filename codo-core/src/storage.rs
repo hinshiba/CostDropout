@@ -55,7 +55,7 @@ impl LedgerStore for TomlStore {
     /// ファイルがなければ空の帳簿を返す
     fn load(&self) -> Result<Ledger, StorageError> {
         let items_path = self.dir.join("items.toml");
-        let items = if items_path.exists() {
+        let items = if items_path.try_exists()? {
             let items_toml = std::fs::read_to_string(items_path)?;
             let items_file: ItemsFile = toml::from_str(&items_toml)?;
             ItemList::from_items(items_file.items)
@@ -67,7 +67,7 @@ impl LedgerStore for TomlStore {
         // TODO: Pathを外部から注入する
         let transactions_dir = self.dir.join("transactions");
         let mut all = Vec::new();
-        if transactions_dir.exists() {
+        if transactions_dir.try_exists()? {
             for entry in std::fs::read_dir(transactions_dir)? {
                 let path = entry?.path();
                 if !is_toml(&path) {
