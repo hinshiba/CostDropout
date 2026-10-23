@@ -1,9 +1,10 @@
 //! 品目
 
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 /// 品目 ID(連番)
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct ItemId(u32);
 
 impl ItemId {
@@ -16,7 +17,8 @@ impl ItemId {
     }
 }
 /// 分類タグ
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum Tag {
     /// 資産
     Asset,
@@ -57,7 +59,7 @@ impl Tag {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Item {
     id: ItemId,
     name: String,
@@ -83,7 +85,7 @@ impl Item {
 }
 
 /// 品目の一覧
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ItemList {
     items: Vec<Item>,
 }
@@ -95,8 +97,10 @@ impl ItemList {
     }
 
     /// アプリ再起動時にファイルを復元する
-    /// エラー検証はしない
-    pub fn from_items(items: Vec<Item>) -> Self {
+    ///
+    /// エラー検証はしない．品目はID順に並べ替える
+    pub fn from_items(mut items: Vec<Item>) -> Self {
+        items.sort_by_key(|item| item.id());
         Self { items }
     }
 
@@ -213,6 +217,21 @@ pub enum ItemError {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // ---------------------
+    // from_items のテスト
+    // ---------------------
+
+    #[test]
+    fn from_items_sorts_by_id() {
+        let food = Item::new(ItemId(1), "食費".to_string(), Tag::Expense);
+        let cash = Item::new(ItemId(2), "現金".to_string(), Tag::Asset);
+
+        let reversed = ItemList::from_items(vec![cash.clone(), food.clone()]);
+        let sorted = ItemList::from_items(vec![food, cash]);
+
+        assert_eq!(reversed, sorted);
+    }
 
     // ---------------------
     // get_item のテスト

@@ -1,6 +1,7 @@
 //! 取引
 
 use chrono::NaiveDate;
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
 
@@ -10,12 +11,35 @@ use crate::money::Money;
 /// 取引 ID
 ///
 /// 別の月ファイルへ同時に追加されても衝突しないよう uuid を使う
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct TransactionId(Uuid);
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// 日付をTOMLの日付型で読み書きする
+mod toml_date {
+    use chrono::NaiveDate;
+    use serde::{Deserialize, Deserializer, Serialize, Serializer};
+    use toml::value::Datetime;
+
+    pub fn serialize<S: Serializer>(date: &NaiveDate, serializer: S) -> Result<S::Ok, S::Error> {
+        let datetime = date
+            .to_string()
+            .parse::<Datetime>()
+            .map_err(serde::ser::Error::custom)?;
+        datetime.serialize(serializer)
+    }
+
+    pub fn deserialize<'de, D: Deserializer<'de>>(deserializer: D) -> Result<NaiveDate, D::Error> {
+        Datetime::deserialize(deserializer)?
+            .to_string()
+            .parse::<NaiveDate>()
+            .map_err(serde::de::Error::custom)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Transaction {
     id: TransactionId,
+    #[serde(with = "toml_date")]
     date: NaiveDate,
     /// 正の値のみ
     amount: Money,
