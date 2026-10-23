@@ -156,18 +156,18 @@ mod tests {
         // 娯楽     10,000円
         //
         // 同額なので ItemId の小さい方が先
-        assert_eq!(result[0].amount, Money(10_000));
-        assert_eq!(result[1].amount, Money(10_000));
+        assert_eq!(result[0].amount(), Money(10_000));
+        assert_eq!(result[1].amount(), Money(10_000));
 
-        assert_eq!(result[0].item, food.min(entertainment));
-        assert_eq!(result[1].item, food.max(entertainment));
+        assert_eq!(result[0].item(), food.min(entertainment));
+        assert_eq!(result[1].item(), food.max(entertainment));
 
         // それぞれの割合は 10,000 / 20,000 = 0.5
-        assert!((result[0].ratio - 0.5).abs() < 1e-10);
-        assert!((result[1].ratio - 0.5).abs() < 1e-10);
+        assert!((result[0].ratio() - 0.5).abs() < 1e-10);
+        assert!((result[1].ratio() - 0.5).abs() < 1e-10);
 
         // 割合の合計は 1.0
-        let ratio_sum: f64 = result.iter().map(|expense| expense.ratio).sum();
+        let ratio_sum: f64 = result.iter().map(|expense| expense.ratio()).sum();
 
         assert!((ratio_sum - 1.0).abs() < 1e-10);
     }
@@ -211,11 +211,11 @@ mod tests {
         let result = expense_by_item(&ledger, period);
 
         // 大きい金額が先
-        assert_eq!(result[0].item, entertainment);
-        assert_eq!(result[0].amount, Money(10_000));
+        assert_eq!(result[0].item(), entertainment);
+        assert_eq!(result[0].amount(), Money(10_000));
 
-        assert_eq!(result[1].item, food);
-        assert_eq!(result[1].amount, Money(3_000));
+        assert_eq!(result[1].item(), food);
+        assert_eq!(result[1].amount(), Money(3_000));
     }
 
     #[test]
