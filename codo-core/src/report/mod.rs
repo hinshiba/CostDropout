@@ -1,3 +1,4 @@
+pub mod category;
 use crate::item::Tag;
 use crate::ledger::Ledger;
 use crate::money::Money;
