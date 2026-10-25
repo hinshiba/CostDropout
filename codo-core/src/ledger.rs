@@ -1,6 +1,9 @@
 //! ledgerの整合性
 
+use crate::budget::{BudgetError, BudgetId, BudgetList};
 use crate::item::{ItemError, ItemId, ItemList, Tag};
+use crate::money::Money;
+use crate::period::Period;
 use crate::preset::preset_items;
 use crate::transaction::{TransactionDraft, TransactionError, TransactionId, TransactionList};
 use thiserror::Error;
@@ -11,6 +14,7 @@ use thiserror::Error;
 pub struct Ledger {
     items: ItemList,
     transactions: TransactionList,
+    budgets: BudgetList,
 }
 
 /// Ledgerの操作中に発生するエラー
@@ -21,6 +25,9 @@ pub enum LedgerError {
 
     #[error(transparent)]
     Transaction(#[from] TransactionError),
+
+    #[error(transparent)]
+    Budget(#[from] BudgetError),
 
     #[error("取引から参照されている品目 {0:?} は削除できません")]
     ItemUse(ItemId),
@@ -40,6 +47,7 @@ impl Ledger {
         Self {
             items: ItemList::new(),
             transactions: TransactionList::new(),
+            budgets: BudgetList::new(),
         }
     }
 
@@ -48,15 +56,17 @@ impl Ledger {
         Self {
             items: ItemList::from_items(preset_items()),
             transactions: TransactionList::new(),
+            budgets: BudgetList::new(),
         }
     }
 
     /// ファイル復元のため
     /// エラー検証は行わない
-    pub fn from_parts(items: ItemList, transactions: TransactionList) -> Self {
+    pub fn from_parts(items: ItemList, transactions: TransactionList, budgets: BudgetList) -> Self {
         Self {
             items,
             transactions,
+            budgets,
         }
     }
 
@@ -66,6 +76,10 @@ impl Ledger {
 
     pub fn transactions(&self) -> &TransactionList {
         &self.transactions
+    }
+
+    pub fn budgets(&self) -> &BudgetList {
+        &self.budgets
     }
 
     /// 品目のadd処理を委譲
@@ -180,6 +194,27 @@ impl Ledger {
         self.transactions.remove(id)?;
         Ok(())
     }
+
+    /// 予算のadd処理を委譲
+    pub fn add_budget(&mut self, amount: Money, period: Period) -> Result<BudgetId, LedgerError> {
+        Ok(self.budgets.add(amount, period)?)
+    }
+
+    /// 予算のupdate処理を委譲
+    pub fn update_budget(
+        &mut self,
+        id: BudgetId,
+        amount: Money,
+        period: Period,
+    ) -> Result<BudgetId, LedgerError> {
+        Ok(self.budgets.update(id, amount, period)?)
+    }
+
+    /// 予算のremove処理を委譲
+    pub fn remove_budget(&mut self, id: BudgetId) -> Result<(), LedgerError> {
+        self.budgets.remove(id)?;
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -204,6 +239,23 @@ mod tests {
         let asset_id = ledger.add_item("現金", Tag::Asset).unwrap();
 
         (ledger, income_id, asset_id)
+    }
+
+    fn period(year: i32, month: u32, start_day: u32, end_day: u32) -> Period {
+        Period::new(
+            chrono::NaiveDate::from_ymd_opt(year, month, start_day).unwrap(),
+            chrono::NaiveDate::from_ymd_opt(year, month, end_day).unwrap(),
+        )
+        .unwrap()
+    }
+
+    fn ledger_with_budget() -> (Ledger, BudgetId) {
+        let mut ledger = Ledger::new();
+
+        let period = period(2025, 4, 1, 30);
+        let budget_id = ledger.add_budget(Money(5000), period).unwrap();
+
+        (ledger, budget_id)
     }
 
     // item関連のテスト
@@ -443,5 +495,126 @@ mod tests {
             ledger.items().get_item(new_id).unwrap().name(),
             "新しい品目"
         );
+    }
+
+    // budget関連のテスト
+
+    /// 予算の追加が成功する場合
+    #[test]
+    fn add_budget_succeeds_when_period_is_unique() {
+        let mut ledger = Ledger::new();
+        let target_period = period(2025, 4, 1, 30);
+
+        let budget_id = ledger.add_budget(Money(5000), target_period).unwrap();
+
+        assert_eq!(budget_id, BudgetId(1));
+
+        let budget = ledger.budgets().get(budget_id).unwrap();
+        assert_eq!(budget.amount(), Money(5000));
+        assert_eq!(budget.period(), target_period);
+    }
+
+    /// 同じ期間の予算を追加できない場合
+    #[test]
+    fn add_budget_fails_when_period_is_duplicate() {
+        let (mut ledger, budget_id) = ledger_with_budget();
+        let target_period = period(2025, 4, 1, 30);
+
+        let before = ledger.budgets().get(budget_id).unwrap().clone();
+
+        assert_eq!(
+            ledger.add_budget(Money(7000), target_period),
+            Err(LedgerError::Budget(BudgetError::DuplicatePeriod))
+        );
+
+        // 追加に失敗しても元の予算は変更されない
+        assert_eq!(ledger.budgets().get(budget_id).unwrap(), &before);
+    }
+
+    /// 予算の更新が成功する場合
+    #[test]
+    fn update_budget_succeeds_when_id_exists() {
+        let (mut ledger, budget_id) = ledger_with_budget();
+        let new_period = period(2025, 5, 1, 31);
+
+        assert_eq!(
+            ledger.update_budget(budget_id, Money(7000), new_period),
+            Ok(budget_id)
+        );
+
+        let budget = ledger.budgets().get(budget_id).unwrap();
+
+        assert_eq!(budget.amount(), Money(7000));
+        assert_eq!(budget.period(), new_period);
+    }
+
+    /// 存在しない予算を更新できない場合
+    #[test]
+    fn update_budget_fails_when_id_does_not_exist() {
+        let (mut ledger, budget_id) = ledger_with_budget();
+        let missing_id = BudgetId(5);
+        let target_period = period(2025, 5, 1, 31);
+
+        let before = ledger.budgets().get(budget_id).unwrap().clone();
+
+        assert_eq!(
+            ledger.update_budget(missing_id, Money(7000), target_period),
+            Err(LedgerError::Budget(BudgetError::NotFound(missing_id)))
+        );
+
+        // 更新に失敗しても元の予算は変更されない
+        assert_eq!(ledger.budgets().get(budget_id).unwrap(), &before);
+    }
+
+    /// 更新先の期間が既存の予算と重複する場合
+    #[test]
+    fn update_budget_fails_when_period_is_duplicate() {
+        let (mut ledger, budget_id) = ledger_with_budget();
+
+        let second_period = period(2025, 5, 1, 31);
+        let second_id = ledger.add_budget(Money(7000), second_period).unwrap();
+
+        let before = ledger.budgets().get(budget_id).unwrap().clone();
+
+        assert_eq!(
+            ledger.update_budget(budget_id, Money(9000), second_period),
+            Err(LedgerError::Budget(BudgetError::DuplicatePeriod))
+        );
+
+        // 更新対象の予算が変更されていないことを確認
+        assert_eq!(ledger.budgets().get(budget_id).unwrap(), &before);
+
+        // 重複先の予算も変更されていないことを確認
+        assert_eq!(
+            ledger.budgets().get(second_id).unwrap().amount(),
+            Money(7000)
+        );
+    }
+
+    /// 予算の削除が成功する場合
+    #[test]
+    fn remove_budget_succeeds_when_id_exists() {
+        let (mut ledger, budget_id) = ledger_with_budget();
+
+        assert_eq!(ledger.remove_budget(budget_id), Ok(()));
+
+        assert!(ledger.budgets().get(budget_id).is_none());
+    }
+
+    /// 存在しない予算を削除できない場合
+    #[test]
+    fn remove_budget_fails_when_id_does_not_exist() {
+        let (mut ledger, budget_id) = ledger_with_budget();
+        let missing_id = BudgetId(5);
+
+        let before = ledger.budgets().get(budget_id).unwrap().clone();
+
+        assert_eq!(
+            ledger.remove_budget(missing_id),
+            Err(LedgerError::Budget(BudgetError::NotFound(missing_id)))
+        );
+
+        // 削除に失敗しても元の予算は残っている
+        assert_eq!(ledger.budgets().get(budget_id).unwrap(), &before);
     }
 }
