@@ -1,5 +1,6 @@
 //! お金
 
+use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::iter::Sum;
 use std::ops::{Add, AddAssign, Sub, SubAssign};
@@ -7,7 +8,9 @@ use std::str::FromStr;
 use thiserror::Error;
 
 /// 金額(円)
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(
+    Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
+)]
 pub struct Money(pub i32);
 
 /// 金額を加算します
