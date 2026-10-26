@@ -1,6 +1,7 @@
 use crate::ledger::Ledger;
 use crate::money::Money;
 use crate::period::Period;
+use std::collections::HashSet;
 use thiserror::Error;
 
 /// 予算を識別するID
@@ -41,6 +42,9 @@ pub enum BudgetError {
 
     #[error("指定された予算が存在しません: {0:?}")]
     NotFound(BudgetId),
+
+    #[error("予算IDが重複しています: {0:?}")]
+    DuplicateId(BudgetId),
 }
 
 impl Budget {
@@ -127,9 +131,22 @@ impl BudgetList {
         Ok(())
     }
 
-    /// 保存済みのIDを変更せずに予算一覧を復元するメソッド
-    pub fn from_budgets(budgets: Vec<Budget>) -> Self {
-        Self { budgets }
+    /// 保存済みのIDを変更せずに予算一覧を復元する
+    /// IDの重複を検知した場合はエラーを返す
+    pub fn from_budgets(budgets: Vec<Budget>) -> Result<Self, BudgetError> {
+        let mut ids = HashSet::new();
+        let mut periods = HashSet::new();
+
+        for budget in &budgets {
+            if !periods.insert(budget.period()) {
+                return Err(BudgetError::DuplicatePeriod);
+            }
+            if !ids.insert(budget.id()) {
+                return Err(BudgetError::DuplicateId(budget.id()));
+            }
+        }
+
+        Ok(Self { budgets })
     }
 
     pub fn iter(&self) -> impl Iterator<Item = &Budget> {
@@ -167,6 +184,7 @@ impl BudgetStatus {
 mod tests {
     use super::*;
     use crate::item::Tag;
+    use crate::period::YearMonth;
     use crate::transaction::TransactionDraft;
     use chrono::NaiveDate;
 
@@ -344,8 +362,7 @@ mod tests {
         assert_eq!(budgets.get(BudgetId(1)).unwrap().amount(), Money(5000));
     }
 
-    // budget_status関連のテスト
-
+    /// budget_status関連のテスト
     /// 支出が予算内の場合
     #[test]
     fn budget_status_under_budget_test() {
@@ -428,5 +445,19 @@ mod tests {
             BudgetStatus::calculate(&ledger, missing_id),
             Err(BudgetError::NotFound(missing_id))
         );
+    }
+
+    /// IDが重複した場合のテスト
+    #[test]
+    fn from_budgets_duplicate_id_test() {
+        let period1 = Period::month(YearMonth::new(2026, 10).unwrap());
+        let period2 = Period::month(YearMonth::new(2026, 11).unwrap());
+
+        let budget1 = Budget::new(BudgetId(1), Money(50_000), period1);
+        let budget2 = Budget::new(BudgetId(1), Money(30_000), period2);
+
+        let result = BudgetList::from_budgets(vec![budget1, budget2]);
+
+        assert_eq!(result, Err(BudgetError::DuplicateId(BudgetId(1))));
     }
 }

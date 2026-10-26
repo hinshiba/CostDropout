@@ -7,7 +7,7 @@ use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 use thiserror::Error;
 
-use crate::budget::{Budget, BudgetId, BudgetList};
+use crate::budget::{Budget, BudgetError, BudgetId, BudgetList};
 use crate::item::{Item, ItemList};
 use crate::ledger::Ledger;
 use crate::money::Money;
@@ -139,7 +139,24 @@ impl LedgerStore for TomlStore {
         }
         let transactions = TransactionList::from_transactions(all);
 
-        Ok(Ledger::from_parts(items, transactions, BudgetList::new()))
+        let budgets_path = self.dir.join("budgets.toml");
+
+        let records: Vec<BudgetRecord> = if budgets_path.try_exists()? {
+            let budgets_toml = std::fs::read_to_string(budgets_path)?;
+            let budgets_file: BudgetsFile = toml::from_str(&budgets_toml)?;
+            budgets_file.budgets
+        } else {
+            Vec::new()
+        };
+
+        let budget_vec: Vec<Budget> = records
+            .into_iter()
+            .map(Budget::try_from)
+            .collect::<Result<Vec<_>, _>>()?;
+
+        let budget_list = BudgetList::from_budgets(budget_vec)?;
+
+        Ok(Ledger::from_parts(items, transactions, budget_list))
     }
 
     /// ファイルの保存を行う
@@ -195,6 +212,12 @@ pub enum StorageError {
 
     #[error("TOMLへの変換に失敗しました: {0}")]
     SerializeToml(#[from] toml::ser::Error),
+
+    #[error("予算期間が不正です: {0}")]
+    InvalidPeriod(#[from] PeriodError),
+
+    #[error("予算データが不正です: {0}")]
+    InvalidBudget(#[from] BudgetError),
 }
 
 #[cfg(test)]
@@ -475,5 +498,25 @@ mod tests {
         store.save(&ledger).unwrap();
 
         assert_eq!(store.load().unwrap(), ledger);
+    }
+
+    #[test]
+    fn toml_store_budget_round_trip_test() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = TomlStore::new(dir.path().to_path_buf());
+
+        let mut ledger = Ledger::new();
+
+        let period = Period::new(date(10, 1), date(10, 31)).unwrap();
+
+        let budget_id = ledger.add_budget(Money(50_000), period).unwrap();
+        store.save(&ledger).unwrap();
+
+        let loaded = store.load().unwrap();
+        assert_eq!(loaded, ledger);
+        let loaded_budget = loaded.budgets().get(budget_id).unwrap();
+
+        assert_eq!(loaded_budget.amount(), Money(50_000));
+        assert_eq!(loaded_budget.period(), period);
     }
 }
