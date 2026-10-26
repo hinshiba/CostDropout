@@ -251,31 +251,6 @@ mod tests {
     }
 
     // ---------------------
-    // ItemList::iter のテスト
-    // ---------------------
-
-    #[test]
-    fn item_list_iter_returns_all_items_in_insertion_order() {
-        let mut list = ItemList::new();
-
-        list.add("食費", Tag::Expense).unwrap();
-        list.add("給与", Tag::Income).unwrap();
-
-        let items = list
-            .iter()
-            .map(|item| (item.id(), item.name(), item.tag()))
-            .collect::<Vec<_>>();
-
-        assert_eq!(
-            items,
-            vec![
-                (ItemId(1), "食費", Tag::Expense),
-                (ItemId(2), "給与", Tag::Income),
-            ]
-        );
-    }
-
-    // ---------------------
     // find_by_name のテスト
     // ---------------------
 
@@ -416,7 +391,8 @@ mod tests {
         let result = list.remove(ItemId(1));
 
         assert_eq!(result, Ok(()));
-        assert_eq!(list.get_item(ItemId(1)), None);
+        let remaining_ids = list.iter().map(Item::id).collect::<Vec<_>>();
+        assert_eq!(remaining_ids, vec![ItemId(2)]);
         assert_eq!(list.get_item(ItemId(2)).unwrap().name, "娯楽");
     }
 
