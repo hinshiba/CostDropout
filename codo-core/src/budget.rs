@@ -460,4 +460,20 @@ mod tests {
 
         assert_eq!(result, Err(BudgetError::DuplicateId(BudgetId(1))));
     }
+
+    #[test]
+    fn from_budgets_duplicate_period_test() {
+        let period = Period::new(
+            NaiveDate::from_ymd_opt(2026, 10, 1).unwrap(),
+            NaiveDate::from_ymd_opt(2026, 10, 31).unwrap(),
+        )
+        .unwrap();
+
+        let budget1 = Budget::new(BudgetId(1), Money(50_000), period);
+        let budget2 = Budget::new(BudgetId(2), Money(30_000), period);
+
+        let result = BudgetList::from_budgets(vec![budget1, budget2]);
+
+        assert_eq!(result, Err(BudgetError::DuplicatePeriod));
+    }
 }

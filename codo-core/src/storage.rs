@@ -60,7 +60,11 @@ fn month_of_file(path: &Path) -> Option<YearMonth> {
 struct BudgetRecord {
     id: u32,
     amount: Money,
+
+    #[serde(with = "toml_date")]
     start: NaiveDate,
+
+    #[serde(with = "toml_date")]
     end: NaiveDate,
 }
 
@@ -218,6 +222,33 @@ pub enum StorageError {
 
     #[error("予算データが不正です: {0}")]
     InvalidBudget(#[from] BudgetError),
+}
+
+/// 日付変換用のモジュール
+mod toml_date {
+    use chrono::NaiveDate;
+    use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
+    pub fn serialize<S>(date: &NaiveDate, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let value: toml::value::Datetime = date
+            .to_string()
+            .parse()
+            .map_err(serde::ser::Error::custom)?;
+
+        value.serialize(serializer)
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<NaiveDate, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let value = toml::value::Datetime::deserialize(deserializer)?;
+
+        NaiveDate::parse_from_str(&value.to_string(), "%Y-%m-%d").map_err(serde::de::Error::custom)
+    }
 }
 
 #[cfg(test)]
@@ -518,5 +549,35 @@ mod tests {
 
         assert_eq!(loaded_budget.amount(), Money(50_000));
         assert_eq!(loaded_budget.period(), period);
+    }
+
+    /// 開始日が終了日より後の予算を読み込んだ場合、エラーを返す
+    #[test]
+    fn toml_store_invalid_budget_period_test() {
+        // ① 一時ディレクトリを作成
+        let dir = tempfile::tempdir().unwrap();
+
+        // ② TomlStoreを作成
+        let store = TomlStore::new(dir.path().to_path_buf());
+
+        // ③ 不正な期間を持つTOMLデータ
+        let invalid_toml = r#"
+            [[budgets]]
+            id = 1
+            amount = 50000
+            start = 2026-10-31
+            end = 2026-10-01
+            "#;
+
+        // ④ budgets.tomlに書き込む
+        let budgets_path = dir.path().join("budgets.toml");
+        std::fs::write(budgets_path, invalid_toml).unwrap();
+
+        let result = store.load();
+
+        // 実際に返ってきたエラーを表示
+        println!("loadの結果: {:?}", result.as_ref().err());
+
+        assert!(matches!(result, Err(StorageError::InvalidPeriod(_))));
     }
 }
