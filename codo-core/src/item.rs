@@ -96,6 +96,11 @@ impl ItemList {
         Self { items: Vec::new() }
     }
 
+    /// 登録順に品目を走査するイテレーターを返す。
+    pub fn iter(&self) -> impl Iterator<Item = &Item> {
+        self.items.iter()
+    }
+
     /// アプリ再起動時にファイルを復元する
     ///
     /// エラー検証はしない．品目はID順に並べ替える
@@ -405,7 +410,8 @@ mod tests {
         let result = list.remove(ItemId(1));
 
         assert_eq!(result, Ok(()));
-        assert_eq!(list.get_item(ItemId(1)), None);
+        let remaining_ids = list.iter().map(Item::id).collect::<Vec<_>>();
+        assert_eq!(remaining_ids, vec![ItemId(2)]);
         assert_eq!(list.get_item(ItemId(2)).unwrap().name, "娯楽");
     }
 
