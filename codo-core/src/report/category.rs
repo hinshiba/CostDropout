@@ -88,6 +88,7 @@ pub fn expense_by_item(ledger: &Ledger, period: Period) -> Vec<ItemExpense> {
 mod tests {
     use super::*;
 
+    use crate::budget::BudgetList;
     use crate::item::{ItemList, Tag};
     use crate::ledger::Ledger;
     use crate::money::Money;
@@ -146,7 +147,7 @@ mod tests {
             ))
             .unwrap();
 
-        let ledger = Ledger::from_parts(items, transactions);
+        let ledger = Ledger::from_parts(items, transactions, BudgetList::new());
 
         let period = Period::new(date(1), date(31)).unwrap();
 
@@ -208,7 +209,7 @@ mod tests {
             ))
             .unwrap();
 
-        let ledger = Ledger::from_parts(items, transactions);
+        let ledger = Ledger::from_parts(items, transactions, BudgetList::new());
 
         let period = Period::month(YearMonth::new(2026, 10).unwrap());
 
@@ -246,7 +247,7 @@ mod tests {
             ))
             .unwrap();
 
-        let ledger = Ledger::from_parts(items, transactions);
+        let ledger = Ledger::from_parts(items, transactions, BudgetList::new());
 
         // 10月20日〜10月31日
         // 10月1日の取引は期間外
@@ -301,7 +302,7 @@ mod tests {
             ))
             .unwrap();
 
-        let ledger = Ledger::from_parts(items, transactions);
+        let ledger = Ledger::from_parts(items, transactions, BudgetList::new());
 
         let period = Period::month(YearMonth::new(2026, 10).unwrap());
 
@@ -343,7 +344,7 @@ mod tests {
             ))
             .unwrap();
 
-        let ledger = Ledger::from_parts(items, transactions);
+        let ledger = Ledger::from_parts(items, transactions, BudgetList::new());
 
         let period = Period::month(YearMonth::new(2026, 10).unwrap());
 
@@ -385,7 +386,7 @@ mod tests {
             ))
             .unwrap();
 
-        let ledger = Ledger::from_parts(items, transactions);
+        let ledger = Ledger::from_parts(items, transactions, BudgetList::new());
 
         // 10月1日〜10月30日を対象
         let period = Period::new(date(1), date(30)).unwrap();

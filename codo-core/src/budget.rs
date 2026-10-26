@@ -72,6 +72,7 @@ impl BudgetList {
         self.budgets.iter().find(|budget| budget.id == id)
     }
 
+    /// 予算の追加
     pub fn add(&mut self, amount: Money, period: Period) -> Result<BudgetId, BudgetError> {
         if self.budgets.iter().any(|budget| budget.period == period) {
             return Err(BudgetError::DuplicatePeriod);
@@ -89,6 +90,7 @@ impl BudgetList {
         Ok(BudgetId(new_id))
     }
 
+    /// 既存の予算の編集
     pub fn update(
         &mut self,
         id: BudgetId,
@@ -114,6 +116,7 @@ impl BudgetList {
         }
     }
 
+    /// 既存の予算の削除
     pub fn remove(&mut self, id: BudgetId) -> Result<(), BudgetError> {
         if self.get(id).is_none() {
             return Err(BudgetError::NotFound(id));
@@ -122,6 +125,15 @@ impl BudgetList {
         self.budgets.retain(|budget| budget.id != id);
 
         Ok(())
+    }
+
+    /// 保存済みのIDを変更せずに予算一覧を復元するメソッド
+    pub fn from_budgets(budgets: Vec<Budget>) -> Self {
+        Self { budgets }
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = &Budget> {
+        self.budgets.iter()
     }
 }
 

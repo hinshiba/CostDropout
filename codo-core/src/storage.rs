@@ -1,14 +1,17 @@
 //! 帳簿の保存・読み込み
 
+use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 use thiserror::Error;
 
+use crate::budget::{Budget, BudgetId, BudgetList};
 use crate::item::{Item, ItemList};
 use crate::ledger::Ledger;
-use crate::period::YearMonth;
+use crate::money::Money;
+use crate::period::{Period, PeriodError, YearMonth};
 use crate::transaction::{Transaction, TransactionList};
 
 /// 1か月分の取引ファイル
@@ -21,6 +24,12 @@ struct MonthFile {
 #[derive(Serialize, Deserialize)]
 struct ItemsFile {
     items: Vec<Item>,
+}
+
+/// 予算ファイル
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct BudgetsFile {
+    budgets: Vec<BudgetRecord>,
 }
 
 /// 拡張子がtomlかの判断
@@ -43,6 +52,38 @@ fn month_of_file(path: &Path) -> Option<YearMonth> {
         Some(ym)
     } else {
         None
+    }
+}
+
+/// TOMLに保存する予算1件分のデータ
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct BudgetRecord {
+    id: u32,
+    amount: Money,
+    start: NaiveDate,
+    end: NaiveDate,
+}
+
+/// BudgetをBudgetRecordに変換する
+impl From<&Budget> for BudgetRecord {
+    fn from(budget: &Budget) -> Self {
+        Self {
+            id: budget.id().0,
+            amount: budget.amount(),
+            start: budget.period().start(),
+            end: budget.period().end(),
+        }
+    }
+}
+
+/// BudgetRecordからBudgetを復元する
+impl TryFrom<BudgetRecord> for Budget {
+    type Error = PeriodError;
+
+    fn try_from(record: BudgetRecord) -> Result<Self, Self::Error> {
+        let period = Period::new(record.start, record.end)?;
+
+        Ok(Budget::new(BudgetId(record.id), record.amount, period))
     }
 }
 
@@ -98,12 +139,19 @@ impl LedgerStore for TomlStore {
         }
         let transactions = TransactionList::from_transactions(all);
 
-        Ok(Ledger::from_parts(items, transactions))
+        Ok(Ledger::from_parts(items, transactions, BudgetList::new()))
     }
 
     /// ファイルの保存を行う
     fn save(&self, ledger: &Ledger) -> Result<(), StorageError> {
         std::fs::create_dir_all(&self.dir)?;
+        let mut records: Vec<BudgetRecord> =
+            ledger.budgets().iter().map(BudgetRecord::from).collect();
+        records.sort_by_key(|record| record.id);
+        let budgets_file = BudgetsFile { budgets: records };
+        let budgets_toml = toml::to_string(&budgets_file)?;
+        let budgets_path = self.dir.join("budgets.toml");
+        std::fs::write(budgets_path, budgets_toml)?;
         let items_path = self.dir.join("items.toml");
         let items_toml = toml::to_string(ledger.items())?;
         let mut by_month: BTreeMap<YearMonth, Vec<Transaction>> = BTreeMap::new();
