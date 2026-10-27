@@ -33,7 +33,7 @@ pub fn monthly_expense(
 
 /// 年ごとの支出合計を返す
 ///
-/// 期間の最初と最後の月は，期間内の日の取引だけを数えること (Period の両端を含む)
+/// 支出のない年はMoney(0)として含める。
 /// 年の合計が i32 を超えると MoneyError::Overflow を返すこと
 /// 品目では絞らない
 pub fn yearly_expense(ledger: &Ledger) -> Result<Vec<(i32, Money)>, MoneyError> {
@@ -63,13 +63,13 @@ mod tests {
     use crate::transaction::{TransactionDraft, TransactionList};
     use chrono::NaiveDate;
 
-    fn date(day: u32) -> NaiveDate {
-        NaiveDate::from_ymd_opt(2026, 10, day).unwrap()
+    fn date(year: i32, month: u32, day: u32) -> NaiveDate {
+        NaiveDate::from_ymd_opt(year, month, day).unwrap()
     }
 
-    fn draft(day: u32, amount: i32, item: ItemId, counterpart: ItemId) -> TransactionDraft {
+    fn draft(date: NaiveDate, amount: i32, item: ItemId, counterpart: ItemId) -> TransactionDraft {
         TransactionDraft::new(
-            date(day),
+            date,
             Money(amount),
             item,
             counterpart,
@@ -89,22 +89,24 @@ mod tests {
         let mut transactions = TransactionList::new();
 
         // 10月だけ支出がある
-        transactions.add(draft(10, 3000, food, cash)).unwrap();
+        transactions
+            .add(draft(date(2026, 10, 10), 3000, food, cash))
+            .unwrap();
 
         // 10月に収入がある
-        transactions.add(draft(20, 10000, income, cash)).unwrap();
+        transactions
+            .add(draft(date(2026, 10, 20), 10000, income, cash))
+            .unwrap();
 
         // 10月に負債がある
-        transactions.add(draft(15, 5000, loan, cash)).unwrap();
+        transactions
+            .add(draft(date(2026, 10, 15), 5000, loan, cash))
+            .unwrap();
 
         let ledger = Ledger::from_parts(items, transactions);
 
         // 2026年10月1日〜12月31日
-        let period = Period::new(
-            NaiveDate::from_ymd_opt(2026, 10, 1).unwrap(),
-            NaiveDate::from_ymd_opt(2026, 12, 31).unwrap(),
-        )
-        .unwrap();
+        let period = Period::new(date(2026, 10, 1), date(2026, 12, 31)).unwrap();
 
         let result = monthly_expense(&ledger, period, None).unwrap();
 
@@ -128,17 +130,21 @@ mod tests {
 
         let mut transactions = TransactionList::new();
 
-        transactions.add(draft(5, 3000, food, cash)).unwrap();
-
-        transactions.add(draft(10, 4000, food, cash)).unwrap();
+        transactions
+            .add(draft(date(2026, 10, 5), 3000, food, cash))
+            .unwrap();
 
         transactions
-            .add(draft(10, 10000, entertainment, cash))
+            .add(draft(date(2026, 10, 10), 4000, food, cash))
+            .unwrap();
+
+        transactions
+            .add(draft(date(2026, 10, 10), 10000, entertainment, cash))
             .unwrap();
 
         let ledger = Ledger::from_parts(items, transactions);
 
-        let period = Period::new(date(1), date(31)).unwrap();
+        let period = Period::new(date(2026, 10, 1), date(2026, 10, 31)).unwrap();
 
         let result = monthly_expense(&ledger, period, Some(food)).unwrap();
 
@@ -161,45 +167,21 @@ mod tests {
 
         // 2025年：支出あり
         transactions
-            .add(TransactionDraft::new(
-                NaiveDate::from_ymd_opt(2025, 10, 10).unwrap(),
-                Money(3000),
-                food,
-                cash,
-                "テスト".to_string(),
-            ))
+            .add(draft(date(2025, 10, 10), 3000, food, cash))
             .unwrap();
 
         // 2026年：収入・負債のみ
         transactions
-            .add(TransactionDraft::new(
-                NaiveDate::from_ymd_opt(2026, 10, 10).unwrap(),
-                Money(10000),
-                income,
-                cash,
-                "給与".to_string(),
-            ))
+            .add(draft(date(2026, 10, 10), 10000, income, cash))
             .unwrap();
 
         transactions
-            .add(TransactionDraft::new(
-                NaiveDate::from_ymd_opt(2026, 11, 10).unwrap(),
-                Money(5000),
-                loan,
-                cash,
-                "借入".to_string(),
-            ))
+            .add(draft(date(2026, 11, 10), 5000, loan, cash))
             .unwrap();
 
         // 2027年：支出あり
         transactions
-            .add(TransactionDraft::new(
-                NaiveDate::from_ymd_opt(2027, 10, 10).unwrap(),
-                Money(5000),
-                food,
-                cash,
-                "テスト".to_string(),
-            ))
+            .add(draft(date(2027, 10, 10), 5000, food, cash))
             .unwrap();
 
         let ledger = Ledger::from_parts(items, transactions);
@@ -223,34 +205,18 @@ mod tests {
 
         // 期間開始前なので集計されない
         transactions
-            .add(TransactionDraft::new(
-                NaiveDate::from_ymd_opt(2026, 10, 5).unwrap(),
-                Money(3000),
-                food,
-                cash,
-                "期間外".to_string(),
-            ))
+            .add(draft(date(2026, 10, 5), 3000, food, cash))
             .unwrap();
 
         // 期間内なので集計される
         transactions
-            .add(TransactionDraft::new(
-                NaiveDate::from_ymd_opt(2026, 10, 15).unwrap(),
-                Money(5000),
-                food,
-                cash,
-                "期間内".to_string(),
-            ))
+            .add(draft(date(2026, 10, 15), 5000, food, cash))
             .unwrap();
 
         let ledger = Ledger::from_parts(items, transactions);
 
-        // 10月10日～10月31日だけを期間にする
-        let period = Period::new(
-            NaiveDate::from_ymd_opt(2026, 10, 10).unwrap(),
-            NaiveDate::from_ymd_opt(2026, 10, 31).unwrap(),
-        )
-        .unwrap();
+        // 10月10日〜10月31日だけを期間にする
+        let period = Period::new(date(2026, 10, 10), date(2026, 10, 31)).unwrap();
 
         let result = monthly_expense(&ledger, period, None).unwrap();
 
@@ -270,16 +236,16 @@ mod tests {
         let mut transactions = TransactionList::new();
 
         transactions
-            .add(draft(10, 1_500_000_000, food, cash))
+            .add(draft(date(2026, 10, 10), 1_500_000_000, food, cash))
             .unwrap();
 
         transactions
-            .add(draft(10, 1_500_000_000, food, cash))
+            .add(draft(date(2026, 10, 10), 1_500_000_000, food, cash))
             .unwrap();
 
         let ledger = Ledger::from_parts(items, transactions);
 
-        let period = Period::new(date(1), date(31)).unwrap();
+        let period = Period::new(date(2026, 10, 1), date(2026, 10, 31)).unwrap();
 
         let result = monthly_expense(&ledger, period, None);
 
@@ -296,23 +262,11 @@ mod tests {
         let mut transactions = TransactionList::new();
 
         transactions
-            .add(TransactionDraft::new(
-                NaiveDate::from_ymd_opt(2026, 10, 10).unwrap(),
-                Money(1_500_000_000),
-                food,
-                cash,
-                "テスト".to_string(),
-            ))
+            .add(draft(date(2026, 10, 10), 1_500_000_000, food, cash))
             .unwrap();
 
         transactions
-            .add(TransactionDraft::new(
-                NaiveDate::from_ymd_opt(2026, 10, 20).unwrap(),
-                Money(1_500_000_000),
-                food,
-                cash,
-                "テスト".to_string(),
-            ))
+            .add(draft(date(2026, 10, 20), 1_500_000_000, food, cash))
             .unwrap();
 
         let ledger = Ledger::from_parts(items, transactions);
@@ -340,7 +294,9 @@ mod tests {
 
         let mut transactions = TransactionList::new();
 
-        transactions.add(draft(10, 3000, food, cash)).unwrap();
+        transactions
+            .add(draft(date(2026, 10, 10), 3000, food, cash))
+            .unwrap();
 
         let ledger = Ledger::from_parts(items, transactions);
 
@@ -359,20 +315,16 @@ mod tests {
         let mut transactions = TransactionList::new();
 
         transactions
-            .add(draft_on(2026, 12, 10, 3000, food, cash))
+            .add(draft(date(2026, 12, 10), 3000, food, cash))
             .unwrap();
 
         transactions
-            .add(draft_on(2027, 1, 10, 5000, food, cash))
+            .add(draft(date(2027, 1, 10), 5000, food, cash))
             .unwrap();
 
         let ledger = Ledger::from_parts(items, transactions);
 
-        let period = Period::new(
-            NaiveDate::from_ymd_opt(2026, 12, 1).unwrap(),
-            NaiveDate::from_ymd_opt(2027, 2, 28).unwrap(),
-        )
-        .unwrap();
+        let period = Period::new(date(2026, 12, 1), date(2027, 2, 28)).unwrap();
 
         let result = monthly_expense(&ledger, period, None);
 
