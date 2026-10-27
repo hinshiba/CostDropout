@@ -496,4 +496,26 @@ mod tests {
             Err(LedgerError::Budget(BudgetError::NotFound(missing_id)))
         );
     }
+
+    /// ミューテーションテスト
+    /// 更新後の金額と期間を確認する
+    #[test]
+    fn update_budget_delegates_to_budget_list() {
+        let mut ledger = Ledger::new();
+
+        let old_period = Period::month(crate::period::YearMonth::new(2026, 10).unwrap());
+
+        let new_period = Period::month(crate::period::YearMonth::new(2026, 11).unwrap());
+
+        let budget_id = ledger.add_budget(Money(5000), old_period).unwrap();
+
+        ledger
+            .update_budget(budget_id, Money(7000), new_period)
+            .unwrap();
+
+        let updated = ledger.budgets().get(budget_id).unwrap();
+
+        assert_eq!(updated.amount(), Money(7000));
+        assert_eq!(updated.period(), new_period);
+    }
 }
