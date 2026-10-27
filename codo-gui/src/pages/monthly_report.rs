@@ -2,6 +2,7 @@
 
 use crate::app::AppState;
 use codo_core::period::YearMonth;
+use codo_core::report::monthly::monthly_summary;
 use gpui_kit::component::button::Button;
 use gpui_kit::*;
 
@@ -38,6 +39,12 @@ impl Render for MonthlyReport {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let month_label = format!("{}年{}月", self.yearmonth.year(), self.yearmonth.month());
 
+        let summary = monthly_summary(&self.state.read(cx).ledger, self.yearmonth);
+
+        let income_label = format!("収入: {}", summary.income());
+        let expense_label = format!("支出: {}", summary.expense());
+        let difference_label = format!("差額: {}", summary.income() - summary.expense());
+
         let prev_button =
             Button::new("prev_button")
                 .label("◀")
@@ -62,15 +69,27 @@ impl Render for MonthlyReport {
             .child(month_label)
             .child(next_button);
 
+        // 月の合計
+        let totals = div()
+            .flex()
+            .flex_col()
+            .items_center()
+            .gap_2()
+            .child(income_label)
+            .child(expense_label)
+            .child(difference_label);
+
         // 実際の収支表示
         div()
             .size_full()
             .flex()
+            .flex_col()
             .bg(rgb(0x9370db))
             .justify_center()
             .items_center()
             .text_xl()
             .text_color(rgb(0xffffff))
             .child(month_selector)
+            .child(totals)
     }
 }
