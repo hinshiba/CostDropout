@@ -204,7 +204,7 @@ mod tests {
         let expense_id = ledger.add_item("食費", Tag::Expense).unwrap();
         let asset_id = ledger.add_item("現金", Tag::Asset).unwrap();
 
-        if expense_amount > 0 {
+        if 0 < expense_amount {
             let draft = TransactionDraft::new(
                 NaiveDate::from_ymd_opt(2025, 4, 15).unwrap(),
                 Money(expense_amount),
@@ -401,18 +401,7 @@ mod tests {
     /// 支出が存在しない場合
     #[test]
     fn budget_status_no_expense_test() {
-        let ledger = {
-            let mut ledger = Ledger::new();
-
-            let period = Period::new(
-                NaiveDate::from_ymd_opt(2025, 4, 1).unwrap(),
-                NaiveDate::from_ymd_opt(2025, 4, 30).unwrap(),
-            )
-            .unwrap();
-
-            ledger.add_budget(Money(5000), period).unwrap();
-            ledger
-        };
+        let (ledger, _budget_id) = ledger_with_budget_and_expense(5000, 0);
 
         let status = BudgetStatus::calculate(&ledger, BudgetId(1)).unwrap();
 
