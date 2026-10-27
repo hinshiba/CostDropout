@@ -254,7 +254,7 @@ mod tests {
 
         let result = monthly_expense(&ledger, period, None);
 
-        assert_eq!(result, Err(crate::money::MoneyError::Overflow));
+        assert_eq!(result, Err(MoneyError::Overflow));
     }
 
     #[test]
