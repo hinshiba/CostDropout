@@ -28,7 +28,7 @@ pub struct BudgetStatus {
     pub budget: Budget,
     pub spent: Money,
     pub remaining: Money,
-    pub ratio: f64,
+    pub ratio: Option<f64>,
 }
 
 /// 予算操作で発生するエラー
@@ -166,9 +166,9 @@ impl BudgetStatus {
         let spent_value = spent.0 as f64;
         let budget_value = budget.amount().0 as f64;
         let ratio = if budget_value == 0.0 {
-            0.0
+            None
         } else {
-            spent_value / budget_value
+            Some(spent_value / budget_value)
         };
         Ok(BudgetStatus {
             budget: budget.clone(),
@@ -374,7 +374,7 @@ mod tests {
         assert_eq!(status.budget.id(), budget_id);
         assert_eq!(status.spent, Money(3000));
         assert_eq!(status.remaining, Money(2000));
-        assert_eq!(status.ratio, 0.6);
+        assert_eq!(status.ratio, Some(0.6));
     }
 
     /// 支出が予算額と同じ場合
@@ -386,7 +386,7 @@ mod tests {
 
         assert_eq!(status.spent, Money(5000));
         assert_eq!(status.remaining, Money(0));
-        assert_eq!(status.ratio, 1.0);
+        assert_eq!(status.ratio, Some(1.0));
     }
 
     /// 支出が予算を超過した場合
@@ -396,9 +396,10 @@ mod tests {
 
         let status = BudgetStatus::calculate(&ledger, budget_id).unwrap();
 
+        let ratio = status.ratio.unwrap();
         assert_eq!(status.spent, Money(7000));
         assert_eq!(status.remaining, Money(-2000));
-        assert!((status.ratio - 1.4).abs() < 1e-10);
+        assert!((ratio - 1.4).abs() < 1e-10);
     }
 
     /// 支出が存在しない場合
@@ -410,7 +411,7 @@ mod tests {
 
         assert_eq!(status.spent, Money(0));
         assert_eq!(status.remaining, Money(5000));
-        assert_eq!(status.ratio, 0.0);
+        assert_eq!(status.ratio, Some(0.0));
     }
 
     /// 予算額が0円の場合
@@ -422,7 +423,7 @@ mod tests {
 
         assert_eq!(status.spent, Money(0));
         assert_eq!(status.remaining, Money(0));
-        assert_eq!(status.ratio, 0.0);
+        assert_eq!(status.ratio, None);
     }
 
     /// 存在しない予算IDを指定した場合
@@ -465,5 +466,16 @@ mod tests {
         let result = BudgetList::from_budgets(vec![budget1, budget2]);
 
         assert_eq!(result, Err(BudgetError::DuplicatePeriod));
+    }
+
+    #[test]
+    fn budget_status_zero_budget_with_expense_test() {
+        let (ledger, budget_id) = ledger_with_budget_and_expense(0, 3000);
+
+        let status = BudgetStatus::calculate(&ledger, budget_id).unwrap();
+
+        assert_eq!(status.spent, Money(3000));
+        assert_eq!(status.remaining, Money(-3000));
+        assert_eq!(status.ratio, None);
     }
 }
