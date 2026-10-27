@@ -1,8 +1,11 @@
 //! ledgerの整合性
 
 use crate::item::{ItemError, ItemId, ItemList, Tag};
+use crate::period::YearMonth;
 use crate::preset::preset_items;
-use crate::transaction::{TransactionDraft, TransactionError, TransactionId, TransactionList};
+use crate::transaction::{
+    Transaction, TransactionDraft, TransactionError, TransactionId, TransactionList,
+};
 use thiserror::Error;
 
 /// 登録された品目と取引を保持し、
@@ -66,6 +69,16 @@ impl Ledger {
 
     pub fn transactions(&self) -> &TransactionList {
         &self.transactions
+    }
+
+    /// 指定月の取引を日付の降順、同日ならIDの降順で返す。
+    ///
+    /// 月の初日と末日の両方を含む。
+    pub fn monthly_transactions(&self, month: YearMonth) -> impl Iterator<Item = &Transaction> {
+        self.transactions
+            .iter()
+            .rev()
+            .filter(move |transaction| month.contains(transaction.date()))
     }
 
     /// 品目のadd処理を委譲
@@ -442,6 +455,111 @@ mod tests {
         assert_eq!(
             ledger.items().get_item(new_id).unwrap().name(),
             "新しい品目"
+        );
+    }
+}
+
+#[cfg(test)]
+mod monthly_transaction_tests {
+    use crate::item::Tag;
+    use crate::ledger::Ledger;
+    use crate::money::Money;
+    use crate::period::YearMonth;
+    use crate::transaction::TransactionDraft;
+    use chrono::NaiveDate;
+
+    #[test]
+    fn monthly_transactions_filter_boundaries_sort_and_reflect_removal() {
+        let mut ledger = Ledger::new();
+        let item = ledger.add_item("食費", Tag::Expense).unwrap();
+        let counterpart = ledger.add_item("現金", Tag::Asset).unwrap();
+        let dates = [
+            (2026, 12, 31),
+            (2027, 1, 1),
+            (2026, 11, 30),
+            (2026, 12, 1),
+            (2026, 12, 15),
+            (2026, 12, 15),
+        ];
+        let mut ids = Vec::new();
+        for (year, month, day) in dates {
+            ids.push(
+                ledger
+                    .add_transaction(TransactionDraft::new(
+                        NaiveDate::from_ymd_opt(year, month, day).unwrap(),
+                        Money(1234),
+                        item,
+                        counterpart,
+                        String::new(),
+                    ))
+                    .unwrap(),
+            );
+        }
+        let month = YearMonth::new(2026, 12).unwrap();
+        let mut same_day = [ids[4], ids[5]];
+        same_day.sort_by(|left, right| right.cmp(left));
+        assert_eq!(
+            ledger
+                .monthly_transactions(month)
+                .map(|transaction| transaction.id())
+                .collect::<Vec<_>>(),
+            vec![ids[0], same_day[0], same_day[1], ids[3]]
+        );
+        assert_eq!(
+            ledger
+                .monthly_transactions(month.prev())
+                .map(|transaction| transaction.id())
+                .collect::<Vec<_>>(),
+            vec![ids[2]]
+        );
+        assert_eq!(
+            ledger
+                .monthly_transactions(month.next())
+                .map(|transaction| transaction.id())
+                .collect::<Vec<_>>(),
+            vec![ids[1]]
+        );
+        ledger.remove_transaction(ids[0]).unwrap();
+        assert_eq!(
+            ledger
+                .monthly_transactions(month)
+                .map(|transaction| transaction.id())
+                .collect::<Vec<_>>(),
+            vec![same_day[0], same_day[1], ids[3]]
+        );
+        assert!(
+            ledger
+                .monthly_transactions(month.next().next())
+                .next()
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn monthly_transactions_include_leap_day_only_in_february() {
+        let mut ledger = Ledger::new();
+        let item = ledger.add_item("給与", Tag::Income).unwrap();
+        let counterpart = ledger.add_item("銀行", Tag::Asset).unwrap();
+        for (month, day) in [(2, 1), (2, 29), (3, 1)] {
+            ledger
+                .add_transaction(TransactionDraft::new(
+                    NaiveDate::from_ymd_opt(2024, month, day).unwrap(),
+                    Money(1),
+                    item,
+                    counterpart,
+                    String::new(),
+                ))
+                .unwrap();
+        }
+        let transactions = ledger.monthly_transactions(YearMonth::new(2024, 2).unwrap());
+        assert_eq!(
+            transactions
+                .map(|transaction| transaction.date())
+                .collect::<Vec<_>>(),
+            vec![
+                NaiveDate::from_ymd_opt(2024, 2, 29).unwrap(),
+                NaiveDate::from_ymd_opt(2024, 2, 1).unwrap()
+            ]
         );
     }
 }

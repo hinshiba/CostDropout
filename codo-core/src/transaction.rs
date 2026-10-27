@@ -212,7 +212,7 @@ impl TransactionList {
     }
 
     ///日付順に取引を取り出す
-    pub fn iter(&self) -> impl Iterator<Item = &Transaction> {
+    pub fn iter(&self) -> impl DoubleEndedIterator<Item = &Transaction> {
         self.transactions.iter()
     }
 
