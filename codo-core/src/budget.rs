@@ -302,8 +302,8 @@ mod tests {
         assert_eq!(first_outcome, Ok(BudgetId(1)));
 
         // 不正なIdの変更
-        let deplicate_outcome = budgets.update(BudgetId(2), Money(7000), period);
-        assert_eq!(deplicate_outcome, Err(BudgetError::NotFound(BudgetId(2))));
+        let not_found_outcome = budgets.update(BudgetId(2), Money(7000), period);
+        assert_eq!(not_found_outcome, Err(BudgetError::NotFound(BudgetId(2))));
 
         // 1つ目の内容が変更されていないことを確認
         let budget = budgets.get(BudgetId(1)).unwrap();
