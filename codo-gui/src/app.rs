@@ -31,11 +31,11 @@ pub struct App {
 }
 
 impl App {
-    pub fn new(cx: &mut Context<Self>) -> Self {
+    pub fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
         let state = cx.new(|_| AppState {
             ledger: Ledger::with_presets(),
         });
-        let transaction_form = cx.new(|cx| TransactionForm::new(state.clone(), cx));
+        let transaction_form = cx.new(|cx| TransactionForm::new(state.clone(), window, cx));
 
         let transaction_list = cx.new(|cx| TransactionList::new(state.clone(), cx));
 
