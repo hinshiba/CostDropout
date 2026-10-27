@@ -4,9 +4,13 @@ use crate::item::ItemId;
 use crate::ledger::Ledger;
 use crate::money::{Money, MoneyError};
 use crate::period::{Period, YearMonth};
-use crate::report::{Flow, flow_of};
+use crate::report::{Flow, flows_in};
+use chrono::Datelike;
 
 /// 月ごとの支出合計を返す
+///
+/// 期間の最初と最後の月は，期間内の日の取引だけを数えること (Period の両端を含む)
+/// 月の合計が i32 を超えると MoneyError::Overflow を返すこと
 /// 品目で絞らない場合はNoneを引数とする
 pub fn monthly_expense(
     ledger: &Ledger,
@@ -28,22 +32,24 @@ pub fn monthly_expense(
 }
 
 /// 年ごとの支出合計を返す
+///
+/// 期間の最初と最後の月は，期間内の日の取引だけを数えること (Period の両端を含む)
+/// 年の合計が i32 を超えると MoneyError::Overflow を返すこと
 /// 品目では絞らない
 pub fn yearly_expense(ledger: &Ledger) -> Result<Vec<(i32, Money)>, MoneyError> {
     let mut transactions = ledger.transactions().iter();
+
     let Some(first) = transactions.next() else {
         return Ok(Vec::new());
     };
+
     let last = transactions.last().unwrap_or(first);
 
     (first.date().year()..=last.date().year())
         .map(|year| {
-            let total = ledger
-                .transactions()
-                .iter()
-                .filter(|tx| YearMonth::from_date(tx.date()).year() == year)
-                .filter(|tx| flow_of(ledger, tx) == Flow::Expense)
-                .try_fold(Money(0), |total, tx| total.checked_add(tx.amount()))?;
+            let total = flows_in(ledger, Period::year(year))
+                .filter(|(_, flow)| *flow == Flow::Expense)
+                .try_fold(Money(0), |total, (tx, _)| total.checked_add(tx.amount()))?;
 
             Ok((year, total))
         })
@@ -148,6 +154,8 @@ mod tests {
 
         let food = items.add("食費", Tag::Expense).unwrap();
         let cash = items.add("現金", Tag::Asset).unwrap();
+        let income = items.add("給与", Tag::Income).unwrap();
+        let loan = items.add("借入金", Tag::Liability).unwrap();
 
         let mut transactions = TransactionList::new();
 
@@ -159,6 +167,27 @@ mod tests {
                 food,
                 cash,
                 "テスト".to_string(),
+            ))
+            .unwrap();
+
+        // 2026年：収入・負債のみ
+        transactions
+            .add(TransactionDraft::new(
+                NaiveDate::from_ymd_opt(2026, 10, 10).unwrap(),
+                Money(10000),
+                income,
+                cash,
+                "給与".to_string(),
+            ))
+            .unwrap();
+
+        transactions
+            .add(TransactionDraft::new(
+                NaiveDate::from_ymd_opt(2026, 11, 10).unwrap(),
+                Money(5000),
+                loan,
+                cash,
+                "借入".to_string(),
             ))
             .unwrap();
 
@@ -291,5 +320,69 @@ mod tests {
         let result = yearly_expense(&ledger);
 
         assert_eq!(result, Err(MoneyError::Overflow));
+    }
+
+    #[test]
+    fn yearly_expense_returns_empty_when_there_are_no_transactions() {
+        let ledger = Ledger::from_parts(ItemList::new(), TransactionList::new());
+
+        let result = yearly_expense(&ledger);
+
+        assert_eq!(result, Ok(Vec::new()));
+    }
+
+    #[test]
+    fn yearly_expense_returns_one_year_when_transactions_are_in_one_year() {
+        let mut items = ItemList::new();
+
+        let food = items.add("食費", Tag::Expense).unwrap();
+        let cash = items.add("現金", Tag::Asset).unwrap();
+
+        let mut transactions = TransactionList::new();
+
+        transactions.add(draft(10, 3000, food, cash)).unwrap();
+
+        let ledger = Ledger::from_parts(items, transactions);
+
+        let result = yearly_expense(&ledger);
+
+        assert_eq!(result, Ok(vec![(2026, Money(3000)),]));
+    }
+
+    #[test]
+    fn monthly_expense_works_across_year_boundary() {
+        let mut items = ItemList::new();
+
+        let food = items.add("食費", Tag::Expense).unwrap();
+        let cash = items.add("現金", Tag::Asset).unwrap();
+
+        let mut transactions = TransactionList::new();
+
+        transactions
+            .add(draft_on(2026, 12, 10, 3000, food, cash))
+            .unwrap();
+
+        transactions
+            .add(draft_on(2027, 1, 10, 5000, food, cash))
+            .unwrap();
+
+        let ledger = Ledger::from_parts(items, transactions);
+
+        let period = Period::new(
+            NaiveDate::from_ymd_opt(2026, 12, 1).unwrap(),
+            NaiveDate::from_ymd_opt(2027, 2, 28).unwrap(),
+        )
+        .unwrap();
+
+        let result = monthly_expense(&ledger, period, None);
+
+        assert_eq!(
+            result,
+            Ok(vec![
+                (YearMonth::new(2026, 12).unwrap(), Money(3000)),
+                (YearMonth::new(2027, 1).unwrap(), Money(5000)),
+                (YearMonth::new(2027, 2).unwrap(), Money(0)),
+            ])
+        );
     }
 }
