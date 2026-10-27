@@ -35,9 +35,9 @@ impl App {
         let state = cx.new(|_| AppState {
             ledger: Ledger::with_presets(),
         });
-        let transaction_form = cx.new(|_| TransactionForm::new(state.clone()));
+        let transaction_form = cx.new(|cx| TransactionForm::new(state.clone(), cx));
 
-        let transaction_list = cx.new(|_| TransactionList::new(state.clone()));
+        let transaction_list = cx.new(|cx| TransactionList::new(state.clone(), cx));
 
         let items = cx.new(|_| Items::new(state.clone()));
 

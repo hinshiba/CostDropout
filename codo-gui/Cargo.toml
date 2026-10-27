@@ -10,3 +10,4 @@ path = "src/main.rs"
 [dependencies]
 codo-core.workspace = true
 gpui-kit.workspace = true
+chrono.workspace = true
