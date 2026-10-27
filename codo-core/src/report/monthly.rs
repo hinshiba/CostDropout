@@ -5,7 +5,7 @@ use chrono::{Datelike, NaiveDate};
 use crate::ledger::Ledger;
 use crate::money::Money;
 use crate::period::{Period, YearMonth};
-use crate::report::{Flow, expense_total, flows_in, income_total};
+use crate::report::{Flow, flows_in};
 
 /// 1日分の収支
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -32,7 +32,7 @@ impl DailySummary {
     }
 }
 
-/// 一か月分の収支
+/// 1か月分の収支
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MonthlySummary {
     month: YearMonth,
@@ -68,21 +68,21 @@ impl MonthlySummary {
 /// 取引がない日も0として含める
 pub fn monthly_summary(ledger: &Ledger, ym: YearMonth) -> MonthlySummary {
     // 1日から末日までの収入と支出が0の日を並べる
-    let mut days = Vec::new();
-    for day in 1..=ym.days_in_month() {
-        let date = NaiveDate::from_ymd_opt(ym.year(), ym.month(), day)
-            .expect("YearMonthの日付は常に正しい");
-        days.push(DailySummary {
+    let mut days: Vec<DailySummary> = ym
+        .first_day()
+        .iter_days()
+        .take(ym.days_in_month() as usize)
+        .map(|date| DailySummary {
             date,
             income: Money(0),
             expense: Money(0),
-        });
-    }
+        })
+        .collect();
 
     // 月内の取引の金額を，その日に足す
     let period = Period::month(ym);
     for (tx, flow) in flows_in(ledger, period) {
-        let index = (tx.date().day() - 1) as usize;
+        let index = tx.date().day0() as usize;
         match flow {
             Flow::Income => days[index].income += tx.amount(),
             Flow::Expense => days[index].expense += tx.amount(),
@@ -90,9 +90,8 @@ pub fn monthly_summary(ledger: &Ledger, ym: YearMonth) -> MonthlySummary {
         }
     }
 
-    // 月の合計
-    let income = income_total(ledger, period);
-    let expense = expense_total(ledger, period);
+    let income = days.iter().map(|day| day.income).sum();
+    let expense = days.iter().map(|day| day.expense).sum();
     MonthlySummary {
         month: ym,
         income,
