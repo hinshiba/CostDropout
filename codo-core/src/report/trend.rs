@@ -17,14 +17,10 @@ pub fn monthly_expense(
         .months()
         .into_iter()
         .map(|month| {
-            let total = ledger
-                .transactions()
-                .iter()
-                .filter(|tx| month.contains(tx.date()))
-                .filter(|tx| period.contains(tx.date()))
-                .filter(|tx| flow_of(ledger, tx) == Flow::Expense)
-                .filter(|tx| item.is_none_or(|item_id| tx.item() == item_id))
-                .try_fold(Money(0), |total, tx| total.checked_add(tx.amount()))?;
+            let total = flows_in(ledger, period)
+                .filter(|(tx, flow)| *flow == Flow::Expense && month.contains(tx.date()))
+                .filter(|(tx, _)| item.is_none_or(|item_id| tx.item() == item_id))
+                .try_fold(Money(0), |total, (tx, _)| total.checked_add(tx.amount()))?;
 
             Ok((month, total))
         })
