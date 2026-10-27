@@ -30,25 +30,13 @@ pub fn monthly_expense(
 /// 年ごとの支出合計を返す
 /// 品目では絞らない
 pub fn yearly_expense(ledger: &Ledger) -> Result<Vec<(i32, Money)>, MoneyError> {
-    let Some(first_year) = ledger
-        .transactions()
-        .iter()
-        .map(|tx| YearMonth::from_date(tx.date()).year())
-        .min()
-    else {
+    let mut transactions = ledger.transactions().iter();
+    let Some(first) = transactions.next() else {
         return Ok(Vec::new());
     };
+    let last = transactions.last().unwrap_or(first);
 
-    let Some(last_year) = ledger
-        .transactions()
-        .iter()
-        .map(|tx| YearMonth::from_date(tx.date()).year())
-        .max()
-    else {
-        return Ok(Vec::new());
-    };
-
-    (first_year..=last_year)
+    (first.date().year()..=last.date().year())
         .map(|year| {
             let total = ledger
                 .transactions()
