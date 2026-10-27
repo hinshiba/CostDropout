@@ -100,10 +100,11 @@ impl BudgetList {
         id: BudgetId,
         amount: Money,
         period: Period,
-    ) -> Result<BudgetId, BudgetError> {
-        if self.get(id).is_none() {
+    ) -> Result<(), BudgetError> {
+        let Some(index) = self.budgets.iter().position(|budget| budget.id == id) else {
             return Err(BudgetError::NotFound(id));
-        }
+        };
+
         if self
             .budgets
             .iter()
@@ -111,13 +112,11 @@ impl BudgetList {
         {
             return Err(BudgetError::DuplicatePeriod);
         }
-        if let Some(budget) = self.budgets.iter_mut().find(|budget| budget.id == id) {
-            budget.amount = amount;
-            budget.period = period;
-            Ok(id)
-        } else {
-            Err(BudgetError::NotFound(id))
-        }
+
+        self.budgets[index].amount = amount;
+        self.budgets[index].period = period;
+
+        Ok(())
     }
 
     /// 既存の予算の削除
@@ -258,10 +257,9 @@ mod tests {
 
         let target_id = budgets.add(Money(5000), period).unwrap();
 
-        let update_budget_id = budgets.update(target_id, Money(7000), period).unwrap();
-        let update_budget = budgets.get(update_budget_id).unwrap();
+        let update_budget = budgets.update(target_id, Money(7000), period);
 
-        assert_eq!(update_budget.amount(), Money(7000));
+        assert_eq!(update_budget, Ok(()));
     }
 
     #[test]

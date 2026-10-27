@@ -206,8 +206,9 @@ impl Ledger {
         id: BudgetId,
         amount: Money,
         period: Period,
-    ) -> Result<BudgetId, LedgerError> {
-        Ok(self.budgets.update(id, amount, period)?)
+    ) -> Result<(), LedgerError> {
+        self.budgets.update(id, amount, period)?;
+        Ok(())
     }
 
     /// 予算のremove処理を委譲
@@ -539,7 +540,7 @@ mod tests {
 
         assert_eq!(
             ledger.update_budget(budget_id, Money(7000), new_period),
-            Ok(budget_id)
+            Ok(())
         );
 
         let budget = ledger.budgets().get(budget_id).unwrap();
