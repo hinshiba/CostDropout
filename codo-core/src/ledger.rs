@@ -83,6 +83,7 @@ impl Ledger {
 
     pub fn budgets(&self) -> &BudgetList {
         &self.budgets
+    }
     /// 指定月の取引を日付の降順、同日ならIDの降順で返す。
     ///
     /// 月の初日と末日の両方を含む。
