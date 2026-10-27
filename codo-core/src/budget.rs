@@ -258,6 +258,9 @@ mod tests {
         let target_id = budgets.add(Money(5000), period).unwrap();
 
         let update_budget = budgets.update(target_id, Money(7000), period);
+        let budget = budgets.get(target_id).unwrap();
+        assert_eq!(budget.amount(), Money(7000));
+        assert_eq!(budget.period(), period);
 
         assert_eq!(update_budget, Ok(()));
     }

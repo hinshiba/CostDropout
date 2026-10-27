@@ -242,23 +242,6 @@ mod tests {
         (ledger, income_id, asset_id)
     }
 
-    fn period(year: i32, month: u32, start_day: u32, end_day: u32) -> Period {
-        Period::new(
-            chrono::NaiveDate::from_ymd_opt(year, month, start_day).unwrap(),
-            chrono::NaiveDate::from_ymd_opt(year, month, end_day).unwrap(),
-        )
-        .unwrap()
-    }
-
-    fn ledger_with_budget() -> (Ledger, BudgetId) {
-        let mut ledger = Ledger::new();
-
-        let period = period(2025, 4, 1, 30);
-        let budget_id = ledger.add_budget(Money(5000), period).unwrap();
-
-        (ledger, budget_id)
-    }
-
     // item関連のテスト
 
     /// 取引にある場合は削除できない，
@@ -498,124 +481,19 @@ mod tests {
         );
     }
 
-    // budget関連のテスト
-
-    /// 予算の追加が成功する場合
+    /// budget関連のテスト
+    ///
+    /// LedgerError::Budgetを確認するテスト
     #[test]
-    fn add_budget_succeeds_when_period_is_unique() {
+    fn budget_error_is_converted_to_ledger_error() {
         let mut ledger = Ledger::new();
-        let target_period = period(2025, 4, 1, 30);
-
-        let budget_id = ledger.add_budget(Money(5000), target_period).unwrap();
-
-        assert_eq!(budget_id, BudgetId(1));
-
-        let budget = ledger.budgets().get(budget_id).unwrap();
-        assert_eq!(budget.amount(), Money(5000));
-        assert_eq!(budget.period(), target_period);
-    }
-
-    /// 同じ期間の予算を追加できない場合
-    #[test]
-    fn add_budget_fails_when_period_is_duplicate() {
-        let (mut ledger, budget_id) = ledger_with_budget();
-        let target_period = period(2025, 4, 1, 30);
-
-        let before = ledger.budgets().get(budget_id).unwrap().clone();
-
-        assert_eq!(
-            ledger.add_budget(Money(7000), target_period),
-            Err(LedgerError::Budget(BudgetError::DuplicatePeriod))
-        );
-
-        // 追加に失敗しても元の予算は変更されない
-        assert_eq!(ledger.budgets().get(budget_id).unwrap(), &before);
-    }
-
-    /// 予算の更新が成功する場合
-    #[test]
-    fn update_budget_succeeds_when_id_exists() {
-        let (mut ledger, budget_id) = ledger_with_budget();
-        let new_period = period(2025, 5, 1, 31);
-
-        assert_eq!(
-            ledger.update_budget(budget_id, Money(7000), new_period),
-            Ok(())
-        );
-
-        let budget = ledger.budgets().get(budget_id).unwrap();
-
-        assert_eq!(budget.amount(), Money(7000));
-        assert_eq!(budget.period(), new_period);
-    }
-
-    /// 存在しない予算を更新できない場合
-    #[test]
-    fn update_budget_fails_when_id_does_not_exist() {
-        let (mut ledger, budget_id) = ledger_with_budget();
-        let missing_id = BudgetId(5);
-        let target_period = period(2025, 5, 1, 31);
-
-        let before = ledger.budgets().get(budget_id).unwrap().clone();
-
-        assert_eq!(
-            ledger.update_budget(missing_id, Money(7000), target_period),
-            Err(LedgerError::Budget(BudgetError::NotFound(missing_id)))
-        );
-
-        // 更新に失敗しても元の予算は変更されない
-        assert_eq!(ledger.budgets().get(budget_id).unwrap(), &before);
-    }
-
-    /// 更新先の期間が既存の予算と重複する場合
-    #[test]
-    fn update_budget_fails_when_period_is_duplicate() {
-        let (mut ledger, budget_id) = ledger_with_budget();
-
-        let second_period = period(2025, 5, 1, 31);
-        let second_id = ledger.add_budget(Money(7000), second_period).unwrap();
-
-        let before = ledger.budgets().get(budget_id).unwrap().clone();
-
-        assert_eq!(
-            ledger.update_budget(budget_id, Money(9000), second_period),
-            Err(LedgerError::Budget(BudgetError::DuplicatePeriod))
-        );
-
-        // 更新対象の予算が変更されていないことを確認
-        assert_eq!(ledger.budgets().get(budget_id).unwrap(), &before);
-
-        // 重複先の予算も変更されていないことを確認
-        assert_eq!(
-            ledger.budgets().get(second_id).unwrap().amount(),
-            Money(7000)
-        );
-    }
-
-    /// 予算の削除が成功する場合
-    #[test]
-    fn remove_budget_succeeds_when_id_exists() {
-        let (mut ledger, budget_id) = ledger_with_budget();
-
-        assert_eq!(ledger.remove_budget(budget_id), Ok(()));
-
-        assert!(ledger.budgets().get(budget_id).is_none());
-    }
-
-    /// 存在しない予算を削除できない場合
-    #[test]
-    fn remove_budget_fails_when_id_does_not_exist() {
-        let (mut ledger, budget_id) = ledger_with_budget();
         let missing_id = BudgetId(5);
 
-        let before = ledger.budgets().get(budget_id).unwrap().clone();
+        let result = ledger.remove_budget(missing_id);
 
         assert_eq!(
-            ledger.remove_budget(missing_id),
+            result,
             Err(LedgerError::Budget(BudgetError::NotFound(missing_id)))
         );
-
-        // 削除に失敗しても元の予算は残っている
-        assert_eq!(ledger.budgets().get(budget_id).unwrap(), &before);
     }
 }
