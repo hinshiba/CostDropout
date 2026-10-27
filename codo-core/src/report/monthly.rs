@@ -42,7 +42,7 @@ pub struct MonthlySummary {
 }
 
 impl MonthlySummary {
-    /// 月
+    /// 集計した年月
     pub fn month(&self) -> YearMonth {
         self.month
     }
@@ -67,6 +67,7 @@ impl MonthlySummary {
 ///
 /// 取引がない日も0として含める
 pub fn monthly_summary(ledger: &Ledger, ym: YearMonth) -> MonthlySummary {
+    // 1日から末日までの収入と支出が0の日を並べる
     let mut days = Vec::new();
     for day in 1..=ym.days_in_month() {
         let date = NaiveDate::from_ymd_opt(ym.year(), ym.month(), day)
@@ -77,6 +78,8 @@ pub fn monthly_summary(ledger: &Ledger, ym: YearMonth) -> MonthlySummary {
             expense: Money(0),
         });
     }
+
+    // 月内の取引の金額を，その日に足す
     let period = Period::month(ym);
     for (tx, flow) in flows_in(ledger, period) {
         let index = (tx.date().day() - 1) as usize;
@@ -86,6 +89,8 @@ pub fn monthly_summary(ledger: &Ledger, ym: YearMonth) -> MonthlySummary {
             Flow::Other => {}
         }
     }
+
+    // 月の合計
     let income = income_total(ledger, period);
     let expense = expense_total(ledger, period);
     MonthlySummary {
@@ -103,6 +108,7 @@ mod tests {
     use crate::item::Tag;
     use crate::transaction::TransactionDraft;
 
+    /// テスト用の年月
     fn ym(year: i32, month: u32) -> YearMonth {
         YearMonth::new(year, month).unwrap()
     }
