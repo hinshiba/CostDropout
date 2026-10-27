@@ -7,8 +7,8 @@ use codo_core::ledger::{Ledger, LedgerError};
 use codo_core::money::Money;
 use codo_core::transaction::{TransactionDraft, TransactionError};
 use gpui_kit::component::button::Button;
-use gpui_kit::component::date_picker::{DatePicker, DatePickerState};
-use gpui_kit::component::input::{Input, InputState};
+use gpui_kit::component::date_picker::{DatePicker, DatePickerEvent, DatePickerState};
+use gpui_kit::component::input::{Input, InputEvent, InputState};
 use gpui_kit::component::select::{Select, SelectEvent, SelectItem, SelectState};
 use gpui_kit::prelude::FluentBuilder;
 use gpui_kit::*;
@@ -143,9 +143,32 @@ impl TransactionForm {
             window,
             |this, _, _: &SelectEvent<Vec<ItemChoice>>, window, cx| {
                 this.refresh_choices(window, cx);
-                this.error = None;
-                this.has_added = false;
-                cx.notify();
+                this.reset_feedback(cx);
+            },
+        ));
+        self.subscriptions.push(cx.subscribe_in(
+            &counterpart,
+            window,
+            |this, _, _: &SelectEvent<Vec<ItemChoice>>, _, cx| {
+                this.reset_feedback(cx);
+            },
+        ));
+        for input in [&amount, &comment] {
+            self.subscriptions.push(cx.subscribe_in(
+                input,
+                window,
+                |this, _, event: &InputEvent, _, cx| {
+                    if matches!(event, InputEvent::Change) {
+                        this.reset_feedback(cx);
+                    }
+                },
+            ));
+        }
+        self.subscriptions.push(cx.subscribe_in(
+            &date,
+            window,
+            |this, _, _: &DatePickerEvent, _, cx| {
+                this.reset_feedback(cx);
             },
         ));
         self.controls = Some(FormControls {
@@ -157,6 +180,13 @@ impl TransactionForm {
             item_choices: Vec::new(),
             counterpart_choices: Vec::new(),
         });
+    }
+
+    /// 入力の変更前に表示していたエラーと追加成功メッセージを消す。
+    fn reset_feedback(&mut self, cx: &mut Context<Self>) {
+        self.error = None;
+        self.has_added = false;
+        cx.notify();
     }
 
     /// 品目管理での編集・削除を反映し、無効になった選択を解除する。
