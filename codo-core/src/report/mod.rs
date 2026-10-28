@@ -1,3 +1,4 @@
+pub mod calendar;
 pub mod category;
 pub mod monthly;
 use crate::item::Tag;
