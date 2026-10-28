@@ -1,4 +1,5 @@
 pub mod category;
+pub mod monthly;
 pub mod trend;
 use crate::item::Tag;
 use crate::ledger::Ledger;
