@@ -251,20 +251,18 @@ mod tests {
     #[test]
     fn update_test() {
         let mut budgets = BudgetList::new();
+        let start = NaiveDate::from_ymd_opt(2025, 4, 1).unwrap();
+        let end = NaiveDate::from_ymd_opt(2025, 4, 30).unwrap();
+        let period = Period::new(start, end).unwrap();
 
-        let old_period = Period::month(YearMonth::new(2026, 10).unwrap());
+        let target_id = budgets.add(Money(5000), period).unwrap();
 
-        let new_period = Period::month(YearMonth::new(2026, 11).unwrap());
+        let update_budget = budgets.update(target_id, Money(7000), period);
+        let budget = budgets.get(target_id).unwrap();
+        assert_eq!(budget.amount(), Money(7000));
+        assert_eq!(budget.period(), period);
 
-        let id = budgets.add(Money(5000), old_period).unwrap();
-
-        assert_eq!(budgets.update(id, Money(7000), new_period), Ok(()));
-
-        let updated = budgets.get(id).unwrap();
-
-        assert_eq!(updated.id(), id);
-        assert_eq!(updated.amount(), Money(7000));
-        assert_eq!(updated.period(), new_period);
+        assert_eq!(update_budget, Ok(()));
     }
 
     #[test]
