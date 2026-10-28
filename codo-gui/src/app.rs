@@ -1,8 +1,8 @@
 //! 画面切り替えと共有画面の作成
 
 use crate::pages::{
-    items::Items, monthly_report::MonthlyReport, transaction_form::TransactionForm,
-    transaction_list::TransactionList,
+    expense_calendar::ExpenseCalendar, items::Items, monthly_report::MonthlyReport,
+    transaction_form::TransactionForm, transaction_list::TransactionList,
 };
 use codo_core::ledger::Ledger;
 use gpui_kit::component::button::Button;
@@ -21,6 +21,7 @@ pub enum Page {
     TransactionList,
     Items,
     MonthlyReport,
+    ExpenseCalendar,
 }
 
 /// 画面の管理
@@ -29,6 +30,7 @@ pub struct App {
     transaction_list: Entity<TransactionList>,
     items: Entity<Items>,
     monthly_report: Entity<MonthlyReport>,
+    expense_calendar: Entity<ExpenseCalendar>,
     page: Page,
     sidebar_open: bool,
 }
@@ -46,11 +48,14 @@ impl App {
 
         let monthly_report = cx.new(|_| MonthlyReport::new(state.clone()));
 
+        let expense_calendar = cx.new(|_| ExpenseCalendar::new(state.clone()));
+
         Self {
             transaction_form,
             transaction_list,
             items,
             monthly_report,
+            expense_calendar,
             page: Page::TransactionForm,
             sidebar_open: true,
         }
@@ -127,6 +132,19 @@ impl Render for App {
                 }
             });
 
+        // 支出カレンダー
+        let expense_calendar = SidebarMenuItem::new("支出カレンダー")
+            .active(self.page == Page::ExpenseCalendar)
+            .on_click({
+                let app = app.clone();
+
+                move |_, _, cx| {
+                    app.update(cx, |app, cx| {
+                        app.show_page(Page::ExpenseCalendar, cx);
+                    });
+                }
+            });
+
         div()
             .size_full()
             .flex()
@@ -151,7 +169,8 @@ impl Render for App {
                             .child(transaction_form)
                             .child(transaction_list)
                             .child(items)
-                            .child(monthly_report),
+                            .child(monthly_report)
+                            .child(expense_calendar),
                     ),
             )
             // メイン画面
@@ -162,6 +181,7 @@ impl Render for App {
                     Page::TransactionList => div().child(self.transaction_list.clone()),
                     Page::Items => div().child(self.items.clone()),
                     Page::MonthlyReport => div().child(self.monthly_report.clone()),
+                    Page::ExpenseCalendar => div().child(self.expense_calendar.clone()),
                 }),
             ))
     }
