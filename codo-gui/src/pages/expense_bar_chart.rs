@@ -6,6 +6,7 @@ use codo_core::item::{ItemId, Tag};
 use codo_core::money::MoneyError;
 use codo_core::period::{Period, YearMonth};
 use codo_core::report::trend::monthly_expense;
+use gpui_kit::component::ActiveTheme;
 use gpui_kit::component::Selectable;
 use gpui_kit::component::button::Button;
 use gpui_kit::component::chart::BarChart;
@@ -14,6 +15,7 @@ use gpui_kit::*;
 struct ExpenseData {
     month: String,
     amount: f64,
+    is_dummy: bool,
 }
 
 pub struct ExpenseBarChart {
@@ -69,6 +71,7 @@ impl ExpenseBarChart {
                 .map(|(month, amount)| ExpenseData {
                     month: month.to_string(),
                     amount: amount.0 as f64,
+                    is_dummy: false,
                 })
                 .collect()
         })
@@ -78,6 +81,50 @@ impl ExpenseBarChart {
         self.selected_item = Some(item_id);
         cx.notify();
     }
+
+    /// データの最大値に応じて、Y軸の上限を決める。
+    fn adjusted_max(data: &[ExpenseData]) -> f64 {
+        let max_amount = data.iter().map(|data| data.amount).fold(0.0, f64::max);
+
+        if max_amount <= 50_000.0 {
+            50_000.0
+        } else if max_amount <= 100_000.0 {
+            100_000.0
+        } else if max_amount <= 200_000.0 {
+            200_000.0
+        } else if max_amount <= 300_000.0 {
+            300_000.0
+        } else if max_amount <= 400_000.0 {
+            400_000.0
+        } else if max_amount <= 500_000.0 {
+            500_000.0
+        } else if max_amount <= 600_000.0 {
+            600_000.0
+        } else if max_amount <= 700_000.0 {
+            700_000.0
+        } else if max_amount <= 800_000.0 {
+            800_000.0
+        } else if max_amount <= 900_000.0 {
+            900_000.0
+        } else if max_amount <= 1_000_000.0 {
+            1_000_000.0
+        } else {
+            (max_amount / 500_000.0).ceil() * 500_000.0
+        }
+    }
+
+    /// Y軸の目盛り数を決める。
+    fn tick_count(data: &[ExpenseData]) -> usize {
+        let adjusted_max = Self::adjusted_max(data);
+
+        let step = if adjusted_max <= 100_000.0 {
+            25_000.0
+        } else {
+            100_000.0
+        };
+
+        (adjusted_max / step) as usize + 1
+    }
 }
 
 impl Render for ExpenseBarChart {
@@ -85,10 +132,10 @@ impl Render for ExpenseBarChart {
         let items = self.expense_items(cx);
 
         // 初回表示時は最初の支出品目を自動選択する。
-        if self.selected_item.is_none() {
-            if let Some((item_id, _)) = items.first() {
-                self.selected_item = Some(*item_id);
-            }
+        if self.selected_item.is_none()
+            && let Some((item_id, _)) = items.first()
+        {
+            self.selected_item = Some(*item_id);
         }
 
         let chart_data = self.chart_data(cx);
@@ -112,27 +159,56 @@ impl Render for ExpenseBarChart {
 
         let chart = match chart_data {
             Ok(data) if data.is_empty() => div()
-                .flex()
-                .items_center()
-                .justify_center()
-                .h_80()
-                .child("支出品目を選択してください"),
+                .w_full()
+                .h_96()
+                .child("支出項目を選択してください")
+                .into_any_element(),
 
-            Ok(data) => div().w_full().h_96().child(
-                BarChart::new(data)
-                    .band(|data| data.month.clone())
-                    .value(|data| data.amount)
-                    .label(|data| format!("{:.0}", data.amount))
-                    .value_axis(true)
-                    .value_tick_count(4),
-            ),
+            Ok(mut data) => {
+                let adjusted_max = Self::adjusted_max(&data);
+                let tick_count = Self::tick_count(&data);
+
+                data.push(ExpenseData {
+                    month: String::new(),
+                    amount: adjusted_max,
+                    is_dummy: true,
+                });
+
+                let chart_color = cx.theme().chart_1;
+                let transparent = cx.theme().transparent;
+
+                div()
+                    .w_full()
+                    .h_96()
+                    .child(
+                        BarChart::new(data)
+                            .band(|data| data.month.clone())
+                            .value(|data| data.amount)
+                            .label(|data| {
+                                if data.is_dummy {
+                                    String::new()
+                                } else {
+                                    format!("{:.0}", data.amount)
+                                }
+                            })
+                            .fill(move |data, _, _, _| {
+                                if data.is_dummy {
+                                    transparent
+                                } else {
+                                    chart_color
+                                }
+                            })
+                            .value_axis(true)
+                            .value_tick_count(tick_count),
+                    )
+                    .into_any_element()
+            }
 
             Err(error) => div()
-                .flex()
-                .items_center()
-                .justify_center()
-                .h_80()
-                .child(format!("支出データの取得に失敗しました: {error:?}")),
+                .w_full()
+                .h_96()
+                .child(format!("集計エラー: {error:?}"))
+                .into_any_element(),
         };
 
         div()

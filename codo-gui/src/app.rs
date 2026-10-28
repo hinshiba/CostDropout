@@ -115,7 +115,7 @@ impl Render for App {
             });
 
         // 棒グラフの支出推移（棒グラフ，品目別）
-        let expense_bar_chart = SidebarMenuItem::new("支出推移（品目別")
+        let expense_bar_chart = SidebarMenuItem::new("支出推移（品目別）")
             .active(self.page == Page::ExpenseBarChart)
             .on_click({
                 let app = app.clone();
