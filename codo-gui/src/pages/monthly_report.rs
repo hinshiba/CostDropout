@@ -238,6 +238,8 @@ impl Render for MonthlyReport {
                     .p_4()
                     .w(px(420.))
                     .h(day_list_height)
+                    .id("detail-list")
+                    .overflow_y_scroll()
                     .child(detail),
             );
 
