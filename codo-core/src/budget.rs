@@ -195,6 +195,16 @@ impl BudgetStatus {
     }
 }
 
+impl BudgetId {
+    pub fn new(id: u32) -> Self {
+        Self(id)
+    }
+
+    pub fn value(&self) -> u32 {
+        self.0
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -493,5 +503,23 @@ mod tests {
         assert_eq!(status.spent(), Money(3000));
         assert_eq!(status.remaining(), Money(-3000));
         assert_eq!(status.ratio(), None);
+    }
+
+    #[test]
+    fn add_id_overflow_test() {
+        let period1 = Period::month(YearMonth::new(2026, 10).unwrap());
+
+        let period2 = Period::month(YearMonth::new(2026, 11).unwrap());
+
+        let max_budget = Budget::new(BudgetId(u32::MAX), Money(50_000), period1);
+
+        let mut budgets = BudgetList::from_budgets(vec![max_budget]).unwrap();
+
+        let result = budgets.add(Money(30_000), period2);
+
+        assert_eq!(result, Err(BudgetError::IdOverflow));
+
+        assert_eq!(budgets.iter().count(), 1);
+        assert!(budgets.get(BudgetId(u32::MAX)).is_some());
     }
 }
