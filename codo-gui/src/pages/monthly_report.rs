@@ -62,7 +62,7 @@ impl Render for MonthlyReport {
         let summary_expense = format!("支出: {}", summary.expense());
         let summary_difference = format!("差額: {}", summary.income() - summary.expense());
 
-        let day_list_height = (window.viewport_size().height - px(200.)).max(px(0.));
+        let day_list_height = (window.viewport_size().height - px(240.)).max(px(0.));
 
         let prev_button =
             Button::new("prev_button")
@@ -99,8 +99,6 @@ impl Render for MonthlyReport {
             .flex_col()
             .items_center()
             .gap_2()
-            .border_b_1()
-            .border_color(rgb(0xe0e0e0))
             .pb_2()
             .w_full()
             .child(summary_income)
@@ -114,8 +112,8 @@ impl Render for MonthlyReport {
             .map(|day| {
                 let date = day.date();
                 let day_day = format!("{}日", date.day());
-                let day_income = format!("収入: {}", day.income());
-                let day_expense = format!("支出: {}", day.expense());
+                let day_income = format!("{}", day.income());
+                let day_expense = format!("{}", day.expense());
                 let row_color = if self.selected_day == Some(date) {
                     rgb(0xe6e0f8)
                 } else {
@@ -138,6 +136,18 @@ impl Render for MonthlyReport {
                     }))
             })
             .collect::<Vec<_>>();
+
+        let day_header = div()
+            .flex()
+            .flex_row()
+            .text_color(rgb(0x757575))
+            .border_b_1()
+            .border_color(rgb(0xe0e0e0))
+            .px_4()
+            .gap_4()
+            .child(div().w(px(70.)).flex().justify_end().child("日付"))
+            .child(div().flex().justify_end().w(px(200.)).child("収入"))
+            .child(div().flex().justify_end().w(px(200.)).child("支出"));
 
         // 日の表示
         let day_list = div()
@@ -219,7 +229,7 @@ impl Render for MonthlyReport {
             .flex_row()
             .gap_4()
             .pt_2()
-            .child(day_list)
+            .child(div().flex().flex_col().child(day_header).child(day_list))
             .child(
                 div()
                     .border_1()
