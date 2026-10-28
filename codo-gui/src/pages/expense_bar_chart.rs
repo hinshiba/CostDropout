@@ -161,7 +161,7 @@ impl Render for ExpenseBarChart {
             Ok(data) if data.is_empty() => div()
                 .w_full()
                 .h_96()
-                .child("支出項目を選択してください")
+                .child("支出品目を選択してください")
                 .into_any_element(),
 
             Ok(mut data) => {
@@ -180,26 +180,29 @@ impl Render for ExpenseBarChart {
                 div()
                     .w_full()
                     .h_96()
+                    .overflow_hidden()
                     .child(
-                        BarChart::new(data)
-                            .band(|data| data.month.clone())
-                            .value(|data| data.amount)
-                            .label(|data| {
-                                if data.is_dummy {
-                                    String::new()
-                                } else {
-                                    format!("{:.0}", data.amount)
-                                }
-                            })
-                            .fill(move |data, _, _, _| {
-                                if data.is_dummy {
-                                    transparent
-                                } else {
-                                    chart_color
-                                }
-                            })
-                            .value_axis(true)
-                            .value_tick_count(tick_count),
+                        div().w(relative(1.08)).h_full().child(
+                            BarChart::new(data)
+                                .band(|data| data.month.clone())
+                                .value(|data| data.amount)
+                                .label(|data| {
+                                    if data.is_dummy {
+                                        String::new()
+                                    } else {
+                                        format!("{:.0}", data.amount)
+                                    }
+                                })
+                                .fill(move |data, _, _, _| {
+                                    if data.is_dummy {
+                                        transparent
+                                    } else {
+                                        chart_color
+                                    }
+                                })
+                                .value_axis(true)
+                                .value_tick_count(tick_count),
+                        ),
                     )
                     .into_any_element()
             }
