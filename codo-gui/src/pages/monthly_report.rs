@@ -1,6 +1,7 @@
 //! 月の収支表示画面
 
 use crate::app::AppState;
+use chrono::Datelike;
 use codo_core::period::YearMonth;
 use codo_core::report::monthly::monthly_summary;
 use gpui_kit::component::button::Button;
@@ -41,9 +42,9 @@ impl Render for MonthlyReport {
 
         let summary = monthly_summary(&self.state.read(cx).ledger, self.yearmonth);
 
-        let income_label = format!("収入: {}", summary.income());
-        let expense_label = format!("支出: {}", summary.expense());
-        let difference_label = format!("差額: {}", summary.income() - summary.expense());
+        let summary_income = format!("収入: {}", summary.income());
+        let summary_expense = format!("支出: {}", summary.expense());
+        let summary_difference = format!("差額: {}", summary.income() - summary.expense());
 
         let prev_button =
             Button::new("prev_button")
@@ -75,9 +76,26 @@ impl Render for MonthlyReport {
             .flex_col()
             .items_center()
             .gap_2()
-            .child(income_label)
-            .child(expense_label)
-            .child(difference_label);
+            .child(summary_income)
+            .child(summary_expense)
+            .child(summary_difference);
+
+        let day_rows = summary
+            .days()
+            .iter()
+            .map(|day| {
+                let day_day = format!("{}日", day.date().day());
+                let day_income = format!("収入: {}", day.income());
+                let day_expense = format!("支出: {}", day.expense());
+                div()
+                    .flex()
+                    .flex_row()
+                    .gap_4()
+                    .child(day_day)
+                    .child(day_income)
+                    .child(day_expense)
+            })
+            .collect::<Vec<_>>();
 
         // 実際の収支表示
         div()
@@ -91,5 +109,6 @@ impl Render for MonthlyReport {
             .text_color(rgb(0xffffff))
             .child(month_selector)
             .child(totals)
+            .children(day_rows)
     }
 }
