@@ -1,7 +1,7 @@
 //! 画面切り替えと共有画面の作成
 
 use crate::pages::{
-    expense_bar_chart::ExpenseBarChart, expense_pie::ExpensePie, items::Items,
+    budget::BudgetPage, expense_bar_chart::ExpenseBarChart, expense_pie::ExpensePie, items::Items,
     monthly_report::MonthlyReport, transaction_form::TransactionForm,
     transaction_list::TransactionList,
 };
@@ -24,6 +24,7 @@ pub enum Page {
     Items,
     ExpenseBarChart,
     MonthlyReport,
+    Budget,
 }
 
 /// 画面の管理
@@ -36,6 +37,7 @@ pub struct App {
     monthly_report: Entity<MonthlyReport>,
     page: Page,
     sidebar_open: bool,
+    budget: Entity<BudgetPage>,
 }
 
 impl App {
@@ -56,6 +58,7 @@ impl App {
         let expense_bar_chart = cx.new(|_| ExpenseBarChart::new(state.clone()));
         let monthly_report = cx.new(|_| MonthlyReport::new(state.clone()));
 
+        let budget = cx.new(|_| BudgetPage::new());
         Self {
             transaction_form,
             transaction_list,
@@ -65,6 +68,7 @@ impl App {
             page: Page::TransactionForm,
             expense_bar_chart,
             sidebar_open: true,
+            budget,
         }
     }
 
@@ -133,8 +137,11 @@ impl Render for App {
             });
 
         // 品目別の支出推移
-        let expense_bar_chart = SidebarMenuItem::new("支出推移（品目別）")
-            .active(self.page == Page::ExpenseBarChart)
+        let expense_bar_chart =
+            SidebarMenuItem::new("支出推移（品目別）").active(self.page == Page::ExpenseBarChart);
+        //予算
+        let budget = SidebarMenuItem::new("予算")
+            .active(self.page == Page::Budget)
             .on_click({
                 let app = app.clone();
 
@@ -153,6 +160,7 @@ impl Render for App {
                 move |_, _, cx| {
                     app.update(cx, |app, cx| {
                         app.show_page(Page::MonthlyReport, cx);
+                        app.show_page(Page::Budget, cx);
                     });
                 }
             });
@@ -183,7 +191,8 @@ impl Render for App {
                             .child(items)
                             .child(expense_bar_chart)
                             .child(expense_pie)
-                            .child(monthly_report),
+                            .child(monthly_report)
+                            .child(budget),
                     ),
             )
             // メイン画面
@@ -196,6 +205,7 @@ impl Render for App {
                     Page::Items => div().child(self.items.clone()),
                     Page::ExpenseBarChart => div().child(self.expense_bar_chart.clone()),
                     Page::MonthlyReport => div().child(self.monthly_report.clone()),
+                    Page::Budget => div().child(self.budget.clone()),
                 }),
             ))
     }
