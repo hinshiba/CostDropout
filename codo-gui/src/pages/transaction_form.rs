@@ -293,3 +293,73 @@ impl Render for TransactionForm {
             )
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::TransactionForm;
+    use crate::{app::AppState, pages::expense_pie::ExpensePie};
+    use chrono::Local;
+    use codo_core::{
+        ledger::Ledger,
+        money::Money,
+        period::{Period, YearMonth},
+        report::category::expense_by_item,
+    };
+    use gpui_kit::test::TestWindowExt;
+    use gpui_kit::{AppContext, TestAppContext, WindowOptions};
+    use std::{cell::Cell, rc::Rc};
+
+    #[gpui_kit::test]
+    fn adding_transaction_notifies_expense_chart(cx: &mut TestAppContext) {
+        cx.update(gpui_kit::init);
+        let state = cx.new(|_| AppState {
+            ledger: Ledger::with_presets(),
+        });
+        let chart = cx.new(|cx| ExpensePie::new(state.clone(), cx));
+        let notified = Rc::new(Cell::new(false));
+        let _subscription = cx.update(|cx| {
+            cx.observe(&chart, {
+                let notified = notified.clone();
+                move |_, _| notified.set(true)
+            })
+        });
+        let (handle, form) = cx.update(|cx| {
+            gpui_kit::open_window(WindowOptions::default(), cx, |window, cx| {
+                cx.new(|cx| TransactionForm::new(state.clone(), window, cx))
+            })
+            .unwrap()
+        });
+        cx.update_window(handle, |_, window, cx| {
+            let ledger = &state.read(cx).ledger;
+            let food = ledger.items().find_by_name("食費").unwrap().id();
+            let cash = ledger.items().find_by_name("現金").unwrap().id();
+            form.update(cx, |form, cx| {
+                form.controls.item.update(cx, |select, cx| {
+                    select.set_selected_value(&food, window, cx)
+                });
+                form.refresh_choices(window, cx);
+                form.controls.counterpart.update(cx, |select, cx| {
+                    select.set_selected_value(&cash, window, cx)
+                });
+                form.controls
+                    .amount
+                    .update(cx, |input, cx| input.set_value("1,200", window, cx));
+            });
+            window.render_frame(cx);
+            window.click("add-transaction", cx);
+            assert!(matches!(form.read(cx).status, Some(Ok(()))));
+        })
+        .unwrap();
+        cx.run_until_parked();
+        assert!(notified.get());
+        cx.read(|cx| {
+            let expenses = expense_by_item(
+                &state.read(cx).ledger,
+                Period::month(YearMonth::from_date(Local::now().date_naive())),
+            );
+            assert_eq!(expenses.len(), 1);
+            assert_eq!(expenses[0].amount(), Money(1200));
+            assert_eq!(expenses[0].ratio(), 1.);
+        });
+    }
+}

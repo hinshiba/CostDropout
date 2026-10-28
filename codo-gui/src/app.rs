@@ -1,7 +1,8 @@
 //! 画面切り替えと共有画面の作成
 
 use crate::pages::{
-    items::Items, transaction_form::TransactionForm, transaction_list::TransactionList,
+    expense_pie::ExpensePie, items::Items, transaction_form::TransactionForm,
+    transaction_list::TransactionList,
 };
 use codo_core::ledger::Ledger;
 use gpui_kit::component::button::Button;
@@ -18,6 +19,7 @@ pub struct AppState {
 pub enum Page {
     TransactionForm,
     TransactionList,
+    ExpensePie,
     Items,
 }
 
@@ -25,6 +27,7 @@ pub enum Page {
 pub struct App {
     transaction_form: Entity<TransactionForm>,
     transaction_list: Entity<TransactionList>,
+    expense_pie: Entity<ExpensePie>,
     items: Entity<Items>,
     page: Page,
     sidebar_open: bool,
@@ -32,18 +35,23 @@ pub struct App {
 
 impl App {
     pub fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
-        let state = cx.new(|_| AppState {
-            ledger: Ledger::with_presets(),
-        });
+        Self::with_ledger(Ledger::with_presets(), window, cx)
+    }
+
+    pub fn with_ledger(ledger: Ledger, window: &mut Window, cx: &mut Context<Self>) -> Self {
+        let state = cx.new(|_| AppState { ledger });
         let transaction_form = cx.new(|cx| TransactionForm::new(state.clone(), window, cx));
 
         let transaction_list = cx.new(|cx| TransactionList::new(state.clone(), cx));
+
+        let expense_pie = cx.new(|cx| ExpensePie::new(state.clone(), cx));
 
         let items = cx.new(|_| Items::new(state.clone()));
 
         Self {
             transaction_form,
             transaction_list,
+            expense_pie,
             items,
             page: Page::TransactionForm,
             sidebar_open: true,
@@ -95,6 +103,12 @@ impl Render for App {
                 }
             });
 
+        let expense_pie = SidebarMenuItem::new("支出の内訳")
+            .active(self.page == Page::ExpensePie)
+            .on_click(cx.listener(|app, _, _, cx| {
+                app.show_page(Page::ExpensePie, cx);
+            }));
+
         // 品目
         let items = SidebarMenuItem::new("品目")
             .active(self.page == Page::Items)
@@ -131,17 +145,60 @@ impl Render for App {
                             .py_4()
                             .child(transaction_form)
                             .child(transaction_list)
+                            .child(expense_pie)
                             .child(items),
                     ),
             )
             // メイン画面
             .child(div().flex_1().h_full().child(
                 // 画面選択
-                div().flex_1().child(match self.page {
+                div().size_full().child(match self.page {
                     Page::TransactionForm => div().child(self.transaction_form.clone()),
                     Page::TransactionList => div().child(self.transaction_list.clone()),
+                    Page::ExpensePie => div().size_full().child(self.expense_pie.clone()),
                     Page::Items => div().child(self.items.clone()),
                 }),
             ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{App, Page};
+    use gpui_kit::test::TestWindowExt;
+    use gpui_kit::{AppContext, Bounds, TestAppContext, WindowBounds, WindowOptions, px, size};
+
+    #[gpui_kit::test]
+    fn sidebar_opens_expense_pie(cx: &mut TestAppContext) {
+        cx.update(gpui_kit::init);
+        let (handle, app) = cx.update(|cx| {
+            cx.set_reduce_motion(true);
+            gpui_kit::open_window(
+                WindowOptions {
+                    window_bounds: Some(WindowBounds::Windowed(Bounds {
+                        origin: Default::default(),
+                        size: size(px(900.), px(700.)),
+                    })),
+                    ..Default::default()
+                },
+                cx,
+                |window, cx| cx.new(|cx| App::with_ledger(crate::demo::ledger(), window, cx)),
+            )
+            .unwrap()
+        });
+        cx.update_window(handle, |_, window, cx| {
+            window.render_frame(cx);
+            // Sidebar が割り当てる「グループ番号-項目番号」の ID でクリックする。
+            assert!(window.find("0-2").visible());
+            window.click("0-2", cx);
+            assert!(app.read(cx).page == Page::ExpensePie);
+            window.render_frame(cx);
+            assert!(window.find("previous-month").visible());
+            assert!(window.find("next-month").visible());
+            window.click("previous-month", cx);
+            window.click("next-month", cx);
+            window.click("next-month", cx);
+        })
+        .unwrap();
     }
 }
