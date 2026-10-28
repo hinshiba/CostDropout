@@ -1,7 +1,8 @@
 //! 画面切り替えと共有画面の作成
 
 use crate::pages::{
-    items::Items, transaction_form::TransactionForm, transaction_list::TransactionList,
+    expense_bar_chart::ExpenseBarChart, items::Items, transaction_form::TransactionForm,
+    transaction_list::TransactionList,
 };
 use codo_core::ledger::Ledger;
 use gpui_kit::component::button::Button;
@@ -19,6 +20,7 @@ pub enum Page {
     TransactionForm,
     TransactionList,
     Items,
+    ExpenseBarChart,
 }
 
 /// 画面の管理
@@ -26,6 +28,7 @@ pub struct App {
     transaction_form: Entity<TransactionForm>,
     transaction_list: Entity<TransactionList>,
     items: Entity<Items>,
+    expense_bar_chart: Entity<ExpenseBarChart>,
     page: Page,
     sidebar_open: bool,
 }
@@ -41,11 +44,14 @@ impl App {
 
         let items = cx.new(|_| Items::new(state.clone()));
 
+        let expense_bar_chart = cx.new(|_| ExpenseBarChart::new(state.clone()));
+
         Self {
             transaction_form,
             transaction_list,
             items,
             page: Page::TransactionForm,
+            expense_bar_chart,
             sidebar_open: true,
         }
     }
@@ -108,6 +114,19 @@ impl Render for App {
                 }
             });
 
+        // 棒グラフの支出推移（棒グラフ，品目別）
+        let expense_bar_chart = SidebarMenuItem::new("支出推移（品目別")
+            .active(self.page == Page::ExpenseBarChart)
+            .on_click({
+                let app = app.clone();
+
+                move |_, _, cx| {
+                    app.update(cx, |app, cx| {
+                        app.show_page(Page::ExpenseBarChart, cx);
+                    });
+                }
+            });
+
         div()
             .size_full()
             .flex()
@@ -131,7 +150,8 @@ impl Render for App {
                             .py_4()
                             .child(transaction_form)
                             .child(transaction_list)
-                            .child(items),
+                            .child(items)
+                            .child(expense_bar_chart),
                     ),
             )
             // メイン画面
@@ -141,6 +161,7 @@ impl Render for App {
                     Page::TransactionForm => div().child(self.transaction_form.clone()),
                     Page::TransactionList => div().child(self.transaction_list.clone()),
                     Page::Items => div().child(self.items.clone()),
+                    Page::ExpenseBarChart => div().child(self.expense_bar_chart.clone()),
                 }),
             ))
     }
