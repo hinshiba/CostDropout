@@ -526,4 +526,11 @@ mod tests {
         assert_eq!(budgets.iter().count(), 1);
         assert!(budgets.get(BudgetId(u32::MAX)).is_some());
     }
+
+    #[test]
+    fn budget_id_value_test() {
+        let id = BudgetId::new(42);
+
+        assert_eq!(id.value(), 42);
+    }
 }
