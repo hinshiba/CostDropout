@@ -1,7 +1,7 @@
 //! 月の収支表示画面
 
 use crate::app::AppState;
-use chrono::Datelike;
+use chrono::{Datelike, NaiveDate};
 use codo_core::period::YearMonth;
 use codo_core::report::monthly::monthly_summary;
 use gpui_kit::component::button::Button;
@@ -14,30 +14,46 @@ pub struct MonthlyReport {
 
     // 表示されている年月
     yearmonth: YearMonth,
+
+    // 選択している日
+    selected_day: Option<NaiveDate>,
 }
 
 impl MonthlyReport {
     pub fn new(state: Entity<AppState>) -> Self {
         let yearmonth = YearMonth::from_date(chrono::Local::now().date_naive());
-        Self { state, yearmonth }
+        let selected_day = None;
+        Self {
+            state,
+            yearmonth,
+            selected_day,
+        }
     }
 
     /// 前の月を表示する
     fn prev_month(&mut self, cx: &mut Context<Self>) {
         self.yearmonth = self.yearmonth.prev();
+        self.selected_day = None;
         cx.notify();
     }
 
     /// 次の月を表示する
     fn next_month(&mut self, cx: &mut Context<Self>) {
         self.yearmonth = self.yearmonth.next();
+        self.selected_day = None;
+        cx.notify();
+    }
+
+    /// 日を選ぶ
+    fn select_day(&mut self, date: NaiveDate, cx: &mut Context<Self>) {
+        self.selected_day = Some(date);
         cx.notify();
     }
 }
 
 // 画面開発者は自由に変更してよい
 impl Render for MonthlyReport {
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let month_label = format!("{}年{}月", self.yearmonth.year(), self.yearmonth.month());
 
         let summary = monthly_summary(&self.state.read(cx).ledger, self.yearmonth);
@@ -45,6 +61,8 @@ impl Render for MonthlyReport {
         let summary_income = format!("収入: {}", summary.income());
         let summary_expense = format!("支出: {}", summary.expense());
         let summary_difference = format!("差額: {}", summary.income() - summary.expense());
+
+        let day_list_height = (window.viewport_size().height - px(200.)).max(px(0.));
 
         let prev_button =
             Button::new("prev_button")
@@ -66,6 +84,11 @@ impl Render for MonthlyReport {
             .flex_row()
             .items_center()
             .gap_2()
+            .justify_center()
+            .py_2()
+            .bg(rgb(0x9370db))
+            .w_full()
+            .text_color(rgb(0xffffff))
             .child(prev_button)
             .child(month_label)
             .child(next_button);
@@ -84,31 +107,52 @@ impl Render for MonthlyReport {
             .days()
             .iter()
             .map(|day| {
-                let day_day = format!("{}日", day.date().day());
+                let date = day.date();
+                let day_day = format!("{}日", date.day());
                 let day_income = format!("収入: {}", day.income());
                 let day_expense = format!("支出: {}", day.expense());
+                let row_color = if self.selected_day == Some(date) {
+                    rgb(0xe6e0f8)
+                } else {
+                    rgb(0xffffff)
+                };
                 div()
+                    .id(format!("day-{}", date))
                     .flex()
                     .flex_row()
+                    .border_b_1()
+                    .border_color(rgb(0xe0e0e0))
+                    .px_4()
+                    .bg(row_color)
                     .gap_4()
-                    .child(day_day)
-                    .child(day_income)
-                    .child(day_expense)
+                    .child(div().w(px(70.)).flex().justify_end().child(day_day))
+                    .child(div().w(px(200.)).child(day_income))
+                    .child(div().w(px(200.)).child(day_expense))
+                    .on_click(cx.listener(move |this, _, _, cx| {
+                        this.select_day(date, cx);
+                    }))
             })
             .collect::<Vec<_>>();
+
+        let day_list = div()
+            .id("day-list")
+            .flex()
+            .flex_col()
+            .h(day_list_height)
+            .overflow_y_scroll()
+            .children(day_rows);
 
         // 実際の収支表示
         div()
             .size_full()
             .flex()
             .flex_col()
-            .bg(rgb(0x9370db))
-            .justify_center()
+            .bg(rgb(0xffffff))
             .items_center()
             .text_xl()
-            .text_color(rgb(0xffffff))
+            .text_color(rgb(0x000000))
             .child(month_selector)
             .child(totals)
-            .children(day_rows)
+            .child(day_list)
     }
 }
