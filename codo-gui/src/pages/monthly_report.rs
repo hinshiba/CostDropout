@@ -99,6 +99,10 @@ impl Render for MonthlyReport {
             .flex_col()
             .items_center()
             .gap_2()
+            .border_b_1()
+            .border_color(rgb(0xe0e0e0))
+            .pb_2()
+            .w_full()
             .child(summary_income)
             .child(summary_expense)
             .child(summary_difference);
@@ -127,8 +131,8 @@ impl Render for MonthlyReport {
                     .bg(row_color)
                     .gap_4()
                     .child(div().w(px(70.)).flex().justify_end().child(day_day))
-                    .child(div().w(px(200.)).child(day_income))
-                    .child(div().w(px(200.)).child(day_expense))
+                    .child(div().flex().justify_end().w(px(200.)).child(day_income))
+                    .child(div().flex().justify_end().w(px(200.)).child(day_expense))
                     .on_click(cx.listener(move |this, _, _, cx| {
                         this.select_day(date, cx);
                     }))
@@ -148,6 +152,7 @@ impl Render for MonthlyReport {
         let detail = match self.selected_day {
             None => div().child("日を選ぶと，その日の取引が表示されます"),
             Some(date) => {
+                let heading = format!("{}月{}日の取引", date.month(), date.day());
                 let ledger = &self.state.read(cx).ledger;
                 let tx_rows = ledger
                     .monthly_transactions(self.yearmonth)
@@ -167,16 +172,44 @@ impl Render for MonthlyReport {
                             .flex()
                             .flex_row()
                             .gap_4()
+                            .border_b_1()
+                            .border_color(rgb(0xe0e0e0))
+                            .py_1()
                             .child(div().w(px(120.)).child(name))
-                            .child(div().w(px(120.)).child(amount))
+                            .child(div().flex().justify_end().w(px(120.)).child(amount))
                             .child(div().w(px(120.)).child(comment))
                     })
                     .collect::<Vec<_>>();
-                if tx_rows.is_empty() {
+                let header_row = div()
+                    .flex()
+                    .flex_row()
+                    .gap_4()
+                    .border_b_1()
+                    .border_color(rgb(0xe0e0e0))
+                    .text_color(rgb(0x757575))
+                    .py_1()
+                    .child(div().w(px(120.)).child("品目"))
+                    .child(div().flex().justify_end().w(px(120.)).child("金額"))
+                    .child(div().w(px(120.)).child("コメント"));
+                let content = if tx_rows.is_empty() {
                     div().child("この日の取引はありません")
                 } else {
-                    div().flex().flex_col().children(tx_rows)
-                }
+                    div().flex().flex_col().child(header_row).children(tx_rows)
+                };
+                div()
+                    .flex()
+                    .flex_col()
+                    .gap_2()
+                    .child(
+                        div()
+                            .flex()
+                            .justify_center()
+                            .bg(rgb(0xe6e0f8))
+                            .text_color(rgb(0x000000))
+                            .px_2()
+                            .child(heading),
+                    )
+                    .child(content)
             }
         };
 
@@ -185,8 +218,18 @@ impl Render for MonthlyReport {
             .flex()
             .flex_row()
             .gap_4()
+            .pt_2()
             .child(day_list)
-            .child(detail);
+            .child(
+                div()
+                    .border_1()
+                    .border_color(rgb(0xe0e0e0))
+                    .rounded_md()
+                    .p_4()
+                    .w(px(420.))
+                    .h(day_list_height)
+                    .child(detail),
+            );
 
         // 実際の収支表示
         div()
