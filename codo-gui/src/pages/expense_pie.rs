@@ -126,6 +126,8 @@ impl Render for ExpensePie {
                 div()
                     .flex()
                     .items_center()
+                    .justify_center()
+                    .w_full()
                     .gap_4()
                     .child(
                         Button::new("previous-month")
