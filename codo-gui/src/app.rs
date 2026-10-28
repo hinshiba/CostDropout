@@ -1,7 +1,8 @@
 //! 画面切り替えと共有画面の作成
 
 use crate::pages::{
-    items::Items, transaction_form::TransactionForm, transaction_list::TransactionList,
+    budget::BudgetPage, items::Items, transaction_form::TransactionForm,
+    transaction_list::TransactionList,
 };
 use codo_core::ledger::Ledger;
 use gpui_kit::component::button::Button;
@@ -19,6 +20,7 @@ pub enum Page {
     TransactionForm,
     TransactionList,
     Items,
+    Budget,
 }
 
 /// 画面の管理
@@ -28,6 +30,7 @@ pub struct App {
     items: Entity<Items>,
     page: Page,
     sidebar_open: bool,
+    budget: Entity<BudgetPage>,
 }
 
 impl App {
@@ -41,12 +44,14 @@ impl App {
 
         let items = cx.new(|_| Items::new(state.clone()));
 
+        let budget = cx.new(|_| BudgetPage::new());
         Self {
             transaction_form,
             transaction_list,
             items,
             page: Page::TransactionForm,
             sidebar_open: true,
+            budget,
         }
     }
 
@@ -108,6 +113,19 @@ impl Render for App {
                 }
             });
 
+        //予算
+        let budget = SidebarMenuItem::new("予算")
+            .active(self.page == Page::Budget)
+            .on_click({
+                let app = app.clone();
+
+                move |_, _, cx| {
+                    app.update(cx, |app, cx| {
+                        app.show_page(Page::Budget, cx);
+                    });
+                }
+            });
+
         div()
             .size_full()
             .flex()
@@ -131,7 +149,8 @@ impl Render for App {
                             .py_4()
                             .child(transaction_form)
                             .child(transaction_list)
-                            .child(items),
+                            .child(items)
+                            .child(budget),
                     ),
             )
             // メイン画面
@@ -141,6 +160,7 @@ impl Render for App {
                     Page::TransactionForm => div().child(self.transaction_form.clone()),
                     Page::TransactionList => div().child(self.transaction_list.clone()),
                     Page::Items => div().child(self.items.clone()),
+                    Page::Budget => div().child(self.budget.clone()),
                 }),
             ))
     }
