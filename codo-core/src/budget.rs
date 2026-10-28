@@ -132,7 +132,9 @@ impl BudgetList {
 
     /// 保存済みのIDを変更せずに予算一覧を復元する
     /// IDの重複を検知した場合はエラーを返す
-    pub fn from_budgets(budgets: Vec<Budget>) -> Result<Self, BudgetError> {
+    ///
+    /// IDまたは期間が重複している場合はエラーを返す
+    pub fn from_budgets(mut budgets: Vec<Budget>) -> Result<Self, BudgetError> {
         let mut ids = HashSet::new();
         let mut periods = HashSet::new();
 
@@ -144,6 +146,8 @@ impl BudgetList {
                 return Err(BudgetError::DuplicateId(budget.id()));
             }
         }
+        // IDの昇順に並び替える
+        budgets.sort_by_key(|budget| budget.id().0);
 
         Ok(Self { budgets })
     }
@@ -310,8 +314,8 @@ mod tests {
         assert_eq!(second_outcome, Ok(BudgetId(2)));
 
         // 1つ目の変更
-        let deplicate_outcome = budgets.update(BudgetId(1), Money(7000), update_period);
-        assert_eq!(deplicate_outcome, Err(BudgetError::DuplicatePeriod));
+        let duplicate_outcome = budgets.update(BudgetId(1), Money(7000), update_period);
+        assert_eq!(duplicate_outcome, Err(BudgetError::DuplicatePeriod));
 
         // 1つ目の内容が変更されていないことを確認
         let budget = budgets.get(BudgetId(1)).unwrap();
