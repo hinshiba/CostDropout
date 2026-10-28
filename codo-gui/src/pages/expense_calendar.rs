@@ -65,6 +65,32 @@ impl Render for ExpenseCalendar {
                 .map(|weekday| div().w(px(100.)).flex().justify_center().child(weekday)),
         );
 
+        // 週ごとの行
+        let week_rows = cells
+            .chunks(7)
+            .map(|week| {
+                div().flex().flex_row().children(week.iter().map(|cell| {
+                    match cell {
+                        None => div()
+                            .w(px(100.))
+                            .h(px(80.))
+                            .border_1()
+                            .border_color(rgb(0xe0e0e0)),
+                        Some(day) => div()
+                            .w(px(100.))
+                            .h(px(80.))
+                            .border_1()
+                            .border_color(rgb(0xe0e0e0))
+                            .p_1()
+                            .flex()
+                            .flex_col()
+                            .child(day.date().day().to_string())
+                            .child(day.expense().to_string()),
+                    }
+                }))
+            })
+            .collect::<Vec<_>>();
+
         let prev_button =
             Button::new("prev_button")
                 .label("◀")
@@ -104,5 +130,6 @@ impl Render for ExpenseCalendar {
             .text_color(rgb(0x000000))
             .child(month_selector)
             .child(weekday_header)
+            .child(div().flex().flex_col().children(week_rows))
     }
 }
