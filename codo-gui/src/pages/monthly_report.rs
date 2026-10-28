@@ -103,6 +103,7 @@ impl Render for MonthlyReport {
             .child(summary_expense)
             .child(summary_difference);
 
+        // 日ごとの収支の行
         let day_rows = summary
             .days()
             .iter()
@@ -134,6 +135,7 @@ impl Render for MonthlyReport {
             })
             .collect::<Vec<_>>();
 
+        // 日の表示
         let day_list = div()
             .id("day-list")
             .flex()
@@ -141,6 +143,50 @@ impl Render for MonthlyReport {
             .h(day_list_height)
             .overflow_y_scroll()
             .children(day_rows);
+
+        // 選んだ日の取引の詳細
+        let detail = match self.selected_day {
+            None => div().child("日を選ぶと，その日の取引が表示されます"),
+            Some(date) => {
+                let ledger = &self.state.read(cx).ledger;
+                let tx_rows = ledger
+                    .monthly_transactions(self.yearmonth)
+                    .filter(|tx| tx.date() == date)
+                    .map(|tx| {
+                        let item_name = |id| {
+                            ledger
+                                .items()
+                                .get_item(id)
+                                .map(|item| item.name().to_string())
+                                .unwrap_or_else(|| "削除された品目".to_string())
+                        };
+                        let name = item_name(tx.item());
+                        let amount = tx.amount().to_string();
+                        let comment = tx.comment().to_string();
+                        div()
+                            .flex()
+                            .flex_row()
+                            .gap_4()
+                            .child(div().w(px(120.)).child(name))
+                            .child(div().w(px(120.)).child(amount))
+                            .child(div().w(px(120.)).child(comment))
+                    })
+                    .collect::<Vec<_>>();
+                if tx_rows.is_empty() {
+                    div().child("この日の取引はありません")
+                } else {
+                    div().flex().flex_col().children(tx_rows)
+                }
+            }
+        };
+
+        // 日と詳細の表示
+        let body = div()
+            .flex()
+            .flex_row()
+            .gap_4()
+            .child(day_list)
+            .child(detail);
 
         // 実際の収支表示
         div()
@@ -153,6 +199,6 @@ impl Render for MonthlyReport {
             .text_color(rgb(0x000000))
             .child(month_selector)
             .child(totals)
-            .child(day_list)
+            .child(body)
     }
 }
