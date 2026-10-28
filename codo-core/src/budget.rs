@@ -25,10 +25,10 @@ pub struct BudgetList {
 /// 予算の使用状況
 #[derive(Debug, Clone, PartialEq)]
 pub struct BudgetStatus {
-    pub budget: Budget,
-    pub spent: Money,
-    pub remaining: Money,
-    pub ratio: Option<f64>,
+    budget: Budget,
+    spent: Money,
+    remaining: Money,
+    ratio: Option<f64>,
 }
 
 /// 予算操作で発生するエラー
@@ -154,6 +154,22 @@ impl BudgetList {
 }
 
 impl BudgetStatus {
+    pub fn budget(&self) -> &Budget {
+        &self.budget
+    }
+
+    pub fn spent(&self) -> Money {
+        self.spent
+    }
+
+    pub fn remaining(&self) -> Money {
+        self.remaining
+    }
+
+    pub fn ratio(&self) -> Option<f64> {
+        self.ratio
+    }
+
     /// 予算額が0円の場合は使用率を0.0とする
     pub fn calculate(ledger: &Ledger, id: BudgetId) -> Result<BudgetStatus, BudgetError> {
         // IDから予算を取得
@@ -371,10 +387,10 @@ mod tests {
 
         let status = BudgetStatus::calculate(&ledger, budget_id).unwrap();
 
-        assert_eq!(status.budget.id(), budget_id);
-        assert_eq!(status.spent, Money(3000));
-        assert_eq!(status.remaining, Money(2000));
-        assert_eq!(status.ratio, Some(0.6));
+        assert_eq!(status.budget().id(), budget_id);
+        assert_eq!(status.spent(), Money(3000));
+        assert_eq!(status.remaining(), Money(2000));
+        assert_eq!(status.ratio(), Some(0.6));
     }
 
     /// 支出が予算額と同じ場合
@@ -384,9 +400,9 @@ mod tests {
 
         let status = BudgetStatus::calculate(&ledger, budget_id).unwrap();
 
-        assert_eq!(status.spent, Money(5000));
-        assert_eq!(status.remaining, Money(0));
-        assert_eq!(status.ratio, Some(1.0));
+        assert_eq!(status.spent(), Money(5000));
+        assert_eq!(status.remaining(), Money(0));
+        assert_eq!(status.ratio(), Some(1.0));
     }
 
     /// 支出が予算を超過した場合
@@ -396,9 +412,9 @@ mod tests {
 
         let status = BudgetStatus::calculate(&ledger, budget_id).unwrap();
 
-        let ratio = status.ratio.unwrap();
-        assert_eq!(status.spent, Money(7000));
-        assert_eq!(status.remaining, Money(-2000));
+        let ratio = status.ratio().unwrap();
+        assert_eq!(status.spent(), Money(7000));
+        assert_eq!(status.remaining(), Money(-2000));
         assert!((ratio - 1.4).abs() < 1e-10);
     }
 
@@ -409,9 +425,9 @@ mod tests {
 
         let status = BudgetStatus::calculate(&ledger, BudgetId(1)).unwrap();
 
-        assert_eq!(status.spent, Money(0));
-        assert_eq!(status.remaining, Money(5000));
-        assert_eq!(status.ratio, Some(0.0));
+        assert_eq!(status.spent(), Money(0));
+        assert_eq!(status.remaining(), Money(5000));
+        assert_eq!(status.ratio(), Some(0.0));
     }
 
     /// 予算額が0円の場合
@@ -421,9 +437,9 @@ mod tests {
 
         let status = BudgetStatus::calculate(&ledger, budget_id).unwrap();
 
-        assert_eq!(status.spent, Money(0));
-        assert_eq!(status.remaining, Money(0));
-        assert_eq!(status.ratio, None);
+        assert_eq!(status.spent(), Money(0));
+        assert_eq!(status.remaining(), Money(0));
+        assert_eq!(status.ratio(), None);
     }
 
     /// 存在しない予算IDを指定した場合
@@ -474,8 +490,8 @@ mod tests {
 
         let status = BudgetStatus::calculate(&ledger, budget_id).unwrap();
 
-        assert_eq!(status.spent, Money(3000));
-        assert_eq!(status.remaining, Money(-3000));
-        assert_eq!(status.ratio, None);
+        assert_eq!(status.spent(), Money(3000));
+        assert_eq!(status.remaining(), Money(-3000));
+        assert_eq!(status.ratio(), None);
     }
 }
