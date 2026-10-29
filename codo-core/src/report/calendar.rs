@@ -36,6 +36,12 @@ mod tests {
     }
 
     #[test]
+    fn expense_level_is_zero_when_expense_is_negative() {
+        // 返金などで支出がマイナスの日は色を付けない
+        assert_eq!(expense_level(Money(-1000), Money(1000)), 0);
+    }
+
+    #[test]
     fn expense_level_is_highest_at_max() {
         assert_eq!(expense_level(Money(1000), Money(1000)), EXPENSE_LEVELS);
     }
