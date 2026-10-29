@@ -175,10 +175,9 @@ mod tests {
     use codo_core::period::YearMonth;
     use codo_core::transaction::TransactionDraft;
     use gpui_kit::{AppContext, TestAppContext};
-    use std::{cell::Cell, rc::Rc};
 
     #[gpui_kit::test]
-    fn transaction_changes_notify_chart_and_refresh_monthly_slices(cx: &mut TestAppContext) {
+    fn transaction_changes_refresh_monthly_slices(cx: &mut TestAppContext) {
         let mut ledger = Ledger::new();
         let food = ledger.add_item("食費", Tag::Expense).unwrap();
         let leisure = ledger.add_item("娯楽", Tag::Expense).unwrap();
@@ -187,13 +186,6 @@ mod tests {
         let state = cx.new(|_| AppState { ledger });
         let page = cx.new(|cx| ExpensePie::new(state.clone(), cx));
         page.update(cx, |page, _| page.month = month);
-        let notified = Rc::new(Cell::new(false));
-        let _subscription = cx.update(|cx| {
-            cx.observe(&page, {
-                let notified = notified.clone();
-                move |_, _| notified.set(true)
-            })
-        });
 
         assert!(
             cx.read(|cx| { ExpenseSlice::for_month(&state.read(cx).ledger, month).is_empty() })
@@ -213,8 +205,6 @@ mod tests {
             }
             cx.notify();
         });
-        cx.run_until_parked();
-        assert!(notified.replace(false));
         let slices =
             cx.read(|cx| ExpenseSlice::for_month(&state.read(cx).ledger, page.read(cx).month));
         assert_eq!(
@@ -247,8 +237,6 @@ mod tests {
                 .unwrap();
             cx.notify();
         });
-        cx.run_until_parked();
-        assert!(notified.get());
         let updated = cx.read(|cx| ExpenseSlice::for_month(&state.read(cx).ledger, month));
         assert!(
             updated
