@@ -273,164 +273,138 @@ mod tests {
     }
 
     #[test]
-    fn get_item_returns_none_when_id_does_not_exist() {
-        let list = ItemList::new();
+    fn from_items_test() {
+        let food = item(1, "食費", Tag::Expense);
+        let cash = item(2, "現金", Tag::Asset);
 
-        assert_eq!(list.get_item(ItemId(999)), None);
-    }
+        let list = ItemList::from_items(vec![
+            item(2, "現金", Tag::Asset),
+            item(1, "　 食費 \t", Tag::Expense),
+        ])
+        .unwrap();
 
-    // ---------------------
-    // find_by_name のテスト
-    // ---------------------
-
-    #[test]
-    fn find_by_name_trims_input_name() {
-        let mut list = ItemList::new();
-
-        list.add("日用品", Tag::Asset).unwrap();
-        list.add("食費", Tag::Expense).unwrap();
-        list.add("給与", Tag::Income).unwrap();
-
-        let item = list.find_by_name("  日用品  ");
-
-        assert_eq!(item.unwrap().name, "日用品");
-    }
-
-    // ---------
-    // add_item
-    // ---------
-
-    #[test]
-    fn add_item_adds_item_with_id_one() {
-        let mut list = ItemList::new();
-
-        let result = list.add("　　食費　　", Tag::Asset);
-
-        assert_eq!(result, Ok(ItemId(1)));
-
-        let item = list.get_item(ItemId(1)).unwrap();
-
-        assert_eq!(item.name, "食費");
-        assert_eq!(item.tag, Tag::Asset);
+        assert_eq!(list.iter().collect::<Vec<_>>(), vec![&food, &cash]);
     }
 
     #[test]
-    fn add_item_uses_max_id_plus_one_after_deletion() {
+    fn from_items_error_test() {
+        for (items, expected) in [
+            (vec![item(1, "　 \t", Tag::Expense)], ItemError::EmptyName),
+            (
+                vec![item(1, "食費", Tag::Expense), item(2, " 食費 ", Tag::Asset)],
+                ItemError::DuplicateName("食費".to_string()),
+            ),
+            (
+                vec![item(1, "食費", Tag::Expense), item(1, "現金", Tag::Asset)],
+                ItemError::DuplicateId(ItemId(1)),
+            ),
+        ] {
+            assert_eq!(ItemList::from_items(items), Err(expected));
+        }
+    }
+
+    #[test]
+    fn add_test() {
         let mut list = ItemList::new();
 
-        list.add("日用品", Tag::Asset).unwrap();
-        list.add("娯楽", Tag::Expense).unwrap();
-        list.add("食費", Tag::Income).unwrap();
+        for (name, tag, expected) in [
+            ("食費", Tag::Expense, item(1, "食費", Tag::Expense)),
+            ("　 給与 \t", Tag::Income, item(2, "給与", Tag::Income)),
+            ("現 金", Tag::Asset, item(3, "現 金", Tag::Asset)),
+        ] {
+            let id = list.add(name, tag).unwrap();
+            assert_eq!(list.get(id), Some(&expected), "{name}");
+        }
+    }
+
+    #[test]
+    fn add_after_remove_test() {
+        let mut list = list();
+
+        list.remove(ItemId(2)).unwrap();
+        assert_eq!(list.add("住宅", Tag::Expense), Ok(ItemId(4)));
+    }
+
+    #[test]
+    fn add_max_id_test() {
+        let mut list =
+            ItemList::from_items(vec![item(u32::MAX - 1, "食費", Tag::Expense)]).unwrap();
+
+        assert_eq!(list.add("現金", Tag::Asset), Ok(ItemId(u32::MAX)));
+
+        let before = list.clone();
+        assert_eq!(list.add("娯楽", Tag::Expense), Err(ItemError::Overflow));
+        assert_eq!(list, before);
+    }
+
+    #[test]
+    fn add_error_test() {
+        let mut list = list();
+        let before = list.clone();
+
+        for (name, expected) in [
+            ("", ItemError::EmptyName),
+            ("　 \t", ItemError::EmptyName),
+            ("食費", ItemError::DuplicateName("食費".to_string())),
+            (" 現金 ", ItemError::DuplicateName("現金".to_string())),
+        ] {
+            assert_eq!(list.add(name, Tag::Income), Err(expected), "{name}");
+            assert_eq!(list, before, "{name}");
+        }
+    }
+
+    #[test]
+    fn update_test() {
+        for (name, tag, expected) in [
+            ("  外食  ", Tag::Expense, item(1, "外食", Tag::Expense)),
+            // 自分自身の名前とは重複しない
+            ("食費", Tag::Income, item(1, "食費", Tag::Income)),
+        ] {
+            let mut list = list();
+
+            list.update(ItemId(1), name, tag).unwrap();
+
+            assert_eq!(list.get(ItemId(1)), Some(&expected), "{name}");
+            assert_eq!(list.iter().count(), 3, "{name}");
+        }
+    }
+
+    #[test]
+    fn update_error_test() {
+        let mut list = list();
+        let before = list.clone();
+
+        for (id, name, expected) in [
+            (ItemId(1), "", ItemError::EmptyName),
+            (ItemId(1), "　 \t", ItemError::EmptyName),
+            (
+                ItemId(1),
+                " 娯楽 ",
+                ItemError::DuplicateName("娯楽".to_string()),
+            ),
+            (ItemId(4), "住宅", ItemError::NotFound(ItemId(4))),
+        ] {
+            assert_eq!(list.update(id, name, Tag::Income), Err(expected), "{name}");
+            assert_eq!(list, before, "{name}");
+        }
+    }
+
+    #[test]
+    fn remove_test() {
+        let mut list = list();
 
         list.remove(ItemId(2)).unwrap();
 
-        let result = list.add("住宅", Tag::Asset);
-
-        assert_eq!(result, Ok(ItemId(4)));
+        let ids = list.iter().map(Item::id).collect::<Vec<_>>();
+        assert_eq!(ids, vec![ItemId(1), ItemId(3)]);
     }
 
     #[test]
-    fn add_item_returns_empty_name_error_when_only_spaces() {
-        let mut list = ItemList::new();
+    fn remove_error_test() {
+        let mut list = list();
+        let before = list.clone();
 
-        let result = list.add("   ", Tag::Asset);
-
-        assert_eq!(result, Err(ItemError::EmptyName));
-    }
-
-    #[test]
-    fn add_item_returns_duplicate_name_error() {
-        let mut list = ItemList::new();
-
-        list.add("食費", Tag::Asset).unwrap();
-
-        let result = list.add("食費", Tag::Expense);
-
-        assert_eq!(result, Err(ItemError::DuplicateName("食費".to_string())));
-    }
-
-    // -----------
-    // update_item
-    // -----------
-
-    #[test]
-    fn update_item_trims_name() {
-        let mut list = ItemList::new();
-
-        list.add("食費", Tag::Asset).unwrap();
-
-        list.update(ItemId(1), "  娯楽  ", Tag::Expense).unwrap();
-
-        assert_eq!(list.get_item(ItemId(1)).unwrap().name, "娯楽");
-    }
-
-    #[test]
-    fn update_item_allows_same_name_for_same_item() {
-        let mut list = ItemList::new();
-
-        list.add("食費", Tag::Asset).unwrap();
-
-        let result = list.update(ItemId(1), "食費", Tag::Asset);
-
-        assert_eq!(result, Ok(()));
-    }
-
-    #[test]
-    fn update_item_returns_empty_name_error_when_only_spaces() {
-        let mut list = ItemList::new();
-
-        list.add("食費", Tag::Asset).unwrap();
-
-        let result = list.update(ItemId(1), "   ", Tag::Asset);
-
-        assert_eq!(result, Err(ItemError::EmptyName));
-    }
-
-    #[test]
-    fn update_item_returns_duplicate_name_error() {
-        let mut list = ItemList::new();
-
-        list.add("食費", Tag::Asset).unwrap();
-        list.add("娯楽", Tag::Expense).unwrap();
-
-        let result = list.update(ItemId(2), "食費", Tag::Expense);
-
-        assert_eq!(result, Err(ItemError::DuplicateName("食費".to_string())));
-    }
-
-    #[test]
-    fn update_item_returns_not_found_error() {
-        let mut list = ItemList::new();
-
-        let result = list.update(ItemId(999), "食費", Tag::Asset);
-
-        assert_eq!(result, Err(ItemError::NotFound(ItemId(999))));
-    }
-
-    // -----------
-    // remove_item
-    // -----------
-
-    #[test]
-    fn remove_item_removes_item() {
-        let mut list = ItemList::new();
-
-        list.add("食費", Tag::Asset).unwrap();
-        list.add("娯楽", Tag::Expense).unwrap();
-        let result = list.remove(ItemId(1));
-
-        assert_eq!(result, Ok(()));
-        let remaining_ids = list.iter().map(Item::id).collect::<Vec<_>>();
-        assert_eq!(remaining_ids, vec![ItemId(2)]);
-        assert_eq!(list.get_item(ItemId(2)).unwrap().name, "娯楽");
-    }
-
-    #[test]
-    fn remove_item_returns_not_found_error() {
-        let mut list = ItemList::new();
-
-        let result = list.remove(ItemId(999));
-
-        assert_eq!(result, Err(ItemError::NotFound(ItemId(999))));
+        assert_eq!(list.remove(ItemId(4)), Err(ItemError::NotFound(ItemId(4))));
+        assert_eq!(list, before);
     }
 }
