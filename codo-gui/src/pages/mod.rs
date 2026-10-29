@@ -1,3 +1,4 @@
+pub mod expense_pie;
 pub mod items;
 pub mod monthly_report;
 pub mod transaction_form;
