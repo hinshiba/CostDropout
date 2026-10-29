@@ -19,7 +19,6 @@ pub fn monthly_expense(
 ) -> Result<Vec<(YearMonth, Money)>, MoneyError> {
     period
         .months()
-        .into_iter()
         .map(|month| {
             let total = flows_in(ledger, period)
                 .filter(|(tx, flow)| *flow == Flow::Expense && month.contains(tx.date()))

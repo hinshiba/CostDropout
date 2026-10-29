@@ -67,11 +67,11 @@ impl MonthlySummary {
 ///
 /// 取引がない日も0として含める
 pub fn monthly_summary(ledger: &Ledger, ym: YearMonth) -> MonthlySummary {
+    let period = Period::month(ym);
+
     // 1日から末日までの収入と支出が0の日を並べる
-    let mut days: Vec<DailySummary> = ym
-        .first_day()
-        .iter_days()
-        .take(ym.days_in_month() as usize)
+    let mut days: Vec<DailySummary> = period
+        .days()
         .map(|date| DailySummary {
             date,
             income: Money::from(0),
@@ -80,7 +80,6 @@ pub fn monthly_summary(ledger: &Ledger, ym: YearMonth) -> MonthlySummary {
         .collect();
 
     // 月内の取引の金額を，その日に足す
-    let period = Period::month(ym);
     for (tx, flow) in flows_in(ledger, period) {
         let index = tx.date().day0() as usize;
         match flow {
