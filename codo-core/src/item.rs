@@ -144,96 +144,89 @@ impl ItemList {
         self.items.iter().find(|item| item.id == id)
     }
 
-    /// 同じ名前の品目があれば返す
-    pub fn find_by_name(&self, name: &str) -> Option<&Item> {
-        let trim_name = name.trim();
-        self.items.iter().find(|item| item.name == trim_name)
-    }
-
-    /// 品目を追加する
+    /// 品目を追加し, 最大の ID に1を足した ID を割り当てる.
     ///
-    /// # Returns
+    /// 名前の前後の空白は取り除く.
     ///
-    /// nameが空の場合と，名前が被る場合はエラーを返す
+    /// # Errors
+    ///
+    /// 空白を取り除いた名前が空の場合は `ItemError::EmptyName` エラー.
+    /// 他の品目と名前が同じ場合は `ItemError::DuplicateName` エラー.
+    /// 割り当てる ID が `u32` の範囲を超える場合は `ItemError::Overflow` エラー.
     pub fn add(&mut self, name: &str, tag: Tag) -> Result<ItemId, ItemError> {
-        let trim_name = name.trim();
+        let name = self.validate_name(name, None)?;
+        let max_id = self.items.iter().map(|item| item.id.0).max().unwrap_or(0);
+        let id = ItemId(max_id.checked_add(1).ok_or(ItemError::Overflow)?);
 
-        if trim_name.is_empty() {
-            return Err(ItemError::EmptyName);
-        }
-
-        // 特別に，重複だと気づかせるためにtrim_nameを使う
-        if self.find_by_name(trim_name).is_some() {
-            return Err(ItemError::DuplicateName(trim_name.to_string()));
-        }
-
-        // 既存の品目がある場合は、新しくIdを作り，ない場合はItemId(0)となる
-        let max_id = self
-            .items
-            .iter()
-            .map(|item| item.id)
-            .max()
-            .unwrap_or(ItemId(0))
-            .0;
-
-        if max_id == u32::MAX {
-            return Err(ItemError::Overflow);
-        }
-        let new_id = max_id + 1;
         self.items.push(Item {
-            id: ItemId(new_id),
-            name: trim_name.to_string(),
+            id,
+            name: name.to_string(),
             tag,
         });
-        Ok(ItemId(new_id))
+        Ok(id)
     }
 
-    /// 品目を更新する
-    /// nameが空の場合と，名前が被る場合はエラーを返す
-    /// nameが変更なければそのまま返す
+    /// 品目の名前とタグを更新する.
+    ///
+    /// 名前の前後の空白は取り除く.
+    ///
+    /// # Errors
+    ///
+    /// 空白を取り除いた名前が空の場合は `ItemError::EmptyName` エラー.
+    /// 他の品目と名前が同じ場合は `ItemError::DuplicateName` エラー.
+    /// 品目が存在しない場合は `ItemError::NotFound` エラー.
     pub fn update(&mut self, id: ItemId, name: &str, tag: Tag) -> Result<(), ItemError> {
-        let trim_name = name.trim();
+        let name = self.validate_name(name, Some(id))?;
+        let index = self.index_of(id)?;
 
-        if trim_name.is_empty() {
-            return Err(ItemError::EmptyName);
-        }
-
-        // まず更新対象が存在するか確認
-        if self.get_item(id).is_none() {
-            return Err(ItemError::NotFound(id));
-        }
-
-        if self
-            .find_by_name(trim_name)
-            .is_some_and(|item| item.id != id)
-        {
-            return Err(ItemError::DuplicateName(trim_name.to_string()));
-        }
-
-        // 更新対象を探す
-        let Some(item) = self.items.iter_mut().find(|item| item.id == id) else {
-            return Err(ItemError::NotFound(id));
-        };
-        // 名前もタグも同じなら更新不要
-        if item.name == trim_name && item.tag == tag {
-            return Ok(());
-        }
-
-        // 更新
-        item.name = trim_name.to_string();
+        let item = &mut self.items[index];
+        item.name = name.to_string();
         item.tag = tag;
-
         Ok(())
     }
 
-    /// 指定されたIDの品目を削除する
+    /// 品目を削除する.
+    ///
+    /// # Errors
+    ///
+    /// 品目が存在しない場合は `ItemError::NotFound` エラー.
     pub fn remove(&mut self, id: ItemId) -> Result<(), ItemError> {
-        if let Some(delete_pos) = self.items.iter().position(|item| item.id == id) {
-            self.items.remove(delete_pos);
-            Ok(())
-        } else {
-            Err(ItemError::NotFound(id))
+        let index = self.index_of(id)?;
+        self.items.remove(index);
+        Ok(())
+    }
+
+    fn index_of(&self, id: ItemId) -> Result<usize, ItemError> {
+        self.items
+            .iter()
+            .position(|item| item.id == id)
+            .ok_or(ItemError::NotFound(id))
+    }
+
+    /// 前後の空白を取り除いた名前を返す.
+    ///
+    /// `id` の品目は重複の判定から除く.
+    ///
+    /// # Errors
+    ///
+    /// 空白を取り除いた名前が空の場合は `ItemError::EmptyName` エラー.
+    /// 他の品目と名前が同じ場合は `ItemError::DuplicateName` エラー.
+    fn validate_name<'a>(&self, name: &'a str, id: Option<ItemId>) -> Result<&'a str, ItemError> {
+        let name = name.trim();
+
+        if name.is_empty() {
+            return Err(ItemError::EmptyName);
         }
+
+        // 重複だと気づかせるために, 特別に空白を取り除いた名前を入れる
+        if self
+            .items
+            .iter()
+            .any(|item| item.name == name && Some(item.id) != id)
+        {
+            return Err(ItemError::DuplicateName(name.to_string()));
+        }
+        Ok(name)
     }
 }
 
