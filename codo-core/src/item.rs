@@ -232,12 +232,19 @@ impl ItemList {
 
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum ItemError {
+    /// 品目名が空の場合.
     #[error("品目名が空です")]
     EmptyName,
+    /// 品目名が他の品目と同じ場合.
     #[error("品目名 {0} は既に使われています")]
     DuplicateName(String),
+    /// 品目 ID が他の品目と同じ場合.
+    #[error("品目 {0:?} が重複しています")]
+    DuplicateId(ItemId),
+    /// 品目が存在しない場合.
     #[error("品目 {0:?} が見つかりません")]
     NotFound(ItemId),
+    /// 割り当てる ID が `u32` の範囲を超える場合.
     #[error("品目IDがオーバーフローしました")]
     Overflow,
 }
@@ -246,43 +253,22 @@ pub enum ItemError {
 mod tests {
     use super::*;
 
-    // ---------------------
-    // from_items のテスト
-    // ---------------------
-
-    #[test]
-    fn from_items_sorts_by_id() {
-        let food = Item::new(ItemId(1), "食費".to_string(), Tag::Expense);
-        let cash = Item::new(ItemId(2), "現金".to_string(), Tag::Asset);
-
-        let reversed = ItemList::from_items(vec![cash.clone(), food.clone()]);
-        let sorted = ItemList::from_items(vec![food, cash]);
-
-        assert_eq!(reversed, sorted);
+    fn item(id: u32, name: &str, tag: Tag) -> Item {
+        Item {
+            id: ItemId(id),
+            name: name.to_string(),
+            tag,
+        }
     }
 
-    // ---------------------
-    // get_item のテスト
-    // ---------------------
-
-    #[test]
-    fn get_item_returns_item_when_id_exists() {
-        let mut list = ItemList::new();
-
-        list.add("日用品", Tag::Asset).unwrap();
-        list.add("食費", Tag::Expense).unwrap();
-        list.add("給与", Tag::Income).unwrap();
-
-        let item = list.get_item(ItemId(1));
-
-        assert_eq!(
-            item,
-            Some(&Item {
-                id: ItemId(1),
-                name: "日用品".to_string(),
-                tag: Tag::Asset,
-            })
-        );
+    /// 食費 (1), 娯楽 (2), 現金 (3) の一覧.
+    fn list() -> ItemList {
+        ItemList::from_items(vec![
+            item(1, "食費", Tag::Expense),
+            item(2, "娯楽", Tag::Expense),
+            item(3, "現金", Tag::Asset),
+        ])
+        .unwrap()
     }
 
     #[test]
