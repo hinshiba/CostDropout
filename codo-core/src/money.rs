@@ -1,4 +1,4 @@
-//! お金
+//! 金額のモデルと表示
 
 use serde::{Deserialize, Serialize};
 use std::fmt;
@@ -7,38 +7,44 @@ use std::ops::{Add, AddAssign, Sub, SubAssign};
 use std::str::FromStr;
 use thiserror::Error;
 
-/// 金額(円)
+/// 金額を表現する.
 #[derive(
     Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
 )]
 pub struct Money(pub i32);
 
-/// 金額を加算します
-///
-/// 加算結果が`i32`の範囲を超える場合はパニックします
 impl Add for Money {
     type Output = Money;
 
+    /// 金額を加算する.
+    ///
+    /// # Panics
+    ///
+    /// 加算結果が `i32` の範囲を超える場合はパニック.
     fn add(self, rhs: Money) -> Money {
         self.checked_add(rhs).expect("overflowしました")
     }
 }
 
-/// 金額を減算します
-///
-/// 減算結果が`i32`の範囲を超える場合はパニックします
 impl Sub for Money {
     type Output = Money;
 
+    /// 金額を減算する.
+    ///
+    /// # Panics
+    ///
+    /// 減算結果が `i32` の範囲を超える場合はパニック.
     fn sub(self, rhs: Money) -> Money {
         self.checked_sub(rhs).expect("overflowしました")
     }
 }
 
 impl Money {
-    /// 金額を加算します。
+    /// 金額を加算する.
     ///
-    /// オーバーフローした場合は`MoneyError::Overflow`を返します。
+    /// # Errors
+    ///
+    /// 加算結果が `i32` の範囲を超える場合は `MoneyError::Overflow` エラー.
     pub fn checked_add(self, rhs: Money) -> Result<Money, MoneyError> {
         match self.0.checked_add(rhs.0) {
             Some(value) => Ok(Money(value)),
@@ -46,9 +52,11 @@ impl Money {
         }
     }
 
-    /// 金額を減算します。
+    /// 金額を減算する.
     ///
-    /// オーバーフローした場合は`MoneyError::Overflow`を返します。
+    /// # Errors
+    ///
+    /// 減算結果が `i32` の範囲を超える場合は `MoneyError::Overflow` エラー.
     pub fn checked_sub(self, rhs: Money) -> Result<Money, MoneyError> {
         match self.0.checked_sub(rhs.0) {
             Some(value) => Ok(Money(value)),
@@ -56,46 +64,60 @@ impl Money {
         }
     }
 
-    /// 金額が0より大きいかを判定します
+    /// 金額が0より大きいかを判定する.
     ///
-    /// 0は正の値に含まれません。
+    /// 0は正の値に含まれない.
     pub fn is_positive(&self) -> bool {
         0 < self.0
     }
 
-    /// 金額が0より小さいかを判定します。
+    /// 金額が0より小さいかを判定する.
+    ///
+    /// 0は負の値に含まれない.
     pub fn is_negative(&self) -> bool {
         self.0 < 0
     }
 }
 
-/// Moneyに別のMoneyを加算します。
-///
-/// 加算結果が`i32`の範囲を超える場合はパニックします
 impl AddAssign for Money {
+    /// 金額を加算して代入する.
+    ///
+    /// # Panics
+    ///
+    /// 加算結果が `i32` の範囲を超える場合はパニック.
     fn add_assign(&mut self, rhs: Self) {
         *self = *self + rhs
     }
 }
 
-/// Moneyに別のMoneyを減算します。
-///
-/// 減算結果が`i32`の範囲を超える場合はパニックします
 impl SubAssign for Money {
+    /// 金額を減算して代入する.
+    ///
+    /// # Panics
+    ///
+    /// 減算結果が `i32` の範囲を超える場合はパニック.
     fn sub_assign(&mut self, rhs: Self) {
         *self = *self - rhs
     }
 }
 
-/// Moneyのイテレータを合計します。
 impl Sum<Money> for Money {
+    /// 金額を合計する.
+    ///
+    /// # Panics
+    ///
+    /// 途中の合計が `i32` の範囲を超える場合はパニック.
     fn sum<I: Iterator<Item = Money>>(iter: I) -> Self {
         iter.fold(Money(0), |total, item| total + item)
     }
 }
 
-/// Moneyへの参照のイテレータを合計します。
 impl<'a> Sum<&'a Money> for Money {
+    /// 金額を合計する.
+    ///
+    /// # Panics
+    ///
+    /// 途中の合計が `i32` の範囲を超える場合はパニック.
     fn sum<I: Iterator<Item = &'a Money>>(iter: I) -> Self {
         iter.fold(Money(0), |total, item| total + *item)
     }
@@ -194,13 +216,12 @@ impl FromStr for Money {
     }
 }
 
-/// Moneyの操作で発生するエラーです。
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum MoneyError {
-    /// 文字列を金額として解釈できませんでした。
+    /// 金額として解釈できない文字列である場合.
     #[error("金額として解釈できない文字列です: {0}")]
     Parse(String),
-    /// 金額が表現可能な範囲を超えました。
+    /// 金額が表現可能な範囲を超えた場合.
     #[error("金額が表現できる範囲を超えました")]
     Overflow,
 }
