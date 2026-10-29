@@ -88,7 +88,7 @@ impl Render for ExpenseCalendar {
                             .border_color(rgb(0xe0e0e0)),
                         Some(day) => {
                             let level = expense_level(day.expense(), max_expense);
-                            let text_color = if level >= 4 {
+                            let text_color = if level >= EXPENSE_LEVELS {
                                 rgb(0xffffff)
                             } else {
                                 rgb(0x000000)
@@ -163,7 +163,7 @@ impl Render for ExpenseCalendar {
             .gap_2()
             .justify_center()
             .py_2()
-            .bg(rgb(0xe57373))
+            .bg(rgb(0xc62828))
             .w_full()
             .text_color(rgb(0xffffff))
             .child(prev_button)
@@ -193,6 +193,6 @@ fn level_color(level: u8) -> Rgba {
         2 => rgb(0xffcdd2),
         3 => rgb(0xef9a9a),
         4 => rgb(0xe57373),
-        _ => rgb(0xe53935),
+        _ => rgb(0xc62828),
     }
 }
