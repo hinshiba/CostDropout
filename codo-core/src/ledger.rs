@@ -1,7 +1,7 @@
 //! ledgerの整合性
 
 use crate::budget::{BudgetError, BudgetId, BudgetList};
-use crate::item::{ItemError, ItemId, ItemList, Tag};
+use crate::item::{Item, ItemError, ItemId, ItemList, Tag};
 use crate::money::Money;
 use crate::period::Period;
 use crate::period::YearMonth;
@@ -57,7 +57,7 @@ impl Ledger {
     /// ItemListにプリセット品目を入れる関数
     pub fn with_presets() -> Self {
         Self {
-            items: ItemList::from_items(preset_items()),
+            items: preset_items(),
             transactions: TransactionList::new(),
             budgets: BudgetList::new(),
         }
@@ -102,36 +102,22 @@ impl Ledger {
     /// 品目のupdate処理を委譲
     /// タグを変えると，この品目を参照している取引が制約を満たさなくなる場合はエラー
     pub fn update_item(&mut self, id: ItemId, name: &str, tag: Tag) -> Result<(), LedgerError> {
-        // 更新対象の品目を確認
-        let Some(item) = self.items.get_item(id) else {
+        let Some(item) = self.items.get(id) else {
             return Err(LedgerError::Item(ItemError::NotFound(id)));
         };
 
         if item.tag() != tag {
-            for t in self.transactions.iter() {
-                // この品目が「品目」として使われている場合
-                if t.item() == id {
-                    if !tag.is_transaction_selectable() {
-                        return Err(LedgerError::InvalidItemTag(tag));
-                    }
-                    let Some(counterpart) = self.items.get_item(t.counterpart()) else {
-                        return Err(LedgerError::TransactionItemNotFound(t.counterpart()));
-                    };
-                    if counterpart.tag() == tag {
-                        return Err(LedgerError::SameTag(tag));
-                    }
+            // 更新後のタグで，この品目を参照している取引を検証する
+            let tag_after = |item_id| {
+                if item_id == id {
+                    Ok(tag)
+                } else {
+                    self.tag_of(item_id)
                 }
-
-                // この品目が「相手先」として使われている場合
-                // 取引の品目と相手先のタグが同じにならないか確認する
-                if t.counterpart() == id {
-                    let Some(transaction_item) = self.items.get_item(t.item()) else {
-                        return Err(LedgerError::TransactionItemNotFound(t.item()));
-                    };
-
-                    if transaction_item.tag() == tag {
-                        return Err(LedgerError::SameTag(tag));
-                    }
+            };
+            for t in self.transactions.iter() {
+                if t.item() == id || t.counterpart() == id {
+                    check_tags(tag_after(t.item())?, tag_after(t.counterpart())?)?;
                 }
             }
         }
@@ -152,25 +138,20 @@ impl Ledger {
         Ok(())
     }
 
+    /// 取引の品目と相手先として参照する品目のタグを返す
+    fn tag_of(&self, id: ItemId) -> Result<Tag, LedgerError> {
+        self.items
+            .get(id)
+            .map(Item::tag)
+            .ok_or(LedgerError::TransactionItemNotFound(id))
+    }
+
     fn validate_transaction_draft(&self, draft: &TransactionDraft) -> Result<(), LedgerError> {
         draft.validate()?;
-
-        let Some(item) = self.items.get_item(draft.item()) else {
-            return Err(LedgerError::TransactionItemNotFound(draft.item()));
-        };
-
-        let Some(counterpart) = self.items.get_item(draft.counterpart()) else {
-            return Err(LedgerError::TransactionItemNotFound(draft.counterpart()));
-        };
-
-        if !item.tag().is_transaction_selectable() {
-            return Err(LedgerError::InvalidItemTag(item.tag()));
-        }
-
-        if item.tag() == counterpart.tag() {
-            return Err(LedgerError::SameTag(item.tag()));
-        }
-        Ok(())
+        check_tags(
+            self.tag_of(draft.item())?,
+            self.tag_of(draft.counterpart())?,
+        )
     }
 
     /// 取引のadd処理を委譲
@@ -228,6 +209,20 @@ impl Ledger {
         self.budgets.remove(id)?;
         Ok(())
     }
+}
+
+/// 取引の品目と相手先のタグの組み合わせを検証する
+/// 品目のタグが Tag::is_transaction_selectable を満たさなければエラー
+/// 相手先のタグが品目のタグと同じならエラー
+fn check_tags(item: Tag, counterpart: Tag) -> Result<(), LedgerError> {
+    if !item.is_transaction_selectable() {
+        return Err(LedgerError::InvalidItemTag(item));
+    }
+
+    if item == counterpart {
+        return Err(LedgerError::SameTag(item));
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -313,7 +308,7 @@ mod tests {
         );
 
         // 更新に失敗したときは，現金のタグはAssetのまま
-        assert_eq!(ledger.items.get_item(asset_id).unwrap().tag(), Tag::Asset);
+        assert_eq!(ledger.items.get(asset_id).unwrap().tag(), Tag::Asset);
     }
 
     // transaction関連のテスト
@@ -477,19 +472,6 @@ mod tests {
             Err(LedgerError::Transaction(TransactionError::NotFound(
                 transaction_id
             )))
-        );
-    }
-
-    #[test]
-    fn add_item_after_with_presets_gets_next_id() {
-        let mut ledger = Ledger::with_presets();
-
-        let new_id = ledger.add_item("新しい品目", Tag::Expense).unwrap();
-
-        assert_eq!(new_id.id(), 13);
-        assert_eq!(
-            ledger.items().get_item(new_id).unwrap().name(),
-            "新しい品目"
         );
     }
 

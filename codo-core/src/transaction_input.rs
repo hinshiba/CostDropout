@@ -16,9 +16,17 @@ pub fn item_choices(ledger: &Ledger) -> impl Iterator<Item = &Item> {
         .filter(|item| item.tag().is_transaction_selectable())
 }
 
-/// 指定したタグと異なるタグの相手先候補を返す。
-pub fn counterpart_choices(ledger: &Ledger, tag: Tag) -> impl Iterator<Item = &Item> {
-    ledger.items().iter().filter(move |item| item.tag() != tag)
+/// 品目 `item` と異なるタグの相手先候補を返す。
+pub fn counterpart_choices(ledger: &Ledger, item: ItemId) -> impl Iterator<Item = &Item> {
+    let tag = ledger
+        .items()
+        .get(item)
+        .map(Item::tag)
+        .filter(Tag::is_transaction_selectable);
+    ledger
+        .items()
+        .iter()
+        .filter(move |candidate| tag.is_some_and(|tag| candidate.tag() != tag))
 }
 
 /// 金額入力の変換・検証エラー。
@@ -221,7 +229,7 @@ mod tests {
 
     fn all_tags() -> (Ledger, [ItemId; 5]) {
         let mut ledger = Ledger::new();
-        let ids = Tag::ALL_TAGS.map(|tag| ledger.add_item(tag.label(), tag).unwrap());
+        let ids = Tag::ALL.map(|tag| ledger.add_item(&tag.to_string(), tag).unwrap());
         (ledger, ids)
     }
 
@@ -235,20 +243,24 @@ mod tests {
     }
 
     #[test]
-    fn counterpart_choices_exclude_each_selected_tag() {
-        let (ledger, ids) = all_tags();
-        for (tag, expected) in [
-            (Tag::Asset, vec![ids[1], ids[2], ids[3], ids[4]]),
-            (Tag::Liability, vec![ids[0], ids[2], ids[3], ids[4]]),
-            (Tag::OpeningBalance, vec![ids[0], ids[1], ids[3], ids[4]]),
-            (Tag::Income, vec![ids[0], ids[1], ids[2], ids[4]]),
-            (Tag::Expense, vec![ids[0], ids[1], ids[2], ids[3]]),
+    fn counterpart_choices_exclude_selected_item_tag() {
+        let (mut ledger, ids) = all_tags();
+        let removed = ledger.add_item("削除する品目", Tag::Expense).unwrap();
+        ledger.remove_item(removed).unwrap();
+        for (item, expected) in [
+            (ids[0], vec![]),
+            (ids[1], vec![ids[0], ids[2], ids[3], ids[4]]),
+            (ids[2], vec![]),
+            (ids[3], vec![ids[0], ids[1], ids[2], ids[4]]),
+            (ids[4], vec![ids[0], ids[1], ids[2], ids[3]]),
+            (removed, vec![]),
         ] {
             assert_eq!(
-                counterpart_choices(&ledger, tag)
+                counterpart_choices(&ledger, item)
                     .map(Item::id)
                     .collect::<Vec<_>>(),
-                expected
+                expected,
+                "{item:?}"
             );
         }
     }
@@ -262,7 +274,7 @@ mod tests {
             item_choices(&ledger).map(Item::id).collect::<Vec<_>>(),
             vec![ids[3]]
         );
-        let counterparts = counterpart_choices(&ledger, Tag::Income).collect::<Vec<_>>();
+        let counterparts = counterpart_choices(&ledger, ids[3]).collect::<Vec<_>>();
         assert_eq!(
             counterparts
                 .iter()
@@ -270,6 +282,6 @@ mod tests {
                 .collect::<Vec<_>>(),
             vec![ids[0], ids[2], ids[4]]
         );
-        assert_eq!(counterparts[2].name(), "変更後");
+        assert_eq!(counterparts[2].to_string(), "変更後");
     }
 }

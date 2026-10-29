@@ -58,8 +58,8 @@ impl Render for TransactionList {
                 let item_name = |id| {
                     ledger
                         .items()
-                        .get_item(id)
-                        .map(|item| item.name().to_string())
+                        .get(id)
+                        .map(|item| item.to_string())
                         .unwrap_or_else(|| "削除された品目".to_string())
                 };
                 TableRow::new()

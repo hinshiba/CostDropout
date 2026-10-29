@@ -15,7 +15,7 @@ pub enum Flow {
 }
 
 pub fn flow_of(ledger: &Ledger, tx: &Transaction) -> Flow {
-    let selected_item = ledger.items().get_item(tx.item()).expect("存在しない品目");
+    let selected_item = ledger.items().get(tx.item()).expect("存在しない品目");
 
     match selected_item.tag() {
         Tag::Expense => Flow::Expense,

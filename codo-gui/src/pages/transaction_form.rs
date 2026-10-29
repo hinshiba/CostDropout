@@ -2,7 +2,7 @@
 
 use crate::app::AppState;
 use chrono::Local;
-use codo_core::item::{Item, ItemId, Tag};
+use codo_core::item::{Item, ItemId};
 use codo_core::ledger::LedgerError;
 use codo_core::transaction::TransactionError;
 use codo_core::transaction_input::{
@@ -19,7 +19,6 @@ use gpui_kit::*;
 struct ItemChoice {
     id: ItemId,
     name: SharedString,
-    tag: Tag,
 }
 
 impl SelectItem for ItemChoice {
@@ -38,8 +37,7 @@ impl From<&Item> for ItemChoice {
     fn from(item: &Item) -> Self {
         Self {
             id: item.id(),
-            name: item.name().to_string().into(),
-            tag: item.tag(),
+            name: item.to_string().into(),
         }
     }
 }
@@ -52,13 +50,11 @@ fn friendly_error(error: &FormError) -> String {
                 "選択した品目または相手先が見つかりません。選び直してください".into()
             }
             LedgerError::InvalidItemTag(tag) => format!(
-                "{}の品目は取引の品目として選べません。収入・支出・負債から選んでください",
-                tag.label()
+                "{tag}の品目は取引の品目として選べません。収入・支出・負債から選んでください"
             ),
-            LedgerError::SameTag(tag) => format!(
-                "品目と相手先がどちらも{}です。異なる分類の品目を選んでください",
-                tag.label()
-            ),
+            LedgerError::SameTag(tag) => {
+                format!("品目と相手先がどちらも{tag}です。異なる分類の品目を選んでください")
+            }
             LedgerError::Transaction(TransactionError::SameItemAndCounterpart(_)) => {
                 "品目と相手先には異なる品目を選んでください".into()
             }
@@ -168,13 +164,9 @@ impl TransactionForm {
             .map(ItemChoice::from)
             .collect::<Vec<_>>();
         let selected_item = controls.item.read(cx).selected_value().copied();
-        let selected_tag = items
-            .iter()
-            .find(|item| Some(item.id) == selected_item)
-            .map(|item| item.tag);
-        let counterparts = selected_tag
-            .map(|tag| {
-                counterpart_choices(ledger, tag)
+        let counterparts = selected_item
+            .map(|id| {
+                counterpart_choices(ledger, id)
                     .map(ItemChoice::from)
                     .collect()
             })
