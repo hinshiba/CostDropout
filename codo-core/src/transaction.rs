@@ -256,7 +256,7 @@ mod tests {
     fn draft(day: u32, amount: i32, item: ItemId, counterpart: ItemId) -> TransactionDraft {
         TransactionDraft {
             date: date(day),
-            amount: Money(amount),
+            amount: Money::from(amount),
             item,
             counterpart,
             comment: String::from("テスト"),
@@ -282,7 +282,7 @@ mod tests {
         let t = list.get(id).unwrap();
         assert_eq!(t.id, id);
         assert_eq!(t.date, date(1));
-        assert_eq!(t.amount, Money(1000));
+        assert_eq!(t.amount, Money::from(1000));
         assert_eq!(t.item, a);
         assert_eq!(t.counterpart, b);
         assert_eq!(t.comment, "テスト");
@@ -296,7 +296,7 @@ mod tests {
         let id = list.add(draft(1, 1, a, b)).unwrap();
 
         let t = list.get(id).unwrap();
-        assert_eq!(t.amount, Money(1));
+        assert_eq!(t.amount, Money::from(1));
     }
 
     #[test]
@@ -304,7 +304,10 @@ mod tests {
         let (a, b, _) = items();
         let mut list = TransactionList::new();
         let result = list.add(draft(1, 0, a, b));
-        assert_eq!(result, Err(TransactionError::NonPositiveAmount(Money(0))));
+        assert_eq!(
+            result,
+            Err(TransactionError::NonPositiveAmount(Money::from(0)))
+        );
     }
 
     #[test]
@@ -312,7 +315,10 @@ mod tests {
         let (a, b, _) = items();
         let mut list = TransactionList::new();
         let result = list.add(draft(1, -1, a, b));
-        assert_eq!(result, Err(TransactionError::NonPositiveAmount(Money(-1))));
+        assert_eq!(
+            result,
+            Err(TransactionError::NonPositiveAmount(Money::from(-1)))
+        );
     }
 
     #[test]
@@ -352,7 +358,7 @@ mod tests {
 
         assert_eq!(
             result,
-            Err(TransactionError::NonPositiveAmount(Money(-500)))
+            Err(TransactionError::NonPositiveAmount(Money::from(-500)))
         );
     }
 
@@ -368,7 +374,7 @@ mod tests {
         let t = list.get(id).unwrap();
         assert_eq!(t.id, id);
         assert_eq!(t.date, date(5));
-        assert_eq!(t.amount, Money(2000));
+        assert_eq!(t.amount, Money::from(2000));
         assert_eq!(t.item, c);
         assert_eq!(t.counterpart, a);
     }
@@ -392,9 +398,12 @@ mod tests {
 
         let result = list.update(id, draft(1, 0, a, b));
 
-        assert_eq!(result, Err(TransactionError::NonPositiveAmount(Money(0))));
+        assert_eq!(
+            result,
+            Err(TransactionError::NonPositiveAmount(Money::from(0)))
+        );
         // 失敗したときは元の取引のまま
-        assert_eq!(list.get(id).unwrap().amount, Money(1000));
+        assert_eq!(list.get(id).unwrap().amount, Money::from(1000));
     }
 
     #[test]

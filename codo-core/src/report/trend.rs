@@ -24,7 +24,9 @@ pub fn monthly_expense(
             let total = flows_in(ledger, period)
                 .filter(|(tx, flow)| *flow == Flow::Expense && month.contains(tx.date()))
                 .filter(|(tx, _)| item.is_none_or(|item_id| tx.item() == item_id))
-                .try_fold(Money(0), |total, (tx, _)| total.checked_add(tx.amount()))?;
+                .try_fold(Money::from(0), |total, (tx, _)| {
+                    total.checked_add(tx.amount())
+                })?;
 
             Ok((month, total))
         })
@@ -33,7 +35,7 @@ pub fn monthly_expense(
 
 /// 年ごとの支出合計を返す
 ///
-/// 支出のない年はMoney(0)として含める。
+/// 支出のない年はMoney::from(0)として含める。
 /// 年の合計が i32 を超えると MoneyError::Overflow を返すこと
 /// 品目では絞らない
 pub fn yearly_expense(ledger: &Ledger) -> Result<Vec<(i32, Money)>, MoneyError> {
@@ -49,7 +51,9 @@ pub fn yearly_expense(ledger: &Ledger) -> Result<Vec<(i32, Money)>, MoneyError> 
         .map(|year| {
             let total = flows_in(ledger, Period::year(year))
                 .filter(|(_, flow)| *flow == Flow::Expense)
-                .try_fold(Money(0), |total, (tx, _)| total.checked_add(tx.amount()))?;
+                .try_fold(Money::from(0), |total, (tx, _)| {
+                    total.checked_add(tx.amount())
+                })?;
 
             Ok((year, total))
         })
@@ -71,7 +75,7 @@ mod tests {
     fn draft(date: NaiveDate, amount: i32, item: ItemId, counterpart: ItemId) -> TransactionDraft {
         TransactionDraft::new(
             date,
-            Money(amount),
+            Money::from(amount),
             item,
             counterpart,
             String::from("テスト"),
@@ -114,9 +118,9 @@ mod tests {
         assert_eq!(
             result,
             vec![
-                (YearMonth::new(2026, 10).unwrap(), Money(3000)),
-                (YearMonth::new(2026, 11).unwrap(), Money(0)),
-                (YearMonth::new(2026, 12).unwrap(), Money(0)),
+                (YearMonth::new(2026, 10).unwrap(), Money::from(3000)),
+                (YearMonth::new(2026, 11).unwrap(), Money::from(0)),
+                (YearMonth::new(2026, 12).unwrap(), Money::from(0)),
             ]
         );
     }
@@ -151,7 +155,7 @@ mod tests {
 
         assert_eq!(
             result,
-            vec![(YearMonth::new(2026, 10).unwrap(), Money(7000)),]
+            vec![(YearMonth::new(2026, 10).unwrap(), Money::from(7000)),]
         );
     }
 
@@ -191,7 +195,11 @@ mod tests {
 
         assert_eq!(
             result,
-            vec![(2025, Money(3000)), (2026, Money(0)), (2027, Money(5000)),]
+            vec![
+                (2025, Money::from(3000)),
+                (2026, Money::from(0)),
+                (2027, Money::from(5000)),
+            ]
         );
     }
 
@@ -223,7 +231,7 @@ mod tests {
 
         assert_eq!(
             result,
-            vec![(YearMonth::new(2026, 10).unwrap(), Money(5000)),]
+            vec![(YearMonth::new(2026, 10).unwrap(), Money::from(5000)),]
         );
     }
 
@@ -303,7 +311,7 @@ mod tests {
 
         let result = yearly_expense(&ledger);
 
-        assert_eq!(result, Ok(vec![(2026, Money(3000)),]));
+        assert_eq!(result, Ok(vec![(2026, Money::from(3000)),]));
     }
 
     #[test]
@@ -332,9 +340,9 @@ mod tests {
         assert_eq!(
             result,
             Ok(vec![
-                (YearMonth::new(2026, 12).unwrap(), Money(3000)),
-                (YearMonth::new(2027, 1).unwrap(), Money(5000)),
-                (YearMonth::new(2027, 2).unwrap(), Money(0)),
+                (YearMonth::new(2026, 12).unwrap(), Money::from(3000)),
+                (YearMonth::new(2027, 1).unwrap(), Money::from(5000)),
+                (YearMonth::new(2027, 2).unwrap(), Money::from(0)),
             ])
         );
     }

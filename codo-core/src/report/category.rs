@@ -65,7 +65,7 @@ pub fn expense_by_item(ledger: &Ledger, period: Period) -> Vec<ItemExpense> {
     let total = amounts
         .values()
         .copied()
-        .fold(Money(0), |acc, amount| acc + amount);
+        .fold(Money::from(0), |acc, amount| acc + amount);
 
     // ItemExpenseに変換
     let mut result: Vec<ItemExpense> = amounts
@@ -73,7 +73,8 @@ pub fn expense_by_item(ledger: &Ledger, period: Period) -> Vec<ItemExpense> {
         .map(|(item, amount)| ItemExpense {
             item,
             amount,
-            ratio: amount.0 as f64 / total.0 as f64,
+            // 支出は正の金額に限られ, 1件以上あるので総額は0にならない
+            ratio: amount.ratio(total).expect("支出の総額が0になっています"),
         })
         .collect();
 
@@ -117,7 +118,7 @@ mod tests {
         transactions
             .add(TransactionDraft::new(
                 date(1),
-                Money(10_000),
+                Money::from(10_000),
                 food,
                 cash,
                 "食費".to_string(),
@@ -128,7 +129,7 @@ mod tests {
         transactions
             .add(TransactionDraft::new(
                 date(2),
-                Money(5_000),
+                Money::from(5_000),
                 entertainment,
                 cash,
                 "娯楽".to_string(),
@@ -140,7 +141,7 @@ mod tests {
         transactions
             .add(TransactionDraft::new(
                 date(3),
-                Money(5_000),
+                Money::from(5_000),
                 entertainment,
                 cash,
                 "娯楽".to_string(),
@@ -161,8 +162,8 @@ mod tests {
         // 娯楽     10,000円
         //
         // 同額なので ItemId の小さい方が先
-        assert_eq!(result[0].amount(), Money(10_000));
-        assert_eq!(result[1].amount(), Money(10_000));
+        assert_eq!(result[0].amount(), Money::from(10_000));
+        assert_eq!(result[1].amount(), Money::from(10_000));
 
         assert_eq!(result[0].item(), food.min(entertainment));
         assert_eq!(result[1].item(), food.max(entertainment));
@@ -191,7 +192,7 @@ mod tests {
         transactions
             .add(TransactionDraft::new(
                 date(1),
-                Money(3_000),
+                Money::from(3_000),
                 food,
                 cash,
                 "食費".to_string(),
@@ -202,7 +203,7 @@ mod tests {
         transactions
             .add(TransactionDraft::new(
                 date(2),
-                Money(10_000),
+                Money::from(10_000),
                 entertainment,
                 cash,
                 "娯楽".to_string(),
@@ -217,10 +218,10 @@ mod tests {
 
         // 大きい金額が先
         assert_eq!(result[0].item(), entertainment);
-        assert_eq!(result[0].amount(), Money(10_000));
+        assert_eq!(result[0].amount(), Money::from(10_000));
 
         assert_eq!(result[1].item(), food);
-        assert_eq!(result[1].amount(), Money(3_000));
+        assert_eq!(result[1].amount(), Money::from(3_000));
 
         // 割合
         assert!((result[0].ratio() - 10.0 / 13.0).abs() < 1e-10);
@@ -240,7 +241,7 @@ mod tests {
         transactions
             .add(TransactionDraft::new(
                 date(1),
-                Money(10_000),
+                Money::from(10_000),
                 food,
                 cash,
                 "食費".to_string(),
@@ -273,7 +274,7 @@ mod tests {
         transactions
             .add(TransactionDraft::new(
                 date(1),
-                Money(3_000),
+                Money::from(3_000),
                 food,
                 cash,
                 "食費".to_string(),
@@ -284,7 +285,7 @@ mod tests {
         transactions
             .add(TransactionDraft::new(
                 date(2),
-                Money(100_000),
+                Money::from(100_000),
                 income,
                 cash,
                 "給与".to_string(),
@@ -295,7 +296,7 @@ mod tests {
         transactions
             .add(TransactionDraft::new(
                 date(3),
-                Money(50_000),
+                Money::from(50_000),
                 liability,
                 cash,
                 "借入".to_string(),
@@ -310,7 +311,7 @@ mod tests {
 
         assert_eq!(result.len(), 1);
         assert_eq!(result[0].item(), food);
-        assert_eq!(result[0].amount(), Money(3_000));
+        assert_eq!(result[0].amount(), Money::from(3_000));
     }
 
     #[test]
@@ -326,7 +327,7 @@ mod tests {
         transactions
             .add(TransactionDraft::new(
                 date(1),
-                Money(3_000),
+                Money::from(3_000),
                 food,
                 cash,
                 "食費".to_string(),
@@ -337,7 +338,7 @@ mod tests {
         transactions
             .add(TransactionDraft::new(
                 date(31),
-                Money(2_000),
+                Money::from(2_000),
                 food,
                 cash,
                 "食費".to_string(),
@@ -352,7 +353,7 @@ mod tests {
 
         assert_eq!(result.len(), 1);
         assert_eq!(result[0].item(), food);
-        assert_eq!(result[0].amount(), Money(5_000));
+        assert_eq!(result[0].amount(), Money::from(5_000));
     }
 
     #[test]
@@ -368,7 +369,7 @@ mod tests {
         transactions
             .add(TransactionDraft::new(
                 date(10),
-                Money(3_000),
+                Money::from(3_000),
                 food,
                 cash,
                 "期間内".to_string(),
@@ -379,7 +380,7 @@ mod tests {
         transactions
             .add(TransactionDraft::new(
                 date(31),
-                Money(100_000),
+                Money::from(100_000),
                 food,
                 cash,
                 "期間外".to_string(),
@@ -395,6 +396,6 @@ mod tests {
 
         assert_eq!(result.len(), 1);
         assert_eq!(result[0].item(), food);
-        assert_eq!(result[0].amount(), Money(3_000));
+        assert_eq!(result[0].amount(), Money::from(3_000));
     }
 }
