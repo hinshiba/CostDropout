@@ -54,14 +54,26 @@ impl Ledger {
         }
     }
 
-    /// ファイル復元のため
-    /// エラー検証は行わない
-    pub fn from_parts(items: ItemList, transactions: TransactionList, budgets: BudgetList) -> Self {
-        Self {
+    /// 品目一覧, 取引一覧, 予算一覧から帳簿を作成する.
+    ///
+    /// # Errors
+    ///
+    /// 取引の品目または相手先が存在しない場合は `LedgerError::TransactionItemNotFound` エラー.
+    /// 取引のタグの組み合わせが不正な場合は `LedgerError::Transaction` エラー.
+    pub(crate) fn from_parts(
+        items: ItemList,
+        transactions: TransactionList,
+        budgets: BudgetList,
+    ) -> Result<Self, LedgerError> {
+        let ledger = Self {
             items,
             transactions,
             budgets,
+        };
+        for t in ledger.transactions.iter() {
+            t.check_tags(|id| ledger.tag_of(id))?;
         }
+        Ok(ledger)
     }
 
     pub fn items(&self) -> &ItemList {

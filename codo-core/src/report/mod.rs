@@ -96,7 +96,7 @@ mod tests {
             String::new(),
         ));
 
-        Ledger::from_parts(items, transactions, BudgetList::new())
+        Ledger::from_parts(items, transactions, BudgetList::new()).unwrap()
     }
 
     #[test]

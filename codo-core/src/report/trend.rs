@@ -101,7 +101,7 @@ mod tests {
         // 10月に負債がある
         transactions.add(draft(date(2026, 10, 15), 5000, loan, cash));
 
-        let ledger = Ledger::from_parts(items, transactions, BudgetList::new());
+        let ledger = Ledger::from_parts(items, transactions, BudgetList::new()).unwrap();
 
         // 2026年10月1日〜12月31日
         let period = Period::new(date(2026, 10, 1), date(2026, 12, 31)).unwrap();
@@ -134,7 +134,7 @@ mod tests {
 
         transactions.add(draft(date(2026, 10, 10), 10000, entertainment, cash));
 
-        let ledger = Ledger::from_parts(items, transactions, BudgetList::new());
+        let ledger = Ledger::from_parts(items, transactions, BudgetList::new()).unwrap();
 
         let period = Period::new(date(2026, 10, 1), date(2026, 10, 31)).unwrap();
 
@@ -168,7 +168,7 @@ mod tests {
         // 2027年：支出あり
         transactions.add(draft(date(2027, 10, 10), 5000, food, cash));
 
-        let ledger = Ledger::from_parts(items, transactions, BudgetList::new());
+        let ledger = Ledger::from_parts(items, transactions, BudgetList::new()).unwrap();
 
         let result = yearly_expense(&ledger).unwrap();
 
@@ -197,7 +197,7 @@ mod tests {
         // 期間内なので集計される
         transactions.add(draft(date(2026, 10, 15), 5000, food, cash));
 
-        let ledger = Ledger::from_parts(items, transactions, BudgetList::new());
+        let ledger = Ledger::from_parts(items, transactions, BudgetList::new()).unwrap();
 
         // 10月10日〜10月31日だけを期間にする
         let period = Period::new(date(2026, 10, 10), date(2026, 10, 31)).unwrap();
@@ -223,7 +223,7 @@ mod tests {
 
         transactions.add(draft(date(2026, 10, 10), 1_500_000_000, food, cash));
 
-        let ledger = Ledger::from_parts(items, transactions, BudgetList::new());
+        let ledger = Ledger::from_parts(items, transactions, BudgetList::new()).unwrap();
 
         let period = Period::new(date(2026, 10, 1), date(2026, 10, 31)).unwrap();
 
@@ -245,7 +245,7 @@ mod tests {
 
         transactions.add(draft(date(2026, 10, 20), 1_500_000_000, food, cash));
 
-        let ledger = Ledger::from_parts(items, transactions, BudgetList::new());
+        let ledger = Ledger::from_parts(items, transactions, BudgetList::new()).unwrap();
 
         let result = yearly_expense(&ledger);
 
@@ -254,7 +254,8 @@ mod tests {
 
     #[test]
     fn yearly_expense_returns_empty_when_there_are_no_transactions() {
-        let ledger = Ledger::from_parts(ItemList::new(), TransactionList::new(), BudgetList::new());
+        let ledger =
+            Ledger::from_parts(ItemList::new(), TransactionList::new(), BudgetList::new()).unwrap();
 
         let result = yearly_expense(&ledger);
 
@@ -272,7 +273,7 @@ mod tests {
 
         transactions.add(draft(date(2026, 10, 10), 3000, food, cash));
 
-        let ledger = Ledger::from_parts(items, transactions, BudgetList::new());
+        let ledger = Ledger::from_parts(items, transactions, BudgetList::new()).unwrap();
 
         let result = yearly_expense(&ledger);
 
@@ -292,7 +293,7 @@ mod tests {
 
         transactions.add(draft(date(2027, 1, 10), 5000, food, cash));
 
-        let ledger = Ledger::from_parts(items, transactions, BudgetList::new());
+        let ledger = Ledger::from_parts(items, transactions, BudgetList::new()).unwrap();
 
         let period = Period::new(date(2026, 12, 1), date(2027, 2, 28)).unwrap();
 

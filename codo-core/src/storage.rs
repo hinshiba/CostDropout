@@ -9,7 +9,7 @@ use thiserror::Error;
 
 use crate::budget::{Budget, BudgetError, BudgetId, BudgetList};
 use crate::item::{Item, ItemError, ItemList};
-use crate::ledger::Ledger;
+use crate::ledger::{Ledger, LedgerError};
 use crate::money::Money;
 use crate::period::{Period, PeriodError, YearMonth};
 use crate::transaction::{Transaction, TransactionError, TransactionList};
@@ -155,7 +155,7 @@ impl LedgerStore for TomlStore {
 
         let budget_list = BudgetList::from_budgets(budget_vec)?;
 
-        Ok(Ledger::from_parts(items, transactions, budget_list))
+        Ok(Ledger::from_parts(items, transactions, budget_list)?)
     }
 
     /// ファイルの保存を行う
@@ -223,6 +223,9 @@ pub enum StorageError {
 
     #[error("取引データが不正です: {0}")]
     InvalidTransactions(#[from] TransactionError),
+
+    #[error("帳簿データが不正です: {0}")]
+    InvalidLedger(#[from] LedgerError),
 }
 
 #[cfg(test)]
@@ -368,6 +371,73 @@ mod tests {
         std::fs::write(&month_path, with_time).unwrap();
 
         assert!(matches!(store.load(), Err(StorageError::ParseToml(_))));
+    }
+
+    /// 保存した10月の月ファイルの `from` を `to` に書き換えてから読み込む.
+    fn load_with_replaced(from: &str, to: &str) -> Result<Ledger, StorageError> {
+        let dir = tempfile::tempdir().unwrap();
+        let store = TomlStore::new(dir.path().to_path_buf());
+        let (ledger, _) = sample_ledger();
+        store.save(&ledger).unwrap();
+
+        let month_path = dir.path().join("transactions").join("2026-10.toml");
+        let month_toml = std::fs::read_to_string(&month_path).unwrap();
+        assert!(month_toml.contains(from), "{from}");
+        std::fs::write(&month_path, month_toml.replacen(from, to, 1)).unwrap();
+        store.load()
+    }
+
+    #[test]
+    fn toml_store_load_rejects_non_positive_amount() {
+        for amount in ["0", "-1"] {
+            let result = load_with_replaced("amount = 1200", &format!("amount = {amount}"));
+            assert!(
+                matches!(result, Err(StorageError::ParseToml(_))),
+                "{amount}"
+            );
+        }
+    }
+
+    #[test]
+    fn toml_store_load_rejects_duplicate_transaction_id() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = TomlStore::new(dir.path().to_path_buf());
+        let (ledger, november) = sample_ledger();
+        store.save(&ledger).unwrap();
+
+        // 別の月ファイルに同じ取引があると, 取引 ID が重複する
+        let transactions_dir = dir.path().join("transactions");
+        let month_toml = std::fs::read_to_string(transactions_dir.join("2026-11.toml")).unwrap();
+        std::fs::write(transactions_dir.join("2026-12.toml"), month_toml).unwrap();
+
+        assert!(matches!(
+            store.load(),
+            Err(StorageError::InvalidTransactions(TransactionError::DuplicateId(id))) if id == november
+        ));
+    }
+
+    #[test]
+    fn toml_store_load_rejects_invalid_ledger() {
+        let missing = load_with_replaced("item = 1", "item = 3");
+        assert!(matches!(
+            missing,
+            Err(StorageError::InvalidLedger(
+                LedgerError::TransactionItemNotFound(_)
+            ))
+        ));
+        // 資産の品目は取引の品目として選べない
+        let invalid_tag = load_with_replaced(
+            "item = 1
+counterpart = 2",
+            "item = 2
+counterpart = 1",
+        );
+        assert!(matches!(
+            invalid_tag,
+            Err(StorageError::InvalidLedger(LedgerError::Transaction(
+                TransactionError::InvalidItemTag(Tag::Asset)
+            )))
+        ));
     }
 
     #[test]

@@ -142,7 +142,7 @@ mod tests {
             "娯楽".to_string(),
         ));
 
-        let ledger = Ledger::from_parts(items, transactions, BudgetList::new());
+        let ledger = Ledger::from_parts(items, transactions, BudgetList::new()).unwrap();
 
         let period = Period::new(date(1), date(31)).unwrap();
 
@@ -200,7 +200,7 @@ mod tests {
             "娯楽".to_string(),
         ));
 
-        let ledger = Ledger::from_parts(items, transactions, BudgetList::new());
+        let ledger = Ledger::from_parts(items, transactions, BudgetList::new()).unwrap();
 
         let period = Period::month(YearMonth::new(2026, 10).unwrap());
 
@@ -236,7 +236,7 @@ mod tests {
             "食費".to_string(),
         ));
 
-        let ledger = Ledger::from_parts(items, transactions, BudgetList::new());
+        let ledger = Ledger::from_parts(items, transactions, BudgetList::new()).unwrap();
 
         // 10月20日〜10月31日
         // 10月1日の取引は期間外
@@ -285,7 +285,7 @@ mod tests {
             "借入".to_string(),
         ));
 
-        let ledger = Ledger::from_parts(items, transactions, BudgetList::new());
+        let ledger = Ledger::from_parts(items, transactions, BudgetList::new()).unwrap();
 
         let period = Period::month(YearMonth::new(2026, 10).unwrap());
 
@@ -323,7 +323,7 @@ mod tests {
             "食費".to_string(),
         ));
 
-        let ledger = Ledger::from_parts(items, transactions, BudgetList::new());
+        let ledger = Ledger::from_parts(items, transactions, BudgetList::new()).unwrap();
 
         let period = Period::month(YearMonth::new(2026, 10).unwrap());
 
@@ -361,7 +361,7 @@ mod tests {
             "期間外".to_string(),
         ));
 
-        let ledger = Ledger::from_parts(items, transactions, BudgetList::new());
+        let ledger = Ledger::from_parts(items, transactions, BudgetList::new()).unwrap();
 
         // 10月1日〜10月30日を対象
         let period = Period::new(date(1), date(30)).unwrap();
