@@ -189,7 +189,7 @@ impl Render for App {
                     ),
             )
             // メイン画面
-            .child(div().flex_1().h_full().child(
+            .child(div().flex_1().h_full().min_w_0().child(
                 // 画面選択
                 div().size_full().child(match self.page {
                     Page::TransactionForm => div().child(self.transaction_form.clone()),
@@ -197,7 +197,7 @@ impl Render for App {
                     Page::ExpensePie => div().size_full().child(self.expense_pie.clone()),
                     Page::Items => div().child(self.items.clone()),
                     Page::MonthlyReport => div().child(self.monthly_report.clone()),
-                    Page::ExpenseCalendar => div().child(self.expense_calendar.clone()),
+                    Page::ExpenseCalendar => div().size_full().child(self.expense_calendar.clone()),
                 }),
             ))
     }

@@ -171,17 +171,24 @@ impl Render for ExpenseCalendar {
             .child(next_button);
 
         div()
+            .id("expense-calendar")
             .size_full()
-            .flex()
-            .flex_col()
+            .overflow_scroll()
             .bg(rgb(0xffffff))
-            .items_center()
             .text_xl()
             .text_color(rgb(0x000000))
-            .child(month_selector)
-            .child(weekday_header)
-            .child(div().flex().flex_col().children(week_rows))
-            .child(legend)
+            .child(
+                div()
+                    .flex()
+                    .flex_col()
+                    .items_center()
+                    .w_full()
+                    .min_w(px(700.))
+                    .child(month_selector)
+                    .child(weekday_header)
+                    .child(div().flex().flex_col().children(week_rows))
+                    .child(legend),
+            )
     }
 }
 
