@@ -9,6 +9,7 @@ pub mod money;
 pub mod period;
 pub mod preset;
 pub mod report;
+mod serialization;
 pub mod storage;
 pub mod transaction;
 pub mod transaction_input;

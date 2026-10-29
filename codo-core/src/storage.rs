@@ -56,10 +56,10 @@ struct BudgetRecord {
     id: u32,
     amount: Money,
 
-    #[serde(with = "toml_date")]
+    #[serde(with = "crate::serialization::toml_date")]
     start: NaiveDate,
 
-    #[serde(with = "toml_date")]
+    #[serde(with = "crate::serialization::toml_date")]
     end: NaiveDate,
 }
 
@@ -220,33 +220,6 @@ pub enum StorageError {
 
     #[error("品目データが不正です: {0}")]
     InvalidItems(#[from] ItemError),
-}
-
-/// 日付変換用のモジュール
-mod toml_date {
-    use chrono::NaiveDate;
-    use serde::{Deserialize, Deserializer, Serialize, Serializer};
-
-    pub fn serialize<S>(date: &NaiveDate, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        let value: toml::value::Datetime = date
-            .to_string()
-            .parse()
-            .map_err(serde::ser::Error::custom)?;
-
-        value.serialize(serializer)
-    }
-
-    pub fn deserialize<'de, D>(deserializer: D) -> Result<NaiveDate, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let value = toml::value::Datetime::deserialize(deserializer)?;
-
-        NaiveDate::parse_from_str(&value.to_string(), "%Y-%m-%d").map_err(serde::de::Error::custom)
-    }
 }
 
 #[cfg(test)]
