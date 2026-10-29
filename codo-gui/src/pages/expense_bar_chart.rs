@@ -123,7 +123,7 @@ impl ExpenseBarChart {
             100_000.0
         };
 
-        (adjusted_max / step) as usize + 1
+        ((adjusted_max / step) as usize + 1).min(11)
     }
 }
 
@@ -131,11 +131,14 @@ impl Render for ExpenseBarChart {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let items = self.expense_items(cx);
 
-        // 初回表示時は最初の支出品目を自動選択する。
-        if self.selected_item.is_none()
-            && let Some((item_id, _)) = items.first()
+        // 選択中の品目が現在も支出品目に存在するか確認する。
+        // 存在しなければ、先頭の支出品目を選択する。
+        // 支出品目がなければ None にする。
+        if !self
+            .selected_item
+            .is_some_and(|selected| items.iter().any(|(item_id, _)| *item_id == selected))
         {
-            self.selected_item = Some(*item_id);
+            self.selected_item = items.first().map(|(item_id, _)| *item_id);
         }
 
         let chart_data = self.chart_data(cx);
