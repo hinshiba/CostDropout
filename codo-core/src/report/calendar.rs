@@ -33,6 +33,8 @@ mod tests {
     fn expense_level_is_zero_when_max_is_zero() {
         // 取引の無い月でも 0 で割らない
         assert_eq!(expense_level(Money(0), Money(0)), 0);
+        // 最大が 0 なら，支出があっても 0 で割らない
+        assert_eq!(expense_level(Money(100), Money(0)), 0);
     }
 
     #[test]
