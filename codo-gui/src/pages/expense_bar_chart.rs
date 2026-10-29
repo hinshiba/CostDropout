@@ -213,7 +213,7 @@ impl Render for ExpenseBarChart {
             Err(error) => div()
                 .w_full()
                 .h_96()
-                .child(format!("集計エラー: {error:?}"))
+                .child(format!("集計エラー: {error}"))
                 .into_any_element(),
         };
 
