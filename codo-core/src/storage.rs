@@ -1,14 +1,17 @@
 //! 帳簿の保存・読み込み
 
+use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 use thiserror::Error;
 
+use crate::budget::{Budget, BudgetError, BudgetId, BudgetList};
 use crate::item::{Item, ItemList};
 use crate::ledger::Ledger;
-use crate::period::YearMonth;
+use crate::money::Money;
+use crate::period::{Period, PeriodError, YearMonth};
 use crate::transaction::{Transaction, TransactionList};
 
 /// 1か月分の取引ファイル
@@ -21,6 +24,12 @@ struct MonthFile {
 #[derive(Serialize, Deserialize)]
 struct ItemsFile {
     items: Vec<Item>,
+}
+
+/// 予算ファイル
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct BudgetsFile {
+    budgets: Vec<BudgetRecord>,
 }
 
 /// 拡張子がtomlかの判断
@@ -43,6 +52,42 @@ fn month_of_file(path: &Path) -> Option<YearMonth> {
         Some(ym)
     } else {
         None
+    }
+}
+
+/// TOMLに保存する予算1件分のデータ
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct BudgetRecord {
+    id: u32,
+    amount: Money,
+
+    #[serde(with = "toml_date")]
+    start: NaiveDate,
+
+    #[serde(with = "toml_date")]
+    end: NaiveDate,
+}
+
+/// BudgetをBudgetRecordに変換する
+impl From<&Budget> for BudgetRecord {
+    fn from(budget: &Budget) -> Self {
+        Self {
+            id: budget.id().0,
+            amount: budget.amount(),
+            start: budget.period().start(),
+            end: budget.period().end(),
+        }
+    }
+}
+
+/// BudgetRecordからBudgetを復元する
+impl TryFrom<BudgetRecord> for Budget {
+    type Error = PeriodError;
+
+    fn try_from(record: BudgetRecord) -> Result<Self, Self::Error> {
+        let period = Period::new(record.start, record.end)?;
+
+        Ok(Budget::new(BudgetId(record.id), record.amount, period))
     }
 }
 
@@ -98,12 +143,36 @@ impl LedgerStore for TomlStore {
         }
         let transactions = TransactionList::from_transactions(all);
 
-        Ok(Ledger::from_parts(items, transactions))
+        let budgets_path = self.dir.join("budgets.toml");
+
+        let records: Vec<BudgetRecord> = if budgets_path.try_exists()? {
+            let budgets_toml = std::fs::read_to_string(budgets_path)?;
+            let budgets_file: BudgetsFile = toml::from_str(&budgets_toml)?;
+            budgets_file.budgets
+        } else {
+            Vec::new()
+        };
+
+        let budget_vec: Vec<Budget> = records
+            .into_iter()
+            .map(Budget::try_from)
+            .collect::<Result<Vec<_>, _>>()?;
+
+        let budget_list = BudgetList::from_budgets(budget_vec)?;
+
+        Ok(Ledger::from_parts(items, transactions, budget_list))
     }
 
     /// ファイルの保存を行う
     fn save(&self, ledger: &Ledger) -> Result<(), StorageError> {
         std::fs::create_dir_all(&self.dir)?;
+        let mut records: Vec<BudgetRecord> =
+            ledger.budgets().iter().map(BudgetRecord::from).collect();
+        records.sort_by_key(|record| record.id);
+        let budgets_file = BudgetsFile { budgets: records };
+        let budgets_toml = toml::to_string(&budgets_file)?;
+        let budgets_path = self.dir.join("budgets.toml");
+        std::fs::write(budgets_path, budgets_toml)?;
         let items_path = self.dir.join("items.toml");
         let items_toml = toml::to_string(ledger.items())?;
         let mut by_month: BTreeMap<YearMonth, Vec<Transaction>> = BTreeMap::new();
@@ -147,6 +216,39 @@ pub enum StorageError {
 
     #[error("TOMLへの変換に失敗しました: {0}")]
     SerializeToml(#[from] toml::ser::Error),
+
+    #[error("予算期間が不正です: {0}")]
+    InvalidPeriod(#[from] PeriodError),
+
+    #[error("予算データが不正です: {0}")]
+    InvalidBudget(#[from] BudgetError),
+}
+
+/// 日付変換用のモジュール
+mod toml_date {
+    use chrono::NaiveDate;
+    use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
+    pub fn serialize<S>(date: &NaiveDate, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let value: toml::value::Datetime = date
+            .to_string()
+            .parse()
+            .map_err(serde::ser::Error::custom)?;
+
+        value.serialize(serializer)
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<NaiveDate, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let value = toml::value::Datetime::deserialize(deserializer)?;
+
+        NaiveDate::parse_from_str(&value.to_string(), "%Y-%m-%d").map_err(serde::de::Error::custom)
+    }
 }
 
 #[cfg(test)]
@@ -427,5 +529,55 @@ mod tests {
         store.save(&ledger).unwrap();
 
         assert_eq!(store.load().unwrap(), ledger);
+    }
+
+    #[test]
+    fn toml_store_budget_round_trip_test() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = TomlStore::new(dir.path().to_path_buf());
+
+        let mut ledger = Ledger::new();
+
+        let period = Period::new(date(10, 1), date(10, 31)).unwrap();
+
+        let budget_id = ledger.add_budget(Money(50_000), period).unwrap();
+        store.save(&ledger).unwrap();
+
+        let loaded = store.load().unwrap();
+        assert_eq!(loaded, ledger);
+        let loaded_budget = loaded.budgets().get(budget_id).unwrap();
+
+        assert_eq!(loaded_budget.amount(), Money(50_000));
+        assert_eq!(loaded_budget.period(), period);
+    }
+
+    /// 開始日が終了日より後の予算を読み込んだ場合、エラーを返す
+    #[test]
+    fn toml_store_invalid_budget_period_test() {
+        // ① 一時ディレクトリを作成
+        let dir = tempfile::tempdir().unwrap();
+
+        // ② TomlStoreを作成
+        let store = TomlStore::new(dir.path().to_path_buf());
+
+        // ③ 不正な期間を持つTOMLデータ
+        let invalid_toml = r#"
+            [[budgets]]
+            id = 1
+            amount = 50000
+            start = 2026-10-31
+            end = 2026-10-01
+            "#;
+
+        // ④ budgets.tomlに書き込む
+        let budgets_path = dir.path().join("budgets.toml");
+        std::fs::write(budgets_path, invalid_toml).unwrap();
+
+        let result = store.load();
+
+        // 実際に返ってきたエラーを表示
+        println!("loadの結果: {:?}", result.as_ref().err());
+
+        assert!(matches!(result, Err(StorageError::InvalidPeriod(_))));
     }
 }

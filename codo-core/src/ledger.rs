@@ -1,6 +1,9 @@
 //! ledgerの整合性
 
+use crate::budget::{BudgetError, BudgetId, BudgetList};
 use crate::item::{ItemError, ItemId, ItemList, Tag};
+use crate::money::Money;
+use crate::period::Period;
 use crate::period::YearMonth;
 use crate::preset::preset_items;
 use crate::transaction::{
@@ -14,6 +17,7 @@ use thiserror::Error;
 pub struct Ledger {
     items: ItemList,
     transactions: TransactionList,
+    budgets: BudgetList,
 }
 
 /// Ledgerの操作中に発生するエラー
@@ -24,6 +28,9 @@ pub enum LedgerError {
 
     #[error(transparent)]
     Transaction(#[from] TransactionError),
+
+    #[error(transparent)]
+    Budget(#[from] BudgetError),
 
     #[error("取引から参照されている品目 {0:?} は削除できません")]
     ItemUse(ItemId),
@@ -43,6 +50,7 @@ impl Ledger {
         Self {
             items: ItemList::new(),
             transactions: TransactionList::new(),
+            budgets: BudgetList::new(),
         }
     }
 
@@ -51,15 +59,17 @@ impl Ledger {
         Self {
             items: ItemList::from_items(preset_items()),
             transactions: TransactionList::new(),
+            budgets: BudgetList::new(),
         }
     }
 
     /// ファイル復元のため
     /// エラー検証は行わない
-    pub fn from_parts(items: ItemList, transactions: TransactionList) -> Self {
+    pub fn from_parts(items: ItemList, transactions: TransactionList, budgets: BudgetList) -> Self {
         Self {
             items,
             transactions,
+            budgets,
         }
     }
 
@@ -71,6 +81,9 @@ impl Ledger {
         &self.transactions
     }
 
+    pub fn budgets(&self) -> &BudgetList {
+        &self.budgets
+    }
     /// 指定月の取引を日付の降順、同日ならIDの降順で返す。
     ///
     /// 月の初日と末日の両方を含む。
@@ -191,6 +204,28 @@ impl Ledger {
     /// 指定した取引が存在しない場合は、そのエラーをそのまま返す。
     pub fn remove_transaction(&mut self, id: TransactionId) -> Result<(), LedgerError> {
         self.transactions.remove(id)?;
+        Ok(())
+    }
+
+    /// 予算のadd処理を委譲
+    pub fn add_budget(&mut self, amount: Money, period: Period) -> Result<BudgetId, LedgerError> {
+        Ok(self.budgets.add(amount, period)?)
+    }
+
+    /// 予算のupdate処理を委譲
+    pub fn update_budget(
+        &mut self,
+        id: BudgetId,
+        amount: Money,
+        period: Period,
+    ) -> Result<(), LedgerError> {
+        self.budgets.update(id, amount, period)?;
+        Ok(())
+    }
+
+    /// 予算のremove処理を委譲
+    pub fn remove_budget(&mut self, id: BudgetId) -> Result<(), LedgerError> {
+        self.budgets.remove(id)?;
         Ok(())
     }
 }
@@ -456,6 +491,44 @@ mod tests {
             ledger.items().get_item(new_id).unwrap().name(),
             "新しい品目"
         );
+    }
+
+    /// budget関連のテスト
+    ///
+    /// LedgerError::Budgetを確認するテスト
+    #[test]
+    fn budget_error_is_converted_to_ledger_error() {
+        let mut ledger = Ledger::new();
+        let missing_id = BudgetId(5);
+
+        let result = ledger.remove_budget(missing_id);
+
+        assert_eq!(
+            result,
+            Err(LedgerError::Budget(BudgetError::NotFound(missing_id)))
+        );
+    }
+
+    /// ミューテーションテスト
+    /// 更新後の金額と期間を確認する
+    #[test]
+    fn update_budget_delegates_to_budget_list() {
+        let mut ledger = Ledger::new();
+
+        let old_period = Period::month(crate::period::YearMonth::new(2026, 10).unwrap());
+
+        let new_period = Period::month(crate::period::YearMonth::new(2026, 11).unwrap());
+
+        let budget_id = ledger.add_budget(Money(5000), old_period).unwrap();
+
+        ledger
+            .update_budget(budget_id, Money(7000), new_period)
+            .unwrap();
+
+        let updated = ledger.budgets().get(budget_id).unwrap();
+
+        assert_eq!(updated.amount(), Money(7000));
+        assert_eq!(updated.period(), new_period);
     }
 }
 
