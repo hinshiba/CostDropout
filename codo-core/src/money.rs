@@ -70,6 +70,16 @@ impl Money {
         }
     }
 
+    /// `base` に対する比率を返す.
+    ///
+    /// `base` が0の場合は `None`.
+    pub fn ratio(self, base: Money) -> Option<f64> {
+        if base.0 == 0 {
+            return None;
+        }
+        Some(f64::from(self.0) / f64::from(base.0))
+    }
+
     /// 金額が0より大きいかを判定する.
     ///
     /// 0は正の値に含まれない.
