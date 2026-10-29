@@ -83,34 +83,23 @@ impl ExpenseBarChart {
     }
 
     /// データの最大値に応じて、Y軸の上限を決める。
+    ///
+    /// max_amount が 100,000 以下の場合は 50,000 刻み、
+    /// 1,000,000 以下の場合は 100,000 刻み、
+    /// 1,000,000 より大きい場合は 500,000 刻みで、
+    /// 最大値以上となる上限を設定する。
     fn adjusted_max(data: &[ExpenseData]) -> f64 {
         let max_amount = data.iter().map(|data| data.amount).fold(0.0, f64::max);
 
-        if max_amount <= 50_000.0 {
+        let step = if max_amount <= 100_000.0 {
             50_000.0
-        } else if max_amount <= 100_000.0 {
-            100_000.0
-        } else if max_amount <= 200_000.0 {
-            200_000.0
-        } else if max_amount <= 300_000.0 {
-            300_000.0
-        } else if max_amount <= 400_000.0 {
-            400_000.0
-        } else if max_amount <= 500_000.0 {
-            500_000.0
-        } else if max_amount <= 600_000.0 {
-            600_000.0
-        } else if max_amount <= 700_000.0 {
-            700_000.0
-        } else if max_amount <= 800_000.0 {
-            800_000.0
-        } else if max_amount <= 900_000.0 {
-            900_000.0
         } else if max_amount <= 1_000_000.0 {
-            1_000_000.0
+            100_000.0
         } else {
-            (max_amount / 500_000.0).ceil() * 500_000.0
-        }
+            500_000.0
+        };
+
+        (max_amount / step).ceil().max(1.0) * step
     }
 
     /// Y軸の目盛り数を決める。
@@ -164,7 +153,7 @@ impl Render for ExpenseBarChart {
             Ok(data) if data.is_empty() => div()
                 .w_full()
                 .h_96()
-                .child("支出品目を選択してください")
+                .child("支出品目がありません")
                 .into_any_element(),
 
             Ok(mut data) => {
@@ -185,7 +174,7 @@ impl Render for ExpenseBarChart {
                     .h_96()
                     .overflow_hidden()
                     .child(
-                        div().w(relative(1.08)).h_full().child(
+                        div().w(relative(1.12)).h_full().child(
                             BarChart::new(data)
                                 .band(|data| data.month.clone())
                                 .value(|data| data.amount)
