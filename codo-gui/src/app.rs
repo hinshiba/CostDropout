@@ -2,6 +2,7 @@
 
 use crate::pages::{
     expense_pie::ExpensePie, items::Items, transaction_form::TransactionForm,
+    items::Items, monthly_report::MonthlyReport, transaction_form::TransactionForm,
     transaction_list::TransactionList,
 };
 use codo_core::ledger::Ledger;
@@ -21,6 +22,7 @@ pub enum Page {
     TransactionList,
     ExpensePie,
     Items,
+    MonthlyReport,
 }
 
 /// 画面の管理
@@ -29,6 +31,7 @@ pub struct App {
     transaction_list: Entity<TransactionList>,
     expense_pie: Entity<ExpensePie>,
     items: Entity<Items>,
+    monthly_report: Entity<MonthlyReport>,
     page: Page,
     sidebar_open: bool,
 }
@@ -48,11 +51,14 @@ impl App {
 
         let items = cx.new(|_| Items::new(state.clone()));
 
+        let monthly_report = cx.new(|_| MonthlyReport::new(state.clone()));
+
         Self {
             transaction_form,
             transaction_list,
             expense_pie,
             items,
+            monthly_report,
             page: Page::TransactionForm,
             sidebar_open: true,
         }
@@ -122,6 +128,19 @@ impl Render for App {
                 }
             });
 
+        // 月の収支
+        let monthly_report = SidebarMenuItem::new("月の収支")
+            .active(self.page == Page::MonthlyReport)
+            .on_click({
+                let app = app.clone();
+
+                move |_, _, cx| {
+                    app.update(cx, |app, cx| {
+                        app.show_page(Page::MonthlyReport, cx);
+                    });
+                }
+            });
+
         div()
             .size_full()
             .flex()
@@ -146,7 +165,8 @@ impl Render for App {
                             .child(transaction_form)
                             .child(transaction_list)
                             .child(expense_pie)
-                            .child(items),
+                            .child(items)
+                            .child(monthly_report),
                     ),
             )
             // メイン画面
@@ -157,6 +177,7 @@ impl Render for App {
                     Page::TransactionList => div().child(self.transaction_list.clone()),
                     Page::ExpensePie => div().size_full().child(self.expense_pie.clone()),
                     Page::Items => div().child(self.items.clone()),
+                    Page::MonthlyReport => div().child(self.monthly_report.clone()),
                 }),
             ))
     }
