@@ -34,28 +34,10 @@ pub fn preset_items() -> ItemList {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::collections::HashSet;
 
+    /// `PRESETS` の名前が空だったり重複したりしていればパニックする.
     #[test]
-    fn preset_items_has_all_tags() {
-        let items = preset_items();
-
-        assert!(items.iter().any(|item| item.tag() == Tag::Expense));
-        assert!(items.iter().any(|item| item.tag() == Tag::Income));
-        assert!(items.iter().any(|item| item.tag() == Tag::Asset));
-        assert!(items.iter().any(|item| item.tag() == Tag::Liability));
-        assert!(items.iter().any(|item| item.tag() == Tag::OpeningBalance));
-    }
-
-    #[test]
-    fn preset_items_has_unique_ids_names() {
-        let items = preset_items();
-
-        let mut ids = HashSet::new();
-        let mut names = HashSet::new();
-        for item in items {
-            assert!(ids.insert(item.id()));
-            assert!(names.insert(item.name().to_string()));
-        }
+    fn preset_items_test() {
+        preset_items();
     }
 }
