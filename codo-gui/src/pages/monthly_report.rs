@@ -2,8 +2,8 @@
 
 use crate::app::AppState;
 use chrono::{Datelike, NaiveDate};
-use codo_core::period::YearMonth;
-use codo_core::report::monthly::monthly_summary;
+use codo_core::period::{Period, YearMonth};
+use codo_core::report::{flows_in, monthly::monthly_summary};
 use gpui_kit::component::button::Button;
 use gpui_kit::*;
 
@@ -164,10 +164,10 @@ impl Render for MonthlyReport {
             Some(date) => {
                 let heading = format!("{}月{}日の取引", date.month(), date.day());
                 let ledger = &self.state.read(cx).ledger;
-                let tx_rows = ledger
-                    .monthly_transactions(self.yearmonth)
-                    .filter(|tx| tx.date() == date)
-                    .map(|tx| {
+                let day = Period::new(date, date).expect("開始日と終了日が同じなので必ず正しい");
+
+                let tx_rows = flows_in(ledger, day)
+                    .map(|(tx, _)| {
                         let item_name = |id| {
                             ledger
                                 .items()
