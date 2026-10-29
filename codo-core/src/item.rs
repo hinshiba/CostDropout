@@ -1,4 +1,4 @@
-//! 品目
+//! 品目のモデルと品目一覧
 
 use serde::{Deserialize, Serialize};
 use std::fmt;
@@ -56,6 +56,7 @@ impl fmt::Display for Tag {
     }
 }
 
+/// 品目.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Item {
     id: ItemId,
@@ -68,16 +69,15 @@ impl Item {
         self.id
     }
 
-    pub fn name(&self) -> &str {
-        &self.name
-    }
-
-    pub fn tag(&self) -> Tag {
+    pub(crate) fn tag(&self) -> Tag {
         self.tag
     }
+}
 
-    pub fn new(id: ItemId, name: String, tag: Tag) -> Self {
-        Self { id, name, tag }
+impl fmt::Display for Item {
+    /// 品目名を出力する.
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.name)
     }
 }
 
