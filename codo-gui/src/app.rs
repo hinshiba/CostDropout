@@ -38,7 +38,7 @@ impl App {
         Self::with_ledger(Ledger::with_presets(), window, cx)
     }
 
-    pub fn with_ledger(ledger: Ledger, window: &mut Window, cx: &mut Context<Self>) -> Self {
+    fn with_ledger(ledger: Ledger, window: &mut Window, cx: &mut Context<Self>) -> Self {
         let state = cx.new(|_| AppState { ledger });
         let transaction_form = cx.new(|cx| TransactionForm::new(state.clone(), window, cx));
 
@@ -167,8 +167,27 @@ mod tests {
     use super::{App, Page};
     use chrono::Local;
     use codo_core::period::YearMonth;
+    use codo_core::{ledger::Ledger, money::Money, transaction::TransactionDraft};
     use gpui_kit::test::TestWindowExt;
     use gpui_kit::{AppContext, Bounds, TestAppContext, WindowBounds, WindowOptions, px, size};
+
+    fn ledger_for_month_navigation(month: YearMonth) -> Ledger {
+        let mut ledger = Ledger::with_presets();
+        let food = ledger.items().find_by_name("食費").unwrap().id();
+        let cash = ledger.items().find_by_name("現金").unwrap().id();
+        for (month, amount) in [(month, 1200), (month.prev(), 800)] {
+            ledger
+                .add_transaction(TransactionDraft::new(
+                    month.first_day(),
+                    Money(amount),
+                    food,
+                    cash,
+                    String::new(),
+                ))
+                .unwrap();
+        }
+        ledger
+    }
 
     #[gpui_kit::test]
     fn sidebar_opens_expense_pie(cx: &mut TestAppContext) {
@@ -185,7 +204,9 @@ mod tests {
                     ..Default::default()
                 },
                 cx,
-                |window, cx| cx.new(|cx| App::with_ledger(crate::demo::ledger(), window, cx)),
+                |window, cx| {
+                    cx.new(|cx| App::with_ledger(ledger_for_month_navigation(month), window, cx))
+                },
             )
             .unwrap()
         });
