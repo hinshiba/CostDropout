@@ -11,7 +11,13 @@ use thiserror::Error;
 #[derive(
     Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
 )]
-pub struct Money(pub i32);
+pub struct Money(i32);
+
+impl From<i32> for Money {
+    fn from(value: i32) -> Self {
+        Money(value)
+    }
+}
 
 impl Add for Money {
     type Output = Money;
