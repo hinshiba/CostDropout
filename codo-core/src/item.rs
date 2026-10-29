@@ -34,13 +34,6 @@ impl Tag {
         Tag::Income,
         Tag::Expense,
     ];
-
-    /// 取引の品目として選べるかを判定する.
-    ///
-    /// 収入, 支出, 負債だけが選べる.
-    pub fn is_transaction_selectable(&self) -> bool {
-        matches!(self, Tag::Income | Tag::Expense | Tag::Liability)
-    }
 }
 
 impl fmt::Display for Tag {

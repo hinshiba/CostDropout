@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
 
-use crate::item::ItemId;
+use crate::item::{ItemId, Tag};
 
 mod amount;
 
@@ -61,6 +61,25 @@ impl Transaction {
     pub fn comment(&self) -> &str {
         &self.comment
     }
+
+    /// 品目と相手先のタグの組み合わせを検査する.
+    ///
+    /// `tag_of` で品目のタグを引く.
+    ///
+    /// # Errors
+    ///
+    /// `tag_of` のエラーと, `check_tags` のエラー.
+    pub(crate) fn check_tags<E: From<TransactionError>>(
+        &self,
+        tag_of: impl Fn(ItemId) -> Result<Tag, E>,
+    ) -> Result<(), E> {
+        Ok(check_tags(tag_of(self.item)?, tag_of(self.counterpart)?)?)
+    }
+
+    /// 品目または相手先として `item` を使うかを判定する.
+    pub(crate) fn uses(&self, item: ItemId) -> bool {
+        self.item == item || self.counterpart == item
+    }
 }
 
 ///idなしの取引
@@ -74,14 +93,6 @@ pub struct TransactionDraft {
 }
 
 impl TransactionDraft {
-    pub fn item(&self) -> ItemId {
-        self.item
-    }
-
-    pub fn counterpart(&self) -> ItemId {
-        self.counterpart
-    }
-
     ///取引の下書きの作成
     pub fn new(
         date: NaiveDate,
@@ -99,14 +110,49 @@ impl TransactionDraft {
         }
     }
 
-    ///品目のチェック
-    pub(crate) fn validate(&self) -> Result<(), TransactionError> {
-        //品目が相手先と同じだとエラー
-        if self.item == self.counterpart {
-            return Err(TransactionError::SameItemAndCounterpart(self.item));
-        }
-        Ok(())
+    /// 品目と相手先のタグの組み合わせを検査する.
+    ///
+    /// `tag_of` で `ItemId` から `Tag` を解決する.
+    ///
+    /// # Errors
+    ///
+    /// `tag_of` のエラー.
+    /// `codo_core::transaction::check_tags` のエラー.
+    pub(crate) fn check_tags<E: From<TransactionError>>(
+        &self,
+        tag_of: impl Fn(ItemId) -> Result<Tag, E>,
+    ) -> Result<(), E> {
+        // 内部の関数に移譲する
+        Ok(check_tags(tag_of(self.item)?, tag_of(self.counterpart)?)?)
     }
+}
+
+/// 取引の品目として選べるタグかを検査する.
+///
+/// 収入, 支出, 負債だけが選べる.
+///
+/// # Errors
+///
+/// 選べない場合は `TransactionError::InvalidItemTag` エラー.
+pub(crate) fn check_item_tag(tag: Tag) -> Result<(), TransactionError> {
+    if !matches!(tag, Tag::Income | Tag::Expense | Tag::Liability) {
+        return Err(TransactionError::InvalidItemTag(tag));
+    }
+    Ok(())
+}
+
+/// 取引の品目と相手先のタグの組み合わせを検査する.
+///
+/// # Errors
+///
+/// 品目のタグが取引の品目として選べない場合は `TransactionError::InvalidItemTag` エラー.
+/// 相手先のタグが品目のタグと同じ場合は `TransactionError::SameTag` エラー.
+pub(crate) fn check_tags(item: Tag, counterpart: Tag) -> Result<(), TransactionError> {
+    check_item_tag(item)?;
+    if item == counterpart {
+        return Err(TransactionError::SameTag(item));
+    }
+    Ok(())
 }
 
 /// 取引の一覧
@@ -130,8 +176,6 @@ impl TransactionList {
 
     ///取引の登録
     pub fn add(&mut self, draft: TransactionDraft) -> Result<TransactionId, TransactionError> {
-        //品目のチェック
-        draft.validate()?;
         let new_id = TransactionId(Uuid::new_v4());
         let transaction = Transaction {
             id: new_id,
@@ -148,12 +192,7 @@ impl TransactionList {
 
     ///特定の品目を使っている取引があるかの確認
     pub fn uses_item(&self, item: ItemId) -> bool {
-        for t in &self.transactions {
-            if t.item == item || t.counterpart == item {
-                return true;
-            }
-        }
-        false
+        self.transactions.iter().any(|t| t.uses(item))
     }
 
     ///IDで取引を探す
@@ -173,10 +212,6 @@ impl TransactionList {
         id: TransactionId,
         draft: TransactionDraft,
     ) -> Result<(), TransactionError> {
-        //品目のチェック
-        draft.validate()?;
-
-        //探して書き換える
         let i = self.index_of(id)?;
         self.transactions[i].date = draft.date;
         self.transactions[i].amount = draft.amount;
@@ -210,8 +245,12 @@ impl TransactionList {
 
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum TransactionError {
-    #[error("品目と相手先が同じです: {0:?}")]
-    SameItemAndCounterpart(ItemId),
+    /// 品目のタグが取引の品目として選べない場合.
+    #[error("取引の品目のタグ {0} が収入・支出・負債ではありません")]
+    InvalidItemTag(Tag),
+    /// 相手先のタグが品目のタグと同じ場合.
+    #[error("相手先のタグ {0} が品目のタグと同じです")]
+    SameTag(Tag),
     #[error("取引 {0:?} が見つかりません")]
     NotFound(TransactionId),
 }
@@ -274,14 +313,6 @@ mod tests {
     }
 
     #[test]
-    fn add_rejects_same_item_and_counterpart() {
-        let (a, _, _) = items();
-        let mut list = TransactionList::new();
-        let result = list.add(draft(1, 1000, a, a));
-        assert_eq!(result, Err(TransactionError::SameItemAndCounterpart(a)));
-    }
-
-    #[test]
     fn remove_deletes() {
         let (a, b, _) = items();
         let mut list = TransactionList::new();
@@ -327,18 +358,6 @@ mod tests {
         let result = list.update(missing, draft(1, 1000, a, b));
 
         assert_eq!(result, Err(TransactionError::NotFound(missing)));
-    }
-
-    #[test]
-    fn update_rejects_same_item_and_counterpart() {
-        let (a, b, c) = items();
-        let mut list = TransactionList::new();
-        let id = list.add(draft(1, 1000, a, b)).unwrap();
-        let copy = list.get(id).unwrap().clone();
-        let result = list.update(id, draft(1, 1000, c, c));
-
-        assert_eq!(result, Err(TransactionError::SameItemAndCounterpart(c)));
-        assert_eq!(list.get(id), Some(&copy));
     }
 
     #[test]

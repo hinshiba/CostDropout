@@ -35,12 +35,6 @@ pub enum LedgerError {
     #[error("取引から参照されている品目 {0:?} は削除できません")]
     ItemUse(ItemId),
 
-    #[error("取引の品目のタグ {0:?} が収入・支出・負債ではありません")]
-    InvalidItemTag(Tag),
-
-    #[error("相手先のタグ {0:?} が品目のタグと同じです")]
-    SameTag(Tag),
-
     #[error("存在しない取引の品目 {0:?} が指定されています")]
     TransactionItemNotFound(ItemId),
 }
@@ -115,10 +109,8 @@ impl Ledger {
                     self.tag_of(item_id)
                 }
             };
-            for t in self.transactions.iter() {
-                if t.item() == id || t.counterpart() == id {
-                    check_tags(tag_after(t.item())?, tag_after(t.counterpart())?)?;
-                }
+            for t in self.transactions.iter().filter(|t| t.uses(id)) {
+                t.check_tags(tag_after)?;
             }
         }
         // ItemList に更新を委譲する
@@ -146,14 +138,6 @@ impl Ledger {
             .ok_or(LedgerError::TransactionItemNotFound(id))
     }
 
-    fn validate_transaction_draft(&self, draft: &TransactionDraft) -> Result<(), LedgerError> {
-        draft.validate()?;
-        check_tags(
-            self.tag_of(draft.item())?,
-            self.tag_of(draft.counterpart())?,
-        )
-    }
-
     /// 取引のadd処理を委譲
     /// 品目と相手先が存在しなければエラー
     /// 品目のタグが Tag::is_transaction_selectable を満たさなければエラー
@@ -162,7 +146,7 @@ impl Ledger {
         &mut self,
         draft: TransactionDraft,
     ) -> Result<TransactionId, LedgerError> {
-        self.validate_transaction_draft(&draft)?;
+        draft.check_tags(|id| self.tag_of(id))?;
 
         Ok(self.transactions.add(draft)?)
     }
@@ -176,7 +160,7 @@ impl Ledger {
         id: TransactionId,
         draft: TransactionDraft,
     ) -> Result<(), LedgerError> {
-        self.validate_transaction_draft(&draft)?;
+        draft.check_tags(|id| self.tag_of(id))?;
         self.transactions.update(id, draft)?;
         Ok(())
     }
@@ -209,20 +193,6 @@ impl Ledger {
         self.budgets.remove(id)?;
         Ok(())
     }
-}
-
-/// 取引の品目と相手先のタグの組み合わせを検証する
-/// 品目のタグが Tag::is_transaction_selectable を満たさなければエラー
-/// 相手先のタグが品目のタグと同じならエラー
-fn check_tags(item: Tag, counterpart: Tag) -> Result<(), LedgerError> {
-    if !item.is_transaction_selectable() {
-        return Err(LedgerError::InvalidItemTag(item));
-    }
-
-    if item == counterpart {
-        return Err(LedgerError::SameTag(item));
-    }
-    Ok(())
 }
 
 #[cfg(test)]
@@ -290,7 +260,9 @@ mod tests {
 
         assert_eq!(
             ledger.update_item(income_id, "収入", Tag::Asset),
-            Err(LedgerError::InvalidItemTag(Tag::Asset))
+            Err(LedgerError::Transaction(TransactionError::InvalidItemTag(
+                Tag::Asset
+            )))
         );
 
         // 更新に失敗したため、元の取引は変わっていない
@@ -305,7 +277,9 @@ mod tests {
 
         assert_eq!(
             ledger.update_item(asset_id, "現金", Tag::Income),
-            Err(LedgerError::SameTag(Tag::Income))
+            Err(LedgerError::Transaction(TransactionError::SameTag(
+                Tag::Income
+            )))
         );
 
         // 更新に失敗したときは，現金のタグはAssetのまま
@@ -342,7 +316,9 @@ mod tests {
 
         assert_eq!(
             ledger.add_transaction(draft(asset_id, income_id)),
-            Err(LedgerError::InvalidItemTag(Tag::Asset))
+            Err(LedgerError::Transaction(TransactionError::InvalidItemTag(
+                Tag::Asset
+            )))
         );
     }
 
@@ -355,7 +331,9 @@ mod tests {
 
         assert_eq!(
             ledger.add_transaction(draft(income1, income2)),
-            Err(LedgerError::SameTag(Tag::Income))
+            Err(LedgerError::Transaction(TransactionError::SameTag(
+                Tag::Income
+            )))
         );
     }
 
@@ -397,7 +375,9 @@ mod tests {
 
         assert_eq!(
             ledger.update_transaction(transaction_id, draft(asset_id, income_id)),
-            Err(LedgerError::InvalidItemTag(Tag::Asset))
+            Err(LedgerError::Transaction(TransactionError::InvalidItemTag(
+                Tag::Asset
+            )))
         );
 
         // 更新に失敗したため、元の取引は変わっていない
@@ -415,7 +395,9 @@ mod tests {
 
         assert_eq!(
             ledger.update_transaction(transaction_id, draft(income_id, income2)),
-            Err(LedgerError::SameTag(Tag::Income))
+            Err(LedgerError::Transaction(TransactionError::SameTag(
+                Tag::Income
+            )))
         );
 
         // 更新に失敗したため、元の取引は変わっていない

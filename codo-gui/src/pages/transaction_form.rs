@@ -49,14 +49,11 @@ fn friendly_error(error: &FormError) -> String {
             LedgerError::TransactionItemNotFound(_) => {
                 "選択した品目または相手先が見つかりません。選び直してください".into()
             }
-            LedgerError::InvalidItemTag(tag) => format!(
+            LedgerError::Transaction(TransactionError::InvalidItemTag(tag)) => format!(
                 "{tag}の品目は取引の品目として選べません。収入・支出・負債から選んでください"
             ),
-            LedgerError::SameTag(tag) => {
+            LedgerError::Transaction(TransactionError::SameTag(tag)) => {
                 format!("品目と相手先がどちらも{tag}です。異なる分類の品目を選んでください")
-            }
-            LedgerError::Transaction(TransactionError::SameItemAndCounterpart(_)) => {
-                "品目と相手先には異なる品目を選んでください".into()
             }
             _ => "取引を追加できませんでした。品目と相手先を確認してください".into(),
         },

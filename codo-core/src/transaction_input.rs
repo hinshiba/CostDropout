@@ -3,29 +3,25 @@
 use chrono::NaiveDate;
 use thiserror::Error;
 
-use crate::item::{Item, ItemId, Tag};
+use crate::item::{Item, ItemId};
 use crate::ledger::{Ledger, LedgerError};
-use crate::transaction::{Amount, AmountError, TransactionDraft};
+use crate::transaction::{Amount, AmountError, TransactionDraft, check_item_tag, check_tags};
 
 /// 取引の品目として選べる収入・支出・負債の品目を返す。
 pub fn item_choices(ledger: &Ledger) -> impl Iterator<Item = &Item> {
     ledger
         .items()
         .iter()
-        .filter(|item| item.tag().is_transaction_selectable())
+        .filter(|item| check_item_tag(item.tag()).is_ok())
 }
 
 /// 品目 `item` と異なるタグの相手先候補を返す。
 pub fn counterpart_choices(ledger: &Ledger, item: ItemId) -> impl Iterator<Item = &Item> {
-    let tag = ledger
-        .items()
-        .get(item)
-        .map(Item::tag)
-        .filter(Tag::is_transaction_selectable);
+    let tag = ledger.items().get(item).map(Item::tag);
     ledger
         .items()
         .iter()
-        .filter(move |candidate| tag.is_some_and(|tag| candidate.tag() != tag))
+        .filter(move |candidate| tag.is_some_and(|tag| check_tags(tag, candidate.tag()).is_ok()))
 }
 
 /// 取引入力の検証・登録エラー。
@@ -73,6 +69,7 @@ pub fn submit_transaction(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::item::Tag;
     use crate::money::{Money, MoneyError};
     use crate::transaction::TransactionError;
 
@@ -185,13 +182,21 @@ mod tests {
         let date = NaiveDate::from_ymd_opt(2026, 10, 27).unwrap();
         let before = ledger.clone();
         for (item, counterpart, expected) in [
-            (item, same_tag, LedgerError::SameTag(Tag::Expense)),
+            (
+                item,
+                same_tag,
+                LedgerError::Transaction(TransactionError::SameTag(Tag::Expense)),
+            ),
             (
                 item,
                 item,
-                LedgerError::Transaction(TransactionError::SameItemAndCounterpart(item)),
+                LedgerError::Transaction(TransactionError::SameTag(Tag::Expense)),
             ),
-            (counterpart, item, LedgerError::InvalidItemTag(Tag::Asset)),
+            (
+                counterpart,
+                item,
+                LedgerError::Transaction(TransactionError::InvalidItemTag(Tag::Asset)),
+            ),
             (
                 removed,
                 counterpart,
