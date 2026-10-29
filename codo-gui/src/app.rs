@@ -1,10 +1,9 @@
 //! 画面切り替えと共有画面の作成
 
 use crate::pages::{
-    expense_bar_chart::ExpenseBarChart, items::Items, transaction_form::TransactionForm,
+    expense_bar_chart::ExpenseBarChart, expense_pie::ExpensePie, items::Items,
+    monthly_report::MonthlyReport, transaction_form::TransactionForm,
     transaction_list::TransactionList,
-    expense_pie::ExpensePie, items::Items, monthly_report::MonthlyReport,
-    transaction_form::TransactionForm, transaction_list::TransactionList,
 };
 use codo_core::ledger::Ledger;
 use gpui_kit::component::button::Button;
@@ -134,8 +133,8 @@ impl Render for App {
             });
 
         // 品目別の支出推移
-        let expense_bar_chart = SidebarMenuItem::new("支出推移（品目別）")
-            .active(self.page == Page::ExpenseBarChart)
+        let expense_bar_chart =
+            SidebarMenuItem::new("支出推移（品目別）").active(self.page == Page::ExpenseBarChart);
         // 月の収支
         let monthly_report = SidebarMenuItem::new("月の収支")
             .active(self.page == Page::MonthlyReport)
@@ -174,7 +173,7 @@ impl Render for App {
                             .child(transaction_form)
                             .child(transaction_list)
                             .child(items)
-                            .child(expense_bar_chart),
+                            .child(expense_bar_chart)
                             .child(expense_pie)
                             .child(monthly_report),
                     ),
