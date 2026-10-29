@@ -230,7 +230,7 @@ mod tests {
 
     use crate::item::Tag;
     use crate::money::Money;
-    use crate::transaction::{TransactionDraft, TransactionId};
+    use crate::transaction::{Amount, TransactionDraft, TransactionId};
 
     /// テスト用の日付(2026年の指定した月日)
     fn date(month: u32, day: u32) -> NaiveDate {
@@ -266,7 +266,7 @@ mod tests {
         let draft = |month, day, amount, comment: &str| {
             TransactionDraft::new(
                 date(month, day),
-                Money::from(amount),
+                Amount::of(amount),
                 food,
                 cash,
                 comment.to_string(),

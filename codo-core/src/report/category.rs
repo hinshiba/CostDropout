@@ -47,7 +47,7 @@ pub fn expense_by_item(ledger: &Ledger, period: Period) -> Vec<ItemExpense> {
         }
 
         let item = tx.item();
-        let amount = tx.amount();
+        let amount = Money::from(tx.amount());
 
         // ItemIdごとに合計を集計
         amounts
@@ -95,7 +95,7 @@ mod tests {
     use crate::money::Money;
     use crate::period::Period;
     use crate::period::YearMonth;
-    use crate::transaction::{TransactionDraft, TransactionList};
+    use crate::transaction::{Amount, TransactionDraft, TransactionList};
     use chrono::NaiveDate;
 
     fn date(day: u32) -> NaiveDate {
@@ -118,7 +118,7 @@ mod tests {
         transactions
             .add(TransactionDraft::new(
                 date(1),
-                Money::from(10_000),
+                Amount::of(10_000),
                 food,
                 cash,
                 "食費".to_string(),
@@ -129,7 +129,7 @@ mod tests {
         transactions
             .add(TransactionDraft::new(
                 date(2),
-                Money::from(5_000),
+                Amount::of(5_000),
                 entertainment,
                 cash,
                 "娯楽".to_string(),
@@ -141,7 +141,7 @@ mod tests {
         transactions
             .add(TransactionDraft::new(
                 date(3),
-                Money::from(5_000),
+                Amount::of(5_000),
                 entertainment,
                 cash,
                 "娯楽".to_string(),
@@ -192,7 +192,7 @@ mod tests {
         transactions
             .add(TransactionDraft::new(
                 date(1),
-                Money::from(3_000),
+                Amount::of(3_000),
                 food,
                 cash,
                 "食費".to_string(),
@@ -203,7 +203,7 @@ mod tests {
         transactions
             .add(TransactionDraft::new(
                 date(2),
-                Money::from(10_000),
+                Amount::of(10_000),
                 entertainment,
                 cash,
                 "娯楽".to_string(),
@@ -241,7 +241,7 @@ mod tests {
         transactions
             .add(TransactionDraft::new(
                 date(1),
-                Money::from(10_000),
+                Amount::of(10_000),
                 food,
                 cash,
                 "食費".to_string(),
@@ -274,7 +274,7 @@ mod tests {
         transactions
             .add(TransactionDraft::new(
                 date(1),
-                Money::from(3_000),
+                Amount::of(3_000),
                 food,
                 cash,
                 "食費".to_string(),
@@ -285,7 +285,7 @@ mod tests {
         transactions
             .add(TransactionDraft::new(
                 date(2),
-                Money::from(100_000),
+                Amount::of(100_000),
                 income,
                 cash,
                 "給与".to_string(),
@@ -296,7 +296,7 @@ mod tests {
         transactions
             .add(TransactionDraft::new(
                 date(3),
-                Money::from(50_000),
+                Amount::of(50_000),
                 liability,
                 cash,
                 "借入".to_string(),
@@ -327,7 +327,7 @@ mod tests {
         transactions
             .add(TransactionDraft::new(
                 date(1),
-                Money::from(3_000),
+                Amount::of(3_000),
                 food,
                 cash,
                 "食費".to_string(),
@@ -338,7 +338,7 @@ mod tests {
         transactions
             .add(TransactionDraft::new(
                 date(31),
-                Money::from(2_000),
+                Amount::of(2_000),
                 food,
                 cash,
                 "食費".to_string(),
@@ -369,7 +369,7 @@ mod tests {
         transactions
             .add(TransactionDraft::new(
                 date(10),
-                Money::from(3_000),
+                Amount::of(3_000),
                 food,
                 cash,
                 "期間内".to_string(),
@@ -380,7 +380,7 @@ mod tests {
         transactions
             .add(TransactionDraft::new(
                 date(31),
-                Money::from(100_000),
+                Amount::of(100_000),
                 food,
                 cash,
                 "期間外".to_string(),

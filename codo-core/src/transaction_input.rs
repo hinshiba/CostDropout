@@ -5,8 +5,7 @@ use thiserror::Error;
 
 use crate::item::{Item, ItemId, Tag};
 use crate::ledger::{Ledger, LedgerError};
-use crate::money::{Money, MoneyError};
-use crate::transaction::{TransactionDraft, TransactionError};
+use crate::transaction::{Amount, AmountError, TransactionDraft};
 
 /// 取引の品目として選べる収入・支出・負債の品目を返す。
 pub fn item_choices(ledger: &Ledger) -> impl Iterator<Item = &Item> {
@@ -27,15 +26,6 @@ pub fn counterpart_choices(ledger: &Ledger, item: ItemId) -> impl Iterator<Item 
         .items()
         .iter()
         .filter(move |candidate| tag.is_some_and(|tag| candidate.tag() != tag))
-}
-
-/// 金額入力の変換・検証エラー。
-#[derive(Debug, Error, PartialEq, Eq)]
-pub enum AmountError {
-    #[error(transparent)]
-    Parse(#[from] MoneyError),
-    #[error("金額は0円より大きい値を入力してください: {0}")]
-    NonPositive(Money),
 }
 
 /// 取引入力の検証・登録エラー。
@@ -64,7 +54,7 @@ pub fn submit_transaction(
     counterpart: Option<ItemId>,
     comment: String,
 ) -> Result<(), FormError> {
-    let amount = amount.parse::<Money>().map_err(AmountError::Parse)?;
+    let amount = amount.parse::<Amount>()?;
     let date = date.ok_or(FormError::MissingDate)?;
     let item = item.ok_or(FormError::MissingItem)?;
     let counterpart = counterpart.ok_or(FormError::MissingCounterpart)?;
@@ -77,17 +67,14 @@ pub fn submit_transaction(
             comment,
         ))
         .map(|_| ())
-        .map_err(|error| match error {
-            LedgerError::Transaction(TransactionError::NonPositiveAmount(amount)) => {
-                FormError::Amount(AmountError::NonPositive(amount))
-            }
-            error => FormError::Ledger(error),
-        })
+        .map_err(FormError::Ledger)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::money::{Money, MoneyError};
+    use crate::transaction::TransactionError;
 
     fn ledger() -> (Ledger, ItemId, ItemId) {
         let mut ledger = Ledger::new();
@@ -103,7 +90,7 @@ mod tests {
         let existing_id = ledger
             .add_transaction(TransactionDraft::new(
                 date,
-                Money::from(200),
+                Amount::of(200),
                 item,
                 counterpart,
                 "既存".into(),
@@ -127,7 +114,7 @@ mod tests {
                 .find(|transaction| transaction.comment() == comment)
                 .unwrap();
             assert_eq!(transaction.date(), date);
-            assert_eq!(transaction.amount(), Money::from(100));
+            assert_eq!(transaction.amount(), Amount::of(100));
             assert_eq!(transaction.item(), item);
             assert_eq!(transaction.counterpart(), counterpart);
             assert_eq!(ledger.transactions().iter().count(), previous_count + 1);

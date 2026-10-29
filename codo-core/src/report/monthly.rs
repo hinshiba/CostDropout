@@ -83,8 +83,8 @@ pub fn monthly_summary(ledger: &Ledger, ym: YearMonth) -> MonthlySummary {
     for (tx, flow) in flows_in(ledger, period) {
         let index = tx.date().day0() as usize;
         match flow {
-            Flow::Income => days[index].income += tx.amount(),
-            Flow::Expense => days[index].expense += tx.amount(),
+            Flow::Income => days[index].income += Money::from(tx.amount()),
+            Flow::Expense => days[index].expense += Money::from(tx.amount()),
             Flow::Other => {}
         }
     }
@@ -104,7 +104,7 @@ mod tests {
     use super::*;
 
     use crate::item::Tag;
-    use crate::transaction::TransactionDraft;
+    use crate::transaction::{Amount, TransactionDraft};
 
     /// テスト用の年月
     fn ym(year: i32, month: u32) -> YearMonth {
@@ -126,7 +126,7 @@ mod tests {
         let cash = ledger.add_item("現金", Tag::Asset).unwrap();
         let card = ledger.add_item("クレジットカード", Tag::Liability).unwrap();
         let mut add = |date, amount, item| {
-            let draft = TransactionDraft::new(date, Money::from(amount), item, cash, String::new());
+            let draft = TransactionDraft::new(date, Amount::of(amount), item, cash, String::new());
             ledger.add_transaction(draft).unwrap();
         };
 

@@ -229,11 +229,12 @@ fn check_tags(item: Tag, counterpart: Tag) -> Result<(), LedgerError> {
 mod tests {
     use super::*;
     use crate::money::Money;
+    use crate::transaction::Amount;
 
     fn draft(item: ItemId, counterpart: ItemId) -> TransactionDraft {
         TransactionDraft::new(
             chrono::NaiveDate::from_ymd_opt(2026, 10, 12).unwrap(),
-            Money::from(1000),
+            Amount::of(1000),
             item,
             counterpart,
             String::new(),
@@ -518,9 +519,8 @@ mod tests {
 mod monthly_transaction_tests {
     use crate::item::Tag;
     use crate::ledger::Ledger;
-    use crate::money::Money;
     use crate::period::YearMonth;
-    use crate::transaction::TransactionDraft;
+    use crate::transaction::{Amount, TransactionDraft};
     use chrono::NaiveDate;
 
     #[test]
@@ -542,7 +542,7 @@ mod monthly_transaction_tests {
                 ledger
                     .add_transaction(TransactionDraft::new(
                         NaiveDate::from_ymd_opt(year, month, day).unwrap(),
-                        Money::from(1234),
+                        Amount::of(1234),
                         item,
                         counterpart,
                         String::new(),
@@ -599,7 +599,7 @@ mod monthly_transaction_tests {
             ledger
                 .add_transaction(TransactionDraft::new(
                     NaiveDate::from_ymd_opt(2024, month, day).unwrap(),
-                    Money::from(1),
+                    Amount::of(1),
                     item,
                     counterpart,
                     String::new(),

@@ -208,7 +208,7 @@ mod tests {
     use super::*;
     use crate::item::Tag;
     use crate::period::YearMonth;
-    use crate::transaction::TransactionDraft;
+    use crate::transaction::{Amount, TransactionDraft};
     use chrono::NaiveDate;
 
     fn ledger_with_budget_and_expense(
@@ -233,7 +233,7 @@ mod tests {
         if 0 < expense_amount {
             let draft = TransactionDraft::new(
                 NaiveDate::from_ymd_opt(2025, 4, 15).unwrap(),
-                Money::from(expense_amount),
+                Amount::of(expense_amount),
                 expense_id,
                 asset_id,
                 String::new(),

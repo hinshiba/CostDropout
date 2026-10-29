@@ -38,7 +38,7 @@ pub fn flows_in(ledger: &Ledger, period: Period) -> impl Iterator<Item = (&Trans
 pub fn total(ledger: &Ledger, period: Period, target_flow: Flow) -> Money {
     flows_in(ledger, period)
         .filter(|(_, flow)| *flow == target_flow)
-        .map(|(tx, _)| tx.amount())
+        .map(|(tx, _)| Money::from(tx.amount()))
         .fold(Money::from(0), |acc, amount| acc + amount)
 }
 
@@ -56,7 +56,7 @@ mod tests {
 
     use crate::budget::BudgetList;
     use crate::item::ItemList;
-    use crate::transaction::{TransactionDraft, TransactionList};
+    use crate::transaction::{Amount, TransactionDraft, TransactionList};
     use chrono::NaiveDate;
 
     fn create_test_ledger() -> Ledger {
@@ -73,7 +73,7 @@ mod tests {
         transactions
             .add(TransactionDraft::new(
                 NaiveDate::from_ymd_opt(2026, 10, 1).unwrap(),
-                Money::from(1000),
+                Amount::of(1000),
                 expense_id,
                 asset_id,
                 String::new(),
@@ -84,7 +84,7 @@ mod tests {
         transactions
             .add(TransactionDraft::new(
                 NaiveDate::from_ymd_opt(2026, 10, 2).unwrap(),
-                Money::from(5000),
+                Amount::of(5000),
                 income_id,
                 asset_id,
                 String::new(),
@@ -95,7 +95,7 @@ mod tests {
         transactions
             .add(TransactionDraft::new(
                 NaiveDate::from_ymd_opt(2026, 10, 3).unwrap(),
-                Money::from(3000),
+                Amount::of(3000),
                 liability_id,
                 asset_id,
                 String::new(),

@@ -6,7 +6,10 @@ use thiserror::Error;
 use uuid::Uuid;
 
 use crate::item::ItemId;
-use crate::money::Money;
+
+mod amount;
+
+pub use amount::{Amount, AmountError};
 
 /// 取引 ID
 ///
@@ -19,8 +22,7 @@ pub struct Transaction {
     id: TransactionId,
     #[serde(with = "crate::serialization::toml_date")]
     date: NaiveDate,
-    /// 正の値のみ
-    amount: Money,
+    amount: Amount,
     /// 収入/支出/負債の品目
     item: ItemId,
     /// 相手先の品目
@@ -41,7 +43,7 @@ impl Transaction {
     }
 
     ///取引の金額
-    pub fn amount(&self) -> Money {
+    pub fn amount(&self) -> Amount {
         self.amount
     }
 
@@ -65,7 +67,7 @@ impl Transaction {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TransactionDraft {
     date: NaiveDate,
-    amount: Money,
+    amount: Amount,
     item: ItemId,
     counterpart: ItemId,
     comment: String,
@@ -83,7 +85,7 @@ impl TransactionDraft {
     ///取引の下書きの作成
     pub fn new(
         date: NaiveDate,
-        amount: Money,
+        amount: Amount,
         item: ItemId,
         counterpart: ItemId,
         comment: String,
@@ -97,12 +99,8 @@ impl TransactionDraft {
         }
     }
 
-    ///金額と品目のチェック
+    ///品目のチェック
     pub(crate) fn validate(&self) -> Result<(), TransactionError> {
-        //金額が正でなければエラー
-        if !self.amount.is_positive() {
-            return Err(TransactionError::NonPositiveAmount(self.amount));
-        }
         //品目が相手先と同じだとエラー
         if self.item == self.counterpart {
             return Err(TransactionError::SameItemAndCounterpart(self.item));
@@ -132,7 +130,7 @@ impl TransactionList {
 
     ///取引の登録
     pub fn add(&mut self, draft: TransactionDraft) -> Result<TransactionId, TransactionError> {
-        //金額，品目のチェック
+        //品目のチェック
         draft.validate()?;
         let new_id = TransactionId(Uuid::new_v4());
         let transaction = Transaction {
@@ -175,7 +173,7 @@ impl TransactionList {
         id: TransactionId,
         draft: TransactionDraft,
     ) -> Result<(), TransactionError> {
-        //金額,品目のチェック
+        //品目のチェック
         draft.validate()?;
 
         //探して書き換える
@@ -212,8 +210,6 @@ impl TransactionList {
 
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum TransactionError {
-    #[error("金額は正の値でなければなりません: {0:?}")]
-    NonPositiveAmount(Money),
     #[error("品目と相手先が同じです: {0:?}")]
     SameItemAndCounterpart(ItemId),
     #[error("取引 {0:?} が見つかりません")]
@@ -234,7 +230,7 @@ mod tests {
     fn draft(day: u32, amount: i32, item: ItemId, counterpart: ItemId) -> TransactionDraft {
         TransactionDraft {
             date: date(day),
-            amount: Money::from(amount),
+            amount: Amount::of(amount),
             item,
             counterpart,
             comment: String::from("テスト"),
@@ -260,7 +256,7 @@ mod tests {
         let t = list.get(id).unwrap();
         assert_eq!(t.id, id);
         assert_eq!(t.date, date(1));
-        assert_eq!(t.amount, Money::from(1000));
+        assert_eq!(t.amount, Amount::of(1000));
         assert_eq!(t.item, a);
         assert_eq!(t.counterpart, b);
         assert_eq!(t.comment, "テスト");
@@ -274,29 +270,7 @@ mod tests {
         let id = list.add(draft(1, 1, a, b)).unwrap();
 
         let t = list.get(id).unwrap();
-        assert_eq!(t.amount, Money::from(1));
-    }
-
-    #[test]
-    fn add_rejects_zero_amount() {
-        let (a, b, _) = items();
-        let mut list = TransactionList::new();
-        let result = list.add(draft(1, 0, a, b));
-        assert_eq!(
-            result,
-            Err(TransactionError::NonPositiveAmount(Money::from(0)))
-        );
-    }
-
-    #[test]
-    fn add_rejects_minus_one_yen() {
-        let (a, b, _) = items();
-        let mut list = TransactionList::new();
-        let result = list.add(draft(1, -1, a, b));
-        assert_eq!(
-            result,
-            Err(TransactionError::NonPositiveAmount(Money::from(-1)))
-        );
+        assert_eq!(t.amount, Amount::of(1));
     }
 
     #[test]
@@ -328,19 +302,6 @@ mod tests {
     }
 
     #[test]
-    fn add_rejects_negative_amount() {
-        let (a, b, _) = items();
-        let mut list = TransactionList::new();
-
-        let result = list.add(draft(1, -500, a, b));
-
-        assert_eq!(
-            result,
-            Err(TransactionError::NonPositiveAmount(Money::from(-500)))
-        );
-    }
-
-    #[test]
     fn update_changes() {
         let (a, b, c) = items();
         let mut list = TransactionList::new();
@@ -352,7 +313,7 @@ mod tests {
         let t = list.get(id).unwrap();
         assert_eq!(t.id, id);
         assert_eq!(t.date, date(5));
-        assert_eq!(t.amount, Money::from(2000));
+        assert_eq!(t.amount, Amount::of(2000));
         assert_eq!(t.item, c);
         assert_eq!(t.counterpart, a);
     }
@@ -366,22 +327,6 @@ mod tests {
         let result = list.update(missing, draft(1, 1000, a, b));
 
         assert_eq!(result, Err(TransactionError::NotFound(missing)));
-    }
-
-    #[test]
-    fn update_rejects_zero_amount() {
-        let (a, b, _) = items();
-        let mut list = TransactionList::new();
-        let id = list.add(draft(1, 1000, a, b)).unwrap();
-
-        let result = list.update(id, draft(1, 0, a, b));
-
-        assert_eq!(
-            result,
-            Err(TransactionError::NonPositiveAmount(Money::from(0)))
-        );
-        // 失敗したときは元の取引のまま
-        assert_eq!(list.get(id).unwrap().amount, Money::from(1000));
     }
 
     #[test]

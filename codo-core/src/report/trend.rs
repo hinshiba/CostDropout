@@ -24,7 +24,7 @@ pub fn monthly_expense(
                 .filter(|(tx, flow)| *flow == Flow::Expense && month.contains(tx.date()))
                 .filter(|(tx, _)| item.is_none_or(|item_id| tx.item() == item_id))
                 .try_fold(Money::from(0), |total, (tx, _)| {
-                    total.checked_add(tx.amount())
+                    total.checked_add(Money::from(tx.amount()))
                 })?;
 
             Ok((month, total))
@@ -51,7 +51,7 @@ pub fn yearly_expense(ledger: &Ledger) -> Result<Vec<(i32, Money)>, MoneyError> 
             let total = flows_in(ledger, Period::year(year))
                 .filter(|(_, flow)| *flow == Flow::Expense)
                 .try_fold(Money::from(0), |total, (tx, _)| {
-                    total.checked_add(tx.amount())
+                    total.checked_add(Money::from(tx.amount()))
                 })?;
 
             Ok((year, total))
@@ -64,7 +64,7 @@ mod tests {
     use super::*;
     use crate::budget::BudgetList;
     use crate::item::{ItemList, Tag};
-    use crate::transaction::{TransactionDraft, TransactionList};
+    use crate::transaction::{Amount, TransactionDraft, TransactionList};
     use chrono::NaiveDate;
 
     fn date(year: i32, month: u32, day: u32) -> NaiveDate {
@@ -74,7 +74,7 @@ mod tests {
     fn draft(date: NaiveDate, amount: i32, item: ItemId, counterpart: ItemId) -> TransactionDraft {
         TransactionDraft::new(
             date,
-            Money::from(amount),
+            Amount::of(amount),
             item,
             counterpart,
             String::from("テスト"),
