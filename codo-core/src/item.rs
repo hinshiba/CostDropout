@@ -81,8 +81,13 @@ impl fmt::Display for Item {
     }
 }
 
-/// 品目の一覧
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+/// 品目一覧.
+///
+/// 次の要件を満たす.
+/// * ID の昇順に並ぶ
+/// * 名前は前後に空白がなく空でない
+/// * 互いに異なる ID と名前をもつ
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
 pub struct ItemList {
     items: Vec<Item>,
 }
@@ -93,7 +98,38 @@ impl ItemList {
         Self { items: Vec::new() }
     }
 
-    /// 登録順に品目を走査するイテレーターを返す。
+    /// `Vec<Item>` から品目一覧を作成する.
+    ///
+    /// 名前の前後の空白は取り除く.
+    ///
+    /// # Errors
+    ///
+    /// 空白を取り除いた名前が空の場合は `ItemError::EmptyName` エラー.
+    /// 空白を取り除いた名前が重複する場合は `ItemError::DuplicateName` エラー.
+    /// ID が重複する場合は `ItemError::DuplicateId` エラー.
+    pub(crate) fn from_items(mut items: Vec<Item>) -> Result<Self, ItemError> {
+        for item in &mut items {
+            item.name = item.name.trim().to_string();
+        }
+
+        let mut names = HashSet::new();
+        for item in &items {
+            if item.name.is_empty() {
+                return Err(ItemError::EmptyName);
+            }
+            if !names.insert(item.name.as_str()) {
+                return Err(ItemError::DuplicateName(item.name.clone()));
+            }
+        }
+
+        items.sort_by_key(|item| item.id);
+        if let Some(pair) = items.windows(2).find(|pair| pair[0].id == pair[1].id) {
+            return Err(ItemError::DuplicateId(pair[0].id));
+        }
+        Ok(Self { items })
+    }
+
+    /// 品目を走査するイテレーターを返す.
     pub fn iter(&self) -> impl Iterator<Item = &Item> {
         self.items.iter()
     }
