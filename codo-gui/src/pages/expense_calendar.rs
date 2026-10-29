@@ -2,8 +2,9 @@
 
 use crate::app::AppState;
 use chrono::Datelike;
+use codo_core::money::Money;
 use codo_core::period::YearMonth;
-use codo_core::report::calendar::expense_level;
+use codo_core::report::calendar::{EXPENSE_LEVELS, expense_level};
 use codo_core::report::monthly::{DailySummary, monthly_summary};
 use gpui_kit::component::button::Button;
 use gpui_kit::*;
@@ -85,21 +86,60 @@ impl Render for ExpenseCalendar {
                             .h(px(80.))
                             .border_1()
                             .border_color(rgb(0xe0e0e0)),
-                        Some(day) => div()
-                            .w(px(100.))
-                            .h(px(80.))
-                            .border_1()
-                            .border_color(rgb(0xe0e0e0))
-                            .bg(level_color(expense_level(day.expense(), max_expense)))
-                            .p_1()
-                            .flex()
-                            .flex_col()
-                            .child(day.date().day().to_string())
-                            .child(day.expense().to_string()),
+                        Some(day) => {
+                            let level = expense_level(day.expense(), max_expense);
+                            let text_color = if level >= 4 {
+                                rgb(0xffffff)
+                            } else {
+                                rgb(0x000000)
+                            };
+                            div()
+                                .w(px(100.))
+                                .h(px(80.))
+                                .border_1()
+                                .border_color(rgb(0xe0e0e0))
+                                .bg(level_color(level))
+                                .text_color(text_color)
+                                .p_1()
+                                .flex()
+                                .flex_col()
+                                .child(day.date().day().to_string())
+                                .child(day.expense().to_string())
+                        }
                     }
                 }))
             })
             .collect::<Vec<_>>();
+
+        // 凡例
+        let legend = div()
+            .flex()
+            .flex_row()
+            .gap_4()
+            .children((0..=EXPENSE_LEVELS).map(|level| {
+                let label = if level == 0 {
+                    "¥0".to_string()
+                } else {
+                    format!(
+                        "~{}",
+                        Money((max_expense.0 as i64 * level as i64 / EXPENSE_LEVELS as i64) as i32)
+                    )
+                };
+                div()
+                    .flex()
+                    .flex_row()
+                    .items_center()
+                    .gap_1()
+                    .child(
+                        div()
+                            .w(px(20.))
+                            .h(px(20.))
+                            .bg(level_color(level))
+                            .border_1()
+                            .border_color(rgb(0xe0e0e0)),
+                    )
+                    .child(label)
+            }));
 
         let prev_button =
             Button::new("prev_button")
@@ -141,6 +181,7 @@ impl Render for ExpenseCalendar {
             .child(month_selector)
             .child(weekday_header)
             .child(div().flex().flex_col().children(week_rows))
+            .child(legend)
     }
 }
 
