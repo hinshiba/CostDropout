@@ -4,6 +4,7 @@ use crate::app::AppState;
 use chrono::Local;
 use codo_core::period::YearMonth;
 use codo_core::transaction::TransactionId;
+use gpui_kit::component::WindowExt;
 use gpui_kit::component::button::Button;
 use gpui_kit::component::table::{Table, TableBody, TableCell, TableHead, TableHeader, TableRow};
 use gpui_kit::prelude::FluentBuilder;
@@ -37,6 +38,37 @@ impl TransactionList {
         cx.notify();
     }
 
+    /// 削除の確認ダイアログを開き、確定後に取引を削除する。
+    fn confirm_remove_transaction(
+        &mut self,
+        id: TransactionId,
+        label: String,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let weak_list = cx.weak_entity();
+
+        window.open_alert_dialog(cx, move |alert, _, _| {
+            let weak_list = weak_list.clone();
+            let label = label.clone();
+
+            alert
+                .confirm()
+                .title("取引を削除しますか？")
+                .description(format!(
+                    "「{}」を削除します。この操作は取り消せません。",
+                    label
+                ))
+                .ok_text("削除")
+                .cancel_text("キャンセル")
+                .on_ok(move |_, _, cx| {
+                    weak_list
+                        .update(cx, |list, cx| list.remove_transaction(id, cx))
+                        .is_ok()
+                })
+        });
+    }
+
     fn remove_transaction(&mut self, id: TransactionId, cx: &mut Context<Self>) {
         let result = self.state.update(cx, |state, cx| {
             state.ledger.remove_transaction(id)?;
@@ -54,6 +86,7 @@ impl Render for TransactionList {
         let rows = ledger
             .monthly_transactions(self.month)
             .map(|transaction| {
+                let label = format!("{} {}", transaction.date(), transaction.amount());
                 let id = transaction.id();
                 let item_name = |id| {
                     ledger
@@ -76,8 +109,8 @@ impl Render for TransactionList {
                         TableCell::new().child(
                             Button::new(format!("remove-transaction-{id:?}"))
                                 .label("削除")
-                                .on_click(cx.listener(move |this, _, _, cx| {
-                                    this.remove_transaction(id, cx)
+                                .on_click(cx.listener(move |this, _, window, cx| {
+                                    this.confirm_remove_transaction(id, label.clone(), window, cx)
                                 })),
                         ),
                     )
