@@ -134,16 +134,13 @@ impl ItemList {
         self.items.iter()
     }
 
-    /// アプリ再起動時にファイルを復元する
-    ///
-    /// エラー検証はしない．品目はID順に並べ替える
-    pub fn from_items(mut items: Vec<Item>) -> Self {
-        items.sort_by_key(|item| item.id());
-        Self { items }
+    /// タグが `tag` である品目を走査するイテレーターを返す.
+    pub fn iter_with_tag(&self, tag: Tag) -> impl Iterator<Item = &Item> {
+        self.items.iter().filter(move |item| item.tag == tag)
     }
 
-    /// 同じIDの品目があれば返す
-    pub fn get_item(&self, id: ItemId) -> Option<&Item> {
+    /// ID が `id` である品目を返す.
+    pub fn get(&self, id: ItemId) -> Option<&Item> {
         self.items.iter().find(|item| item.id == id)
     }
 
