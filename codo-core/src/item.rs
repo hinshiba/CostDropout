@@ -1,39 +1,32 @@
 //! 品目
 
 use serde::{Deserialize, Serialize};
+use std::fmt;
 use thiserror::Error;
 
-/// 品目 ID(連番)
+/// 品目を識別する連番.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct ItemId(u32);
 
-impl ItemId {
-    pub const fn new(id: u32) -> Self {
-        Self(id)
-    }
-
-    pub const fn id(&self) -> u32 {
-        self.0
-    }
-}
-/// 分類タグ
+/// 品目の分類.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Tag {
-    /// 資産
+    /// 資産.
     Asset,
-    /// 負債
+    /// 負債.
     Liability,
-    /// 初期残高(純資産)
+    /// 初期残高 (純資産).
     OpeningBalance,
-    /// 収入(収益)
+    /// 収入 (収益).
     Income,
-    /// 支出(費用)
+    /// 支出 (費用).
     Expense,
 }
 
 impl Tag {
-    pub const ALL_TAGS: [Tag; 5] = [
+    /// すべてのタグを表示順に並べたもの.
+    pub const ALL: [Tag; 5] = [
         Tag::Asset,
         Tag::Liability,
         Tag::OpeningBalance,
@@ -41,21 +34,25 @@ impl Tag {
         Tag::Expense,
     ];
 
-    /// タグの表示名
-    /// Tag::Income.label()のように使用
-    pub fn label(&self) -> &'static str {
-        match self {
+    /// 取引の品目として選べるかを判定する.
+    ///
+    /// 収入, 支出, 負債だけが選べる.
+    pub fn is_transaction_selectable(&self) -> bool {
+        matches!(self, Tag::Income | Tag::Expense | Tag::Liability)
+    }
+}
+
+impl fmt::Display for Tag {
+    /// タグの表示名を出力する.
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let label = match self {
             Tag::Asset => "資産",
             Tag::Liability => "負債",
             Tag::OpeningBalance => "初期残高",
             Tag::Income => "収入",
             Tag::Expense => "支出",
-        }
-    }
-
-    /// 取引の品目として選択できるか
-    pub fn is_transaction_selectable(&self) -> bool {
-        matches!(self, Tag::Income | Tag::Expense | Tag::Liability)
+        };
+        f.write_str(label)
     }
 }
 
