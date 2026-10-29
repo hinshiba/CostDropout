@@ -6,6 +6,7 @@ use codo_core::ledger::Ledger;
 use codo_core::money::Money;
 use codo_core::period::{Period, YearMonth};
 use codo_core::report::category::expense_by_item;
+use gpui_kit::base::TestSupportExt;
 use gpui_kit::component::{ActiveTheme, button::Button, chart::PieChart};
 use gpui_kit::*;
 
@@ -61,11 +62,16 @@ impl Render for ExpensePie {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         // 再表示時にも必ず最新の帳簿から集計する。
         let slices = ExpenseSlice::for_month(&self.state.read(cx).ledger, self.month);
+        let month_label = format!("{}年{}月", self.month.year(), self.month.month());
         let content = if slices.is_empty() {
             div()
+                .id("expense-empty-state")
+                .test_support()
                 .py_8()
                 .text_color(cx.theme().muted_foreground)
                 .child("この月の支出はありません")
+                .flex_shrink_0()
+                .into_any_element()
         } else {
             let legend = div()
                 .flex()
@@ -109,6 +115,8 @@ impl Render for ExpensePie {
                     ),
                 )
                 .child(legend)
+                .flex_shrink_0()
+                .into_any_element()
         };
 
         div()
@@ -137,7 +145,13 @@ impl Render for ExpensePie {
                                 cx.notify();
                             })),
                     )
-                    .child(format!("{}年{}月", self.month.year(), self.month.month()))
+                    .child(
+                        div()
+                            .id("expense-month-label")
+                            .test_support()
+                            .aria_label(month_label.clone())
+                            .child(month_label),
+                    )
                     .child(
                         Button::new("next-month")
                             .label("翌月")
@@ -147,7 +161,7 @@ impl Render for ExpensePie {
                             })),
                     ),
             )
-            .child(content.flex_shrink_0())
+            .child(content)
     }
 }
 

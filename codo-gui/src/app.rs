@@ -165,11 +165,14 @@ impl Render for App {
 #[cfg(test)]
 mod tests {
     use super::{App, Page};
+    use chrono::Local;
+    use codo_core::period::YearMonth;
     use gpui_kit::test::TestWindowExt;
     use gpui_kit::{AppContext, Bounds, TestAppContext, WindowBounds, WindowOptions, px, size};
 
     #[gpui_kit::test]
     fn sidebar_opens_expense_pie(cx: &mut TestAppContext) {
+        let month = YearMonth::from_date(Local::now().date_naive());
         cx.update(gpui_kit::init);
         let (handle, app) = cx.update(|cx| {
             cx.set_reduce_motion(true);
@@ -195,9 +198,30 @@ mod tests {
             window.render_frame(cx);
             assert!(window.find("previous-month").visible());
             assert!(window.find("next-month").visible());
+            let assert_month = |window: &gpui_kit::Window, expected: YearMonth, is_empty: bool| {
+                let label = window.find("expense-month-label");
+                assert!(label.visible());
+                let expected_label = format!("{}年{}月", expected.year(), expected.month());
+                assert_eq!(label.label(), Some(expected_label.as_str()));
+                if is_empty {
+                    assert!(window.find("expense-empty-state").visible());
+                } else {
+                    assert!(window.try_find("expense-empty-state").is_none());
+                }
+            };
+            assert_month(window, month, false);
             window.click("previous-month", cx);
+            window.render_frame(cx);
+            assert_month(window, month.prev(), false);
             window.click("next-month", cx);
+            window.render_frame(cx);
+            assert_month(window, month, false);
             window.click("next-month", cx);
+            window.render_frame(cx);
+            assert_month(window, month.next(), true);
+            window.click("previous-month", cx);
+            window.render_frame(cx);
+            assert_month(window, month, false);
         })
         .unwrap();
     }
