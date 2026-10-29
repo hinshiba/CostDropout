@@ -227,7 +227,7 @@ pub enum MoneyError {
     #[error("金額として解釈できない文字列です: {0}")]
     Parse(String),
     /// 金額が表現可能な範囲を超えた場合.
-    #[error("金額が表現できる範囲を超えました")]
+    #[error("金額が表現できる範囲を超えています")]
     Overflow,
 }
 #[cfg(test)]
