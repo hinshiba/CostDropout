@@ -180,68 +180,44 @@ fn is_digits(s: &str) -> bool {
     !s.is_empty() && s.bytes().all(|b| b.is_ascii_digit())
 }
 
-fn is_valid_amount(s: &str) -> bool {
-    match s.split_once(',') {
-        None => is_digits(s),
-        Some((head, tail)) => {
-            is_digits(head)
-                && (1..4).contains(&head.len())
-                && !head.starts_with('0')
-                && tail
-                    .split(',')
-                    .all(|part| is_digits(part) && part.len() == 3)
-        }
-    }
-}
-
-/// 文字列からMoneyを生成します。
-///
-/// `¥`や,先頭の符号（`+`/`-`）を使用できます。
-///
-/// 不正な形式の場合は`MoneyError::Parse`を返し、
-/// 表現可能な範囲を超える場合は`MoneyError::Overflow`を返します。
 impl FromStr for Money {
     type Err = MoneyError;
 
+    /// `Money` にパースする.
+    ///
+    /// 先頭の符号 `+` / `-` と ASCII の数字からなる金額として解釈する.
+    /// `¥`, `\` (0x5C), `,`, 空白は位置によらず存在しないものとして扱う.
+    ///
+    /// 全角文字, `円`, 小数点を含む入力に対する結果は未定義.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use codo_core::money::Money;
+    ///
+    /// assert_eq!("¥1,234".parse::<Money>(), Ok(Money::from(1234)));
+    /// assert_eq!("-¥1,234".parse::<Money>(), Ok(Money::from(-1234)));
+    /// assert_eq!("¥-1,234".parse::<Money>(), Ok(Money::from(-1234)));
+    /// assert_eq!("\\1 234".parse::<Money>(), Ok(Money::from(1234)));
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// 不正な形式の場合は `MoneyError::Parse` エラー.
+    /// 表現可能な範囲を超える場合は `MoneyError::Overflow` エラー.
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let input = s;
-        let trimmed = s.trim();
+        let significant: String = s.chars().filter(|&c| !is_ignored(c)).collect();
+        let digits = significant.strip_prefix(['+', '-']).unwrap_or(&significant);
 
-        if trimmed.is_empty() {
-            return Err(MoneyError::Parse(input.to_string()));
+        if !is_digits(digits) {
+            return Err(MoneyError::Parse(s.to_string()));
         }
 
-        let (mut value_str, is_negative) = if let Some(rest) = trimmed.strip_prefix('-') {
-            (rest, true)
-        } else if let Some(rest) = trimmed.strip_prefix('+') {
-            (rest, false)
-        } else {
-            (trimmed, false)
-        };
-
-        if let Some(rest) = value_str.strip_prefix('¥') {
-            value_str = rest;
-        }
-
-        if !is_valid_amount(value_str) {
-            return Err(MoneyError::Parse(input.to_string()));
-        }
-
-        let digits = value_str.replace(',', "");
-
-        let mut value = match digits.parse::<i64>() {
-            Ok(value) => value,
-            Err(_) => return Err(MoneyError::Overflow),
-        };
-
-        if is_negative {
-            value = -value;
-        }
-
-        match i32::try_from(value) {
-            Ok(value) => Ok(Money(value)),
-            Err(_) => Err(MoneyError::Overflow),
-        }
+        // 形式は検証済みなので, 失敗するのは範囲外の場合に限る
+        significant
+            .parse::<i32>()
+            .map(Money)
+            .map_err(|_| MoneyError::Overflow)
     }
 }
 
