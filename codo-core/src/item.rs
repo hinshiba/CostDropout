@@ -1,6 +1,7 @@
 //! 品目のモデルと品目一覧
 
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 use std::fmt;
 use thiserror::Error;
 
