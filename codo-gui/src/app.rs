@@ -133,8 +133,17 @@ impl Render for App {
             });
 
         // 品目別の支出推移
-        let expense_bar_chart =
-            SidebarMenuItem::new("支出推移（品目別）").active(self.page == Page::ExpenseBarChart);
+        let expense_bar_chart = SidebarMenuItem::new("支出推移（品目別）")
+            .active(self.page == Page::ExpenseBarChart)
+            .on_click({
+                let app = app.clone();
+
+                move |_, _, cx| {
+                    app.update(cx, |app, cx| {
+                        app.show_page(Page::ExpenseBarChart, cx);
+                    });
+                }
+            });
         // 月の収支
         let monthly_report = SidebarMenuItem::new("月の収支")
             .active(self.page == Page::MonthlyReport)
@@ -143,7 +152,6 @@ impl Render for App {
 
                 move |_, _, cx| {
                     app.update(cx, |app, cx| {
-                        app.show_page(Page::ExpenseBarChart, cx);
                         app.show_page(Page::MonthlyReport, cx);
                     });
                 }
@@ -245,7 +253,7 @@ mod tests {
             window.render_frame(cx);
             // Sidebar が割り当てる「グループ番号-項目番号」の ID でクリックする。
             assert!(window.find("0-2").visible());
-            window.click("0-2", cx);
+            window.click("0-4", cx);
             assert!(app.read(cx).page == Page::ExpensePie);
             window.render_frame(cx);
             assert!(window.find("previous-month").visible());
