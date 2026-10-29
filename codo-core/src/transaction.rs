@@ -20,14 +20,8 @@ pub struct TransactionId(Uuid);
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Transaction {
     id: TransactionId,
-    #[serde(with = "crate::serialization::toml_date")]
-    date: NaiveDate,
-    amount: Amount,
-    /// 収入/支出/負債の品目
-    item: ItemId,
-    /// 相手先の品目
-    counterpart: ItemId,
-    comment: String,
+    #[serde(flatten)]
+    draft: TransactionDraft,
 }
 
 ///取引の各値の読み込み
@@ -39,27 +33,27 @@ impl Transaction {
 
     ///取引の日付
     pub fn date(&self) -> NaiveDate {
-        self.date
+        self.draft.date
     }
 
     ///取引の金額
     pub fn amount(&self) -> Amount {
-        self.amount
+        self.draft.amount
     }
 
     ///取引の品目
     pub fn item(&self) -> ItemId {
-        self.item
+        self.draft.item
     }
 
     ///取引の相手先
     pub fn counterpart(&self) -> ItemId {
-        self.counterpart
+        self.draft.counterpart
     }
 
     ///取引のコメント
     pub fn comment(&self) -> &str {
-        &self.comment
+        &self.draft.comment
     }
 
     /// 品目と相手先のタグの組み合わせを検査する.
@@ -73,21 +67,24 @@ impl Transaction {
         &self,
         tag_of: impl Fn(ItemId) -> Result<Tag, E>,
     ) -> Result<(), E> {
-        Ok(check_tags(tag_of(self.item)?, tag_of(self.counterpart)?)?)
+        self.draft.check_tags(tag_of)
     }
 
     /// 品目または相手先として `item` を使うかを判定する.
     pub(crate) fn uses(&self, item: ItemId) -> bool {
-        self.item == item || self.counterpart == item
+        self.draft.item == item || self.draft.counterpart == item
     }
 }
 
 ///idなしの取引
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TransactionDraft {
+    #[serde(with = "crate::serialization::toml_date")]
     date: NaiveDate,
     amount: Amount,
+    /// 収入/支出/負債の品目
     item: ItemId,
+    /// 相手先の品目
     counterpart: ItemId,
     comment: String,
 }
@@ -177,15 +174,7 @@ impl TransactionList {
     ///取引の登録
     pub fn add(&mut self, draft: TransactionDraft) -> Result<TransactionId, TransactionError> {
         let new_id = TransactionId(Uuid::new_v4());
-        let transaction = Transaction {
-            id: new_id,
-            date: draft.date,
-            amount: draft.amount,
-            item: draft.item,
-            counterpart: draft.counterpart,
-            comment: draft.comment,
-        };
-        self.transactions.push(transaction);
+        self.transactions.push(Transaction { id: new_id, draft });
         self.sort();
         Ok(new_id)
     }
@@ -213,11 +202,7 @@ impl TransactionList {
         draft: TransactionDraft,
     ) -> Result<(), TransactionError> {
         let i = self.index_of(id)?;
-        self.transactions[i].date = draft.date;
-        self.transactions[i].amount = draft.amount;
-        self.transactions[i].item = draft.item;
-        self.transactions[i].counterpart = draft.counterpart;
-        self.transactions[i].comment = draft.comment;
+        self.transactions[i].draft = draft;
         self.sort();
         Ok(())
     }
@@ -229,7 +214,7 @@ impl TransactionList {
 
     ///日付順・ID順に並び替える
     fn sort(&mut self) {
-        self.transactions.sort_by_key(|t| (t.date, t.id))
+        self.transactions.sort_by_key(|t| (t.draft.date, t.id))
     }
 
     ///対象が何番目にあるかを探す
@@ -294,11 +279,11 @@ mod tests {
 
         let t = list.get(id).unwrap();
         assert_eq!(t.id, id);
-        assert_eq!(t.date, date(1));
-        assert_eq!(t.amount, Amount::of(1000));
-        assert_eq!(t.item, a);
-        assert_eq!(t.counterpart, b);
-        assert_eq!(t.comment, "テスト");
+        assert_eq!(t.date(), date(1));
+        assert_eq!(t.amount(), Amount::of(1000));
+        assert_eq!(t.item(), a);
+        assert_eq!(t.counterpart(), b);
+        assert_eq!(t.comment(), "テスト");
     }
 
     #[test]
@@ -309,7 +294,7 @@ mod tests {
         let id = list.add(draft(1, 1, a, b)).unwrap();
 
         let t = list.get(id).unwrap();
-        assert_eq!(t.amount, Amount::of(1));
+        assert_eq!(t.amount(), Amount::of(1));
     }
 
     #[test]
@@ -343,10 +328,10 @@ mod tests {
         assert_eq!(result, Ok(()));
         let t = list.get(id).unwrap();
         assert_eq!(t.id, id);
-        assert_eq!(t.date, date(5));
-        assert_eq!(t.amount, Amount::of(2000));
-        assert_eq!(t.item, c);
-        assert_eq!(t.counterpart, a);
+        assert_eq!(t.date(), date(5));
+        assert_eq!(t.amount(), Amount::of(2000));
+        assert_eq!(t.item(), c);
+        assert_eq!(t.counterpart(), a);
     }
 
     #[test]
@@ -384,7 +369,7 @@ mod tests {
 
         let mut dates = Vec::new();
         for t in list.iter() {
-            dates.push(t.date);
+            dates.push(t.date());
         }
 
         assert_eq!(dates, vec![date(1), date(2), date(3)]);
@@ -421,7 +406,7 @@ mod tests {
 
         let mut dates = Vec::new();
         for t in list.iter() {
-            dates.push(t.date);
+            dates.push(t.date());
         }
         assert_eq!(dates, vec![date(2), date(3)]);
     }
