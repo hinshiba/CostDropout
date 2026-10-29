@@ -1,6 +1,7 @@
 pub mod calendar;
 pub mod category;
 pub mod monthly;
+pub mod trend;
 use crate::item::Tag;
 use crate::ledger::Ledger;
 use crate::money::Money;
@@ -53,6 +54,7 @@ pub fn expense_total(ledger: &Ledger, period: Period) -> Money {
 mod tests {
     use super::*;
 
+    use crate::budget::BudgetList;
     use crate::item::ItemList;
     use crate::transaction::{TransactionDraft, TransactionList};
     use chrono::NaiveDate;
@@ -100,7 +102,7 @@ mod tests {
             ))
             .unwrap();
 
-        Ledger::from_parts(items, transactions)
+        Ledger::from_parts(items, transactions, BudgetList::new())
     }
 
     #[test]
