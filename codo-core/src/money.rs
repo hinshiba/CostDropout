@@ -230,6 +230,7 @@ pub enum MoneyError {
     #[error("金額が表現できる範囲を超えています")]
     Overflow,
 }
+
 #[cfg(test)]
 mod tests {
     use super::*;
