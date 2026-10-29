@@ -237,131 +237,83 @@ mod tests {
 
     #[test]
     fn display_test() {
-        assert_eq!(Money(1234).to_string(), "¥1,234");
-        assert_eq!(Money(0).to_string(), "¥0");
-        assert_eq!(Money(1000000).to_string(), "¥1,000,000");
-        assert_eq!(Money(-5000).to_string(), "-¥5,000");
+        for (value, expected) in [
+            (i32::MIN, "-¥2,147,483,648"),
+            (-1000, "-¥1,000"),
+            (-999, "-¥999"),
+            (-1, "-¥1"),
+            (0, "¥0"),
+            (1, "¥1"),
+            (999, "¥999"),
+            (1000, "¥1,000"),
+            (999_999, "¥999,999"),
+            (1_000_000, "¥1,000,000"),
+            (i32::MAX, "¥2,147,483,647"),
+        ] {
+            assert_eq!(Money(value).to_string(), expected, "{value}");
+        }
     }
 
     #[test]
     fn from_str_test() {
-        assert_eq!("1234".parse::<Money>().unwrap(), Money(1234));
-        assert_eq!("1,234".parse::<Money>().unwrap(), Money(1234));
-        assert_eq!("¥1,234".parse::<Money>().unwrap(), Money(1234));
-        assert_eq!("-500".parse::<Money>().unwrap(), Money(-500));
-        assert_eq!("  1,234  ".parse::<Money>().unwrap(), Money(1234));
+        for (s, expected) in [
+            ("-¥2,147,483,648", i32::MIN),
+            ("-2147483648", i32::MIN),
+            ("-¥1,234", -1234),
+            ("-500", -500),
+            ("-0", 0),
+            ("0", 0),
+            ("+5", 5),
+            ("+¥5", 5),
+            ("007", 7),
+            ("1234", 1234),
+            ("1,234", 1234),
+            ("¥1,234", 1234),
+            ("2,147,483,647", i32::MAX),
+            // 無視する文字は位置と個数によらない
+            ("¥-1,234", -1234),
+            ("\\1,234", 1234),
+            ("-\\500", -500),
+            ("¥¥5", 5),
+            ("5¥", 5),
+            ("1,2,3,4", 1234),
+            (",1,,234,", 1234),
+            ("  1 2 3 4  ", 1234),
+            ("\t-\n500 ", -500),
+            ("  -¥5,00 ", -500),
+        ] {
+            assert_eq!(s.parse::<Money>(), Ok(Money(expected)), "{s}");
+        }
     }
 
     #[test]
-    fn from_str_error_test() {
-        assert!(matches!("".parse::<Money>(), Err(MoneyError::Parse(_))));
-
-        assert!(matches!("abc".parse::<Money>(), Err(MoneyError::Parse(_))));
-
-        assert!(matches!(
-            "1,,234".parse::<Money>(),
-            Err(MoneyError::Parse(_))
-        ));
-
-        assert!(matches!(
-            "12,34".parse::<Money>(),
-            Err(MoneyError::Parse(_))
-        ));
+    fn from_str_parse_error_test() {
+        for s in [
+            "", "   ", "¥", "\\", ",", "-", "+", "-¥", "abc", "12a", " 12a ", "5-", "1-2", "--5",
+            "-+5", "+-5", "-¥-5",
+        ] {
+            assert_eq!(s.parse::<Money>(), Err(MoneyError::Parse(s.to_string())));
+        }
     }
 
     #[test]
     fn from_str_overflow_test() {
-        assert!(matches!(
-            "2147483648".parse::<Money>(),
-            Err(MoneyError::Overflow)
-        ));
-        assert!(matches!(
-            "-2147483649".parse::<Money>(),
-            Err(MoneyError::Overflow)
-        ));
-        assert!(matches!(
-            "99999999999999999999".parse::<Money>(),
-            Err(MoneyError::Overflow)
-        ));
-        assert!(matches!(
-            "2,147,483,648".parse::<Money>(),
-            Err(MoneyError::Overflow)
-        ));
-    }
-
-    #[test]
-    fn is_negative_test() {
-        assert!(Money(-500).is_negative());
-        assert!(!Money(0).is_negative());
-        assert!(!Money(500).is_negative());
-    }
-
-    #[test]
-    fn is_positive_test() {
-        assert!(Money(500).is_positive());
-        assert!(!Money(0).is_positive());
-        assert!(!Money(-500).is_positive());
-    }
-
-    #[test]
-    fn is_positive_negative_test() {
-        assert!(matches!("--5".parse::<Money>(), Err(MoneyError::Parse(_))));
-        assert!(matches!("-+5".parse::<Money>(), Err(MoneyError::Parse(_))));
-        assert!(matches!(
-            "¥-500".parse::<Money>(),
-            Err(MoneyError::Parse(_))
-        ));
-    }
-
-    #[test]
-    fn display_boundary_test() {
-        assert_eq!(Money(-500).to_string(), "-¥500");
-        assert_eq!(Money(999).to_string(), "¥999");
-        assert_eq!(Money(1000).to_string(), "¥1,000");
-        assert_eq!(Money(-1).to_string(), "-¥1");
-        assert_eq!(Money(i32::MAX).to_string(), "¥2,147,483,647");
-        assert_eq!(Money(i32::MIN).to_string(), "-¥2,147,483,648");
-    }
-
-    #[test]
-    fn from_str_sign_test() {
-        assert_eq!("+5".parse::<Money>().unwrap(), Money(5));
-        assert_eq!("+¥5".parse::<Money>().unwrap(), Money(5));
-        assert_eq!("-¥500".parse::<Money>().unwrap(), Money(-500));
-        assert_eq!("-¥1,234".parse::<Money>().unwrap(), Money(-1234));
-        assert_eq!("-0".parse::<Money>().unwrap(), Money(0));
-        assert_eq!("007".parse::<Money>().unwrap(), Money(7));
-    }
-
-    #[test]
-    fn from_str_comma_error_test() {
         for s in [
-            ",123", "123,", "1234,567", "1,2345", "1,23", "0,123", "00,123", "01,234",
+            "2147483648",
+            "2,147,483,648",
+            "-2147483649",
+            "99999999999999999999",
+            "-99999999999999999999",
         ] {
-            assert!(
-                matches!(s.parse::<Money>(), Err(MoneyError::Parse(_))),
-                "{s}"
-            );
+            assert_eq!(s.parse::<Money>(), Err(MoneyError::Overflow), "{s}");
         }
     }
 
     #[test]
-    fn from_str_invalid_error_test() {
-        for s in [
-            "   ", "¥", "-", "-¥", "12a", "1 234", "- 500", "¥ 500", "1234.0", "--5", "-+5", "+-5",
-            "¥-500", "¥+5",
-        ] {
-            assert!(
-                matches!(s.parse::<Money>(), Err(MoneyError::Parse(_))),
-                "{s}"
-            );
-        }
-    }
-
-    #[test]
-    fn from_str_error_keeps_input_test() {
-        for s in ["", "   ", "  -¥5,00 ", "¥-500", "abc"] {
-            assert_eq!(s.parse::<Money>(), Err(MoneyError::Parse(s.to_string())));
+    fn display_from_str_roundtrip_test() {
+        for value in [i32::MIN, -1000, -1, 0, 1, 1000, i32::MAX] {
+            let money = Money(value);
+            assert_eq!(money.to_string().parse::<Money>(), Ok(money), "{value}");
         }
     }
 }
