@@ -139,30 +139,43 @@ impl<'a> Sum<&'a Money> for Money {
     }
 }
 
-/// 金額を`¥1,234`の形式で表示します。
-///
-/// 負の金額は`-¥1,234`の形式で表示します。
 impl fmt::Display for Money {
+    /// 金額を整形して出力する.
+    ///
+    /// Unicode CLDR の ja ロケールの通貨書式にできるだけ準拠する.
+    /// ただし通貨記号として U+00A5 `¥` を用いる.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use codo_core::money::Money;
+    ///
+    /// assert_eq!(Money::from(1234567).to_string(), "¥1,234,567");
+    /// assert_eq!(Money::from(-1234).to_string(), "-¥1,234");
+    /// ```
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let is_negative = self.0 < 0;
-        let amount = (self.0 as i64).abs();
-        let digits = amount.to_string();
-        let mut result = String::new();
-        for (count, c) in digits.chars().rev().enumerate() {
-            if count > 0 && count % 3 == 0 {
-                result.push(',');
+        let digits = self.0.unsigned_abs().to_string();
+
+        // 残りの桁数が3の倍数になる位置の手前に桁区切りを挿入する
+        let mut grouped = String::with_capacity(digits.len() + digits.len() / 3);
+        for (i, c) in digits.chars().enumerate() {
+            if 0 < i && (digits.len() - i).is_multiple_of(3) {
+                grouped.push(',');
             }
-            result.push(c);
+            grouped.push(c);
         }
-        let formatted = result.chars().rev().collect::<String>();
-        if !is_negative {
-            write!(f, "¥{}", formatted)
-        } else {
-            write!(f, "-¥{}", formatted)
-        }
+
+        let sign = if self.is_negative() { "-" } else { "" };
+        write!(f, "{sign}¥{grouped}")
     }
 }
 
+/// 金額の表記で無視する文字か.
+fn is_ignored(c: char) -> bool {
+    matches!(c, '¥' | '\\' | ',') || c.is_whitespace()
+}
+
+/// 空でなく, ASCII の数字だけからなるか.
 fn is_digits(s: &str) -> bool {
     !s.is_empty() && s.bytes().all(|b| b.is_ascii_digit())
 }
