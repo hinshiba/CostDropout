@@ -70,37 +70,31 @@ mod tests {
         let mut transactions = TransactionList::new();
 
         // 支出 1000
-        transactions
-            .add(TransactionDraft::new(
-                NaiveDate::from_ymd_opt(2026, 10, 1).unwrap(),
-                Amount::of(1000),
-                expense_id,
-                asset_id,
-                String::new(),
-            ))
-            .unwrap();
+        transactions.add(TransactionDraft::new(
+            NaiveDate::from_ymd_opt(2026, 10, 1).unwrap(),
+            Amount::of(1000),
+            expense_id,
+            asset_id,
+            String::new(),
+        ));
 
         // 収入 5000
-        transactions
-            .add(TransactionDraft::new(
-                NaiveDate::from_ymd_opt(2026, 10, 2).unwrap(),
-                Amount::of(5000),
-                income_id,
-                asset_id,
-                String::new(),
-            ))
-            .unwrap();
+        transactions.add(TransactionDraft::new(
+            NaiveDate::from_ymd_opt(2026, 10, 2).unwrap(),
+            Amount::of(5000),
+            income_id,
+            asset_id,
+            String::new(),
+        ));
 
         // 負債 3000（集計対象外）
-        transactions
-            .add(TransactionDraft::new(
-                NaiveDate::from_ymd_opt(2026, 10, 3).unwrap(),
-                Amount::of(3000),
-                liability_id,
-                asset_id,
-                String::new(),
-            ))
-            .unwrap();
+        transactions.add(TransactionDraft::new(
+            NaiveDate::from_ymd_opt(2026, 10, 3).unwrap(),
+            Amount::of(3000),
+            liability_id,
+            asset_id,
+            String::new(),
+        ));
 
         Ledger::from_parts(items, transactions, BudgetList::new())
     }

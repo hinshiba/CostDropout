@@ -115,38 +115,32 @@ mod tests {
         let mut transactions = TransactionList::new();
 
         // 食費: 10,000円
-        transactions
-            .add(TransactionDraft::new(
-                date(1),
-                Amount::of(10_000),
-                food,
-                cash,
-                "食費".to_string(),
-            ))
-            .unwrap();
+        transactions.add(TransactionDraft::new(
+            date(1),
+            Amount::of(10_000),
+            food,
+            cash,
+            "食費".to_string(),
+        ));
 
         // 娯楽: 5,000円
-        transactions
-            .add(TransactionDraft::new(
-                date(2),
-                Amount::of(5_000),
-                entertainment,
-                cash,
-                "娯楽".to_string(),
-            ))
-            .unwrap();
+        transactions.add(TransactionDraft::new(
+            date(2),
+            Amount::of(5_000),
+            entertainment,
+            cash,
+            "娯楽".to_string(),
+        ));
 
         // 娯楽: 5,000円
         // → 娯楽の合計は10,000円
-        transactions
-            .add(TransactionDraft::new(
-                date(3),
-                Amount::of(5_000),
-                entertainment,
-                cash,
-                "娯楽".to_string(),
-            ))
-            .unwrap();
+        transactions.add(TransactionDraft::new(
+            date(3),
+            Amount::of(5_000),
+            entertainment,
+            cash,
+            "娯楽".to_string(),
+        ));
 
         let ledger = Ledger::from_parts(items, transactions, BudgetList::new());
 
@@ -189,26 +183,22 @@ mod tests {
         let mut transactions = TransactionList::new();
 
         // 食費: 3,000円
-        transactions
-            .add(TransactionDraft::new(
-                date(1),
-                Amount::of(3_000),
-                food,
-                cash,
-                "食費".to_string(),
-            ))
-            .unwrap();
+        transactions.add(TransactionDraft::new(
+            date(1),
+            Amount::of(3_000),
+            food,
+            cash,
+            "食費".to_string(),
+        ));
 
         // 娯楽: 10,000円
-        transactions
-            .add(TransactionDraft::new(
-                date(2),
-                Amount::of(10_000),
-                entertainment,
-                cash,
-                "娯楽".to_string(),
-            ))
-            .unwrap();
+        transactions.add(TransactionDraft::new(
+            date(2),
+            Amount::of(10_000),
+            entertainment,
+            cash,
+            "娯楽".to_string(),
+        ));
 
         let ledger = Ledger::from_parts(items, transactions, BudgetList::new());
 
@@ -238,15 +228,13 @@ mod tests {
         let mut transactions = TransactionList::new();
 
         // 期間外の支出しかない
-        transactions
-            .add(TransactionDraft::new(
-                date(1),
-                Amount::of(10_000),
-                food,
-                cash,
-                "食費".to_string(),
-            ))
-            .unwrap();
+        transactions.add(TransactionDraft::new(
+            date(1),
+            Amount::of(10_000),
+            food,
+            cash,
+            "食費".to_string(),
+        ));
 
         let ledger = Ledger::from_parts(items, transactions, BudgetList::new());
 
@@ -271,37 +259,31 @@ mod tests {
         let mut transactions = TransactionList::new();
 
         // 支出
-        transactions
-            .add(TransactionDraft::new(
-                date(1),
-                Amount::of(3_000),
-                food,
-                cash,
-                "食費".to_string(),
-            ))
-            .unwrap();
+        transactions.add(TransactionDraft::new(
+            date(1),
+            Amount::of(3_000),
+            food,
+            cash,
+            "食費".to_string(),
+        ));
 
         // 収入
-        transactions
-            .add(TransactionDraft::new(
-                date(2),
-                Amount::of(100_000),
-                income,
-                cash,
-                "給与".to_string(),
-            ))
-            .unwrap();
+        transactions.add(TransactionDraft::new(
+            date(2),
+            Amount::of(100_000),
+            income,
+            cash,
+            "給与".to_string(),
+        ));
 
         // 負債
-        transactions
-            .add(TransactionDraft::new(
-                date(3),
-                Amount::of(50_000),
-                liability,
-                cash,
-                "借入".to_string(),
-            ))
-            .unwrap();
+        transactions.add(TransactionDraft::new(
+            date(3),
+            Amount::of(50_000),
+            liability,
+            cash,
+            "借入".to_string(),
+        ));
 
         let ledger = Ledger::from_parts(items, transactions, BudgetList::new());
 
@@ -324,26 +306,22 @@ mod tests {
         let mut transactions = TransactionList::new();
 
         // 期間開始日
-        transactions
-            .add(TransactionDraft::new(
-                date(1),
-                Amount::of(3_000),
-                food,
-                cash,
-                "食費".to_string(),
-            ))
-            .unwrap();
+        transactions.add(TransactionDraft::new(
+            date(1),
+            Amount::of(3_000),
+            food,
+            cash,
+            "食費".to_string(),
+        ));
 
         // 期間終了日
-        transactions
-            .add(TransactionDraft::new(
-                date(31),
-                Amount::of(2_000),
-                food,
-                cash,
-                "食費".to_string(),
-            ))
-            .unwrap();
+        transactions.add(TransactionDraft::new(
+            date(31),
+            Amount::of(2_000),
+            food,
+            cash,
+            "食費".to_string(),
+        ));
 
         let ledger = Ledger::from_parts(items, transactions, BudgetList::new());
 
@@ -366,26 +344,22 @@ mod tests {
         let mut transactions = TransactionList::new();
 
         // 期間内
-        transactions
-            .add(TransactionDraft::new(
-                date(10),
-                Amount::of(3_000),
-                food,
-                cash,
-                "期間内".to_string(),
-            ))
-            .unwrap();
+        transactions.add(TransactionDraft::new(
+            date(10),
+            Amount::of(3_000),
+            food,
+            cash,
+            "期間内".to_string(),
+        ));
 
         // 期間外
-        transactions
-            .add(TransactionDraft::new(
-                date(31),
-                Amount::of(100_000),
-                food,
-                cash,
-                "期間外".to_string(),
-            ))
-            .unwrap();
+        transactions.add(TransactionDraft::new(
+            date(31),
+            Amount::of(100_000),
+            food,
+            cash,
+            "期間外".to_string(),
+        ));
 
         let ledger = Ledger::from_parts(items, transactions, BudgetList::new());
 

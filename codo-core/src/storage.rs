@@ -12,7 +12,7 @@ use crate::item::{Item, ItemError, ItemList};
 use crate::ledger::Ledger;
 use crate::money::Money;
 use crate::period::{Period, PeriodError, YearMonth};
-use crate::transaction::{Transaction, TransactionList};
+use crate::transaction::{Transaction, TransactionError, TransactionList};
 
 /// 1か月分の取引ファイル
 #[derive(Serialize, Deserialize)]
@@ -136,7 +136,7 @@ impl LedgerStore for TomlStore {
                 all.extend(month_file.transactions);
             }
         }
-        let transactions = TransactionList::from_transactions(all);
+        let transactions = TransactionList::from_transactions(all)?;
 
         let budgets_path = self.dir.join("budgets.toml");
 
@@ -220,6 +220,9 @@ pub enum StorageError {
 
     #[error("品目データが不正です: {0}")]
     InvalidItems(#[from] ItemError),
+
+    #[error("取引データが不正です: {0}")]
+    InvalidTransactions(#[from] TransactionError),
 }
 
 #[cfg(test)]

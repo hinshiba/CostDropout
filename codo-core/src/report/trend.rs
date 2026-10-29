@@ -93,19 +93,13 @@ mod tests {
         let mut transactions = TransactionList::new();
 
         // 10月だけ支出がある
-        transactions
-            .add(draft(date(2026, 10, 10), 3000, food, cash))
-            .unwrap();
+        transactions.add(draft(date(2026, 10, 10), 3000, food, cash));
 
         // 10月に収入がある
-        transactions
-            .add(draft(date(2026, 10, 20), 10000, income, cash))
-            .unwrap();
+        transactions.add(draft(date(2026, 10, 20), 10000, income, cash));
 
         // 10月に負債がある
-        transactions
-            .add(draft(date(2026, 10, 15), 5000, loan, cash))
-            .unwrap();
+        transactions.add(draft(date(2026, 10, 15), 5000, loan, cash));
 
         let ledger = Ledger::from_parts(items, transactions, BudgetList::new());
 
@@ -134,17 +128,11 @@ mod tests {
 
         let mut transactions = TransactionList::new();
 
-        transactions
-            .add(draft(date(2026, 10, 5), 3000, food, cash))
-            .unwrap();
+        transactions.add(draft(date(2026, 10, 5), 3000, food, cash));
 
-        transactions
-            .add(draft(date(2026, 10, 10), 4000, food, cash))
-            .unwrap();
+        transactions.add(draft(date(2026, 10, 10), 4000, food, cash));
 
-        transactions
-            .add(draft(date(2026, 10, 10), 10000, entertainment, cash))
-            .unwrap();
+        transactions.add(draft(date(2026, 10, 10), 10000, entertainment, cash));
 
         let ledger = Ledger::from_parts(items, transactions, BudgetList::new());
 
@@ -170,23 +158,15 @@ mod tests {
         let mut transactions = TransactionList::new();
 
         // 2025年：支出あり
-        transactions
-            .add(draft(date(2025, 10, 10), 3000, food, cash))
-            .unwrap();
+        transactions.add(draft(date(2025, 10, 10), 3000, food, cash));
 
         // 2026年：収入・負債のみ
-        transactions
-            .add(draft(date(2026, 10, 10), 10000, income, cash))
-            .unwrap();
+        transactions.add(draft(date(2026, 10, 10), 10000, income, cash));
 
-        transactions
-            .add(draft(date(2026, 11, 10), 5000, loan, cash))
-            .unwrap();
+        transactions.add(draft(date(2026, 11, 10), 5000, loan, cash));
 
         // 2027年：支出あり
-        transactions
-            .add(draft(date(2027, 10, 10), 5000, food, cash))
-            .unwrap();
+        transactions.add(draft(date(2027, 10, 10), 5000, food, cash));
 
         let ledger = Ledger::from_parts(items, transactions, BudgetList::new());
 
@@ -212,14 +192,10 @@ mod tests {
         let mut transactions = TransactionList::new();
 
         // 期間開始前なので集計されない
-        transactions
-            .add(draft(date(2026, 10, 5), 3000, food, cash))
-            .unwrap();
+        transactions.add(draft(date(2026, 10, 5), 3000, food, cash));
 
         // 期間内なので集計される
-        transactions
-            .add(draft(date(2026, 10, 15), 5000, food, cash))
-            .unwrap();
+        transactions.add(draft(date(2026, 10, 15), 5000, food, cash));
 
         let ledger = Ledger::from_parts(items, transactions, BudgetList::new());
 
@@ -243,13 +219,9 @@ mod tests {
 
         let mut transactions = TransactionList::new();
 
-        transactions
-            .add(draft(date(2026, 10, 10), 1_500_000_000, food, cash))
-            .unwrap();
+        transactions.add(draft(date(2026, 10, 10), 1_500_000_000, food, cash));
 
-        transactions
-            .add(draft(date(2026, 10, 10), 1_500_000_000, food, cash))
-            .unwrap();
+        transactions.add(draft(date(2026, 10, 10), 1_500_000_000, food, cash));
 
         let ledger = Ledger::from_parts(items, transactions, BudgetList::new());
 
@@ -269,13 +241,9 @@ mod tests {
 
         let mut transactions = TransactionList::new();
 
-        transactions
-            .add(draft(date(2026, 10, 10), 1_500_000_000, food, cash))
-            .unwrap();
+        transactions.add(draft(date(2026, 10, 10), 1_500_000_000, food, cash));
 
-        transactions
-            .add(draft(date(2026, 10, 20), 1_500_000_000, food, cash))
-            .unwrap();
+        transactions.add(draft(date(2026, 10, 20), 1_500_000_000, food, cash));
 
         let ledger = Ledger::from_parts(items, transactions, BudgetList::new());
 
@@ -302,9 +270,7 @@ mod tests {
 
         let mut transactions = TransactionList::new();
 
-        transactions
-            .add(draft(date(2026, 10, 10), 3000, food, cash))
-            .unwrap();
+        transactions.add(draft(date(2026, 10, 10), 3000, food, cash));
 
         let ledger = Ledger::from_parts(items, transactions, BudgetList::new());
 
@@ -322,13 +288,9 @@ mod tests {
 
         let mut transactions = TransactionList::new();
 
-        transactions
-            .add(draft(date(2026, 12, 10), 3000, food, cash))
-            .unwrap();
+        transactions.add(draft(date(2026, 12, 10), 3000, food, cash));
 
-        transactions
-            .add(draft(date(2027, 1, 10), 5000, food, cash))
-            .unwrap();
+        transactions.add(draft(date(2027, 1, 10), 5000, food, cash));
 
         let ledger = Ledger::from_parts(items, transactions, BudgetList::new());
 
