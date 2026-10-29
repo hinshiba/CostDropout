@@ -3,6 +3,7 @@
 use crate::app::AppState;
 use chrono::Datelike;
 use codo_core::period::YearMonth;
+use codo_core::report::calendar::expense_level;
 use codo_core::report::monthly::{DailySummary, monthly_summary};
 use gpui_kit::component::button::Button;
 use gpui_kit::*;
@@ -43,6 +44,14 @@ impl Render for ExpenseCalendar {
         // 月の集計
         let summary = monthly_summary(&self.state.read(cx).ledger, self.yearmonth);
 
+        // 月の一番多い日の支出
+        let max_expense = summary
+            .days()
+            .iter()
+            .map(|day| day.expense())
+            .max()
+            .unwrap_or_default();
+
         // 1日の前の空きマスの数（日曜始まり）
         let blank_days = self.yearmonth.first_day().weekday().num_days_from_sunday() as usize;
 
@@ -81,6 +90,7 @@ impl Render for ExpenseCalendar {
                             .h(px(80.))
                             .border_1()
                             .border_color(rgb(0xe0e0e0))
+                            .bg(level_color(expense_level(day.expense(), max_expense)))
                             .p_1()
                             .flex()
                             .flex_col()
@@ -131,5 +141,17 @@ impl Render for ExpenseCalendar {
             .child(month_selector)
             .child(weekday_header)
             .child(div().flex().flex_col().children(week_rows))
+    }
+}
+
+/// 支出の段階に対応するマスの色
+fn level_color(level: u8) -> Rgba {
+    match level {
+        0 => rgb(0xffffff),
+        1 => rgb(0xffebee),
+        2 => rgb(0xffcdd2),
+        3 => rgb(0xef9a9a),
+        4 => rgb(0xe57373),
+        _ => rgb(0xe53935),
     }
 }
