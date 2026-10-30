@@ -1,5 +1,5 @@
 use crate::app::AppState;
-use codo_core::period::Period;
+use codo_core::ledger::period::Period;
 use gpui_kit::component::button::Button;
 use gpui_kit::component::date_picker::{DatePicker, DatePickerState};
 use gpui_kit::component::input::{Input, InputState};

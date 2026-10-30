@@ -2,11 +2,11 @@
 
 use std::collections::BTreeMap;
 
-use crate::item::ItemId;
 use crate::ledger::Ledger;
-use crate::money::Money;
-use crate::period::Period;
-use crate::report::{Flow, flows_in};
+use crate::ledger::item::ItemId;
+use crate::ledger::money::Money;
+use crate::ledger::period::Period;
+use crate::ledger::report::{Flow, flows_in};
 
 /// 品目ごとの合計.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -64,8 +64,8 @@ pub fn by_item(ledger: &Ledger, period: Period, flow: Flow) -> Vec<ItemShare> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::period::YearMonth;
-    use crate::report::fixture::{Book, date};
+    use crate::ledger::period::YearMonth;
+    use crate::ledger::report::fixture::{Book, date};
 
     fn october() -> Period {
         Period::month(YearMonth::new(2026, 10).unwrap())

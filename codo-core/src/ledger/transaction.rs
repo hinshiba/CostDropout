@@ -1,11 +1,10 @@
 //! 取引のモデルと取引一覧
 
 use chrono::NaiveDate;
-use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
 
-use crate::item::{ItemId, Tag};
+use crate::ledger::item::{ItemId, Tag};
 
 mod amount;
 mod list;
@@ -16,18 +15,21 @@ pub use list::TransactionList;
 /// 取引を識別する ID.
 ///
 /// 別の月ファイルへ同時に追加されても衝突しないよう uuid を使う.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-pub struct TransactionId(Uuid);
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct TransactionId(pub(crate) Uuid);
 
 /// 帳簿に登録した取引.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Transaction {
     id: TransactionId,
-    #[serde(flatten)]
     draft: TransactionDraft,
 }
 
 impl Transaction {
+    pub(crate) fn new(id: TransactionId, draft: TransactionDraft) -> Self {
+        Self { id, draft }
+    }
+
     pub fn id(&self) -> TransactionId {
         self.id
     }
@@ -69,9 +71,8 @@ impl Transaction {
 }
 
 /// ID のない取引の内容.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TransactionDraft {
-    #[serde(with = "crate::serialization::toml_date")]
     date: NaiveDate,
     amount: Amount,
     item: ItemId,
@@ -103,7 +104,7 @@ impl TransactionDraft {
     /// # Errors
     ///
     /// `tag_of` のエラー.
-    /// `codo_core::transaction::check_tags` のエラー.
+    /// `codo_core::ledger::transaction::check_tags` のエラー.
     pub(crate) fn check_tags<E: From<TransactionError>>(
         &self,
         tag_of: impl Fn(ItemId) -> Result<Tag, E>,

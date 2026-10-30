@@ -1,6 +1,5 @@
 //! 金額のモデルと表示
 
-use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::iter::Sum;
 use std::ops::{Add, AddAssign, Sub, SubAssign};
@@ -8,10 +7,15 @@ use std::str::FromStr;
 use thiserror::Error;
 
 /// 金額を表現する.
-#[derive(
-    Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
-)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Money(i32);
+
+impl Money {
+    /// ファイルへの保存に使う内部の値を返す.
+    pub(crate) fn to_i32(self) -> i32 {
+        self.0
+    }
+}
 
 impl From<i32> for Money {
     fn from(value: i32) -> Self {
@@ -157,7 +161,7 @@ impl fmt::Display for Money {
     /// # Examples
     ///
     /// ```
-    /// use codo_core::money::Money;
+    /// use codo_core::ledger::money::Money;
     ///
     /// assert_eq!(Money::from(1234567).to_string(), "¥1,234,567");
     /// assert_eq!(Money::from(-1234).to_string(), "-¥1,234");
@@ -202,7 +206,7 @@ impl FromStr for Money {
     /// # Examples
     ///
     /// ```
-    /// use codo_core::money::Money;
+    /// use codo_core::ledger::money::Money;
     ///
     /// assert_eq!("¥1,234".parse::<Money>(), Ok(Money::from(1234)));
     /// assert_eq!("-¥1,234".parse::<Money>(), Ok(Money::from(-1234)));

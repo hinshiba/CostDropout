@@ -3,8 +3,8 @@
 use crate::app::AppState;
 use crate::transaction_fields::{FieldsChanged, FormError, TransactionFields, friendly_error};
 use chrono::Local;
-use codo_core::period::{Period, YearMonth};
-use codo_core::transaction::TransactionId;
+use codo_core::ledger::period::{Period, YearMonth};
+use codo_core::ledger::transaction::TransactionId;
 use gpui_kit::component::WindowExt;
 use gpui_kit::component::button::Button;
 use gpui_kit::component::table::{Table, TableBody, TableCell, TableHead, TableHeader, TableRow};
@@ -289,12 +289,10 @@ mod tests {
     use crate::app::AppState;
     use crate::transaction_fields::FieldsChanged;
     use chrono::Local;
-    use codo_core::{
-        item::{ItemId, Tag},
-        ledger::Ledger,
-        money::Money,
-        transaction::{TransactionDraft, TransactionId},
-    };
+    use codo_core::ledger::Ledger;
+    use codo_core::ledger::item::{ItemId, Tag};
+    use codo_core::ledger::money::Money;
+    use codo_core::ledger::transaction::{TransactionDraft, TransactionId};
     use gpui_kit::test::TestWindowExt;
     use gpui_kit::{
         AnyWindowHandle, App, AppContext, Entity, TestAppContext, Window, WindowOptions,

@@ -3,9 +3,9 @@
 use chrono::{Datelike, NaiveDate};
 
 use crate::ledger::Ledger;
-use crate::money::Money;
-use crate::period::{Period, YearMonth};
-use crate::report::{Flow, flows_in};
+use crate::ledger::money::Money;
+use crate::ledger::period::{Period, YearMonth};
+use crate::ledger::report::{Flow, flows_in};
 
 /// 1日分の収支.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -106,7 +106,7 @@ pub fn monthly_summary(ledger: &Ledger, ym: YearMonth) -> MonthlySummary {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::report::fixture::Book;
+    use crate::ledger::report::fixture::Book;
 
     /// テスト用の年月
     fn ym(year: i32, month: u32) -> YearMonth {

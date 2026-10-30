@@ -276,10 +276,10 @@ impl Render for App {
 mod tests {
     use super::{App, Page};
     use chrono::Local;
-    use codo_core::period::YearMonth;
-    use codo_core::{
+    use codo_core::ledger::period::YearMonth;
+    use codo_core::ledger::{
+        Ledger,
         item::Tag,
-        ledger::Ledger,
         money::Money,
         transaction::{Amount, TransactionDraft},
     };
