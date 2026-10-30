@@ -1,8 +1,9 @@
 //! 画面切り替えと共有画面の作成
 
 use crate::pages::{
-    expense_pie::ExpensePie, items::Items, monthly_report::MonthlyReport,
-    transaction_form::TransactionForm, transaction_list::TransactionList,
+    expense_bar_chart::ExpenseBarChart, expense_pie::ExpensePie, items::Items,
+    monthly_report::MonthlyReport, transaction_form::TransactionForm,
+    transaction_list::TransactionList,
 };
 use codo_core::ledger::Ledger;
 use gpui_kit::component::button::Button;
@@ -21,6 +22,7 @@ pub enum Page {
     TransactionList,
     ExpensePie,
     Items,
+    ExpenseBarChart,
     MonthlyReport,
 }
 
@@ -30,6 +32,7 @@ pub struct App {
     transaction_list: Entity<TransactionList>,
     expense_pie: Entity<ExpensePie>,
     items: Entity<Items>,
+    expense_bar_chart: Entity<ExpenseBarChart>,
     monthly_report: Entity<MonthlyReport>,
     page: Page,
     sidebar_open: bool,
@@ -50,6 +53,7 @@ impl App {
 
         let items = cx.new(|_| Items::new(state.clone()));
 
+        let expense_bar_chart = cx.new(|_| ExpenseBarChart::new(state.clone()));
         let monthly_report = cx.new(|_| MonthlyReport::new(state.clone()));
 
         Self {
@@ -59,6 +63,7 @@ impl App {
             items,
             monthly_report,
             page: Page::TransactionForm,
+            expense_bar_chart,
             sidebar_open: true,
         }
     }
@@ -127,6 +132,18 @@ impl Render for App {
                 }
             });
 
+        // 品目別の支出推移
+        let expense_bar_chart = SidebarMenuItem::new("支出推移（品目別）")
+            .active(self.page == Page::ExpenseBarChart)
+            .on_click({
+                let app = app.clone();
+
+                move |_, _, cx| {
+                    app.update(cx, |app, cx| {
+                        app.show_page(Page::ExpenseBarChart, cx);
+                    });
+                }
+            });
         // 月の収支
         let monthly_report = SidebarMenuItem::new("月の収支")
             .active(self.page == Page::MonthlyReport)
@@ -163,8 +180,9 @@ impl Render for App {
                             .py_4()
                             .child(transaction_form)
                             .child(transaction_list)
-                            .child(expense_pie)
                             .child(items)
+                            .child(expense_bar_chart)
+                            .child(expense_pie)
                             .child(monthly_report),
                     ),
             )
@@ -176,6 +194,7 @@ impl Render for App {
                     Page::TransactionList => div().child(self.transaction_list.clone()),
                     Page::ExpensePie => div().size_full().child(self.expense_pie.clone()),
                     Page::Items => div().child(self.items.clone()),
+                    Page::ExpenseBarChart => div().child(self.expense_bar_chart.clone()),
                     Page::MonthlyReport => div().child(self.monthly_report.clone()),
                 }),
             ))
@@ -199,7 +218,7 @@ mod tests {
             ledger
                 .add_transaction(TransactionDraft::new(
                     month.first_day(),
-                    Money(amount),
+                    Money::from(amount),
                     food,
                     cash,
                     String::new(),
@@ -234,7 +253,7 @@ mod tests {
             window.render_frame(cx);
             // Sidebar が割り当てる「グループ番号-項目番号」の ID でクリックする。
             assert!(window.find("0-2").visible());
-            window.click("0-2", cx);
+            window.click("0-4", cx);
             assert!(app.read(cx).page == Page::ExpensePie);
             window.render_frame(cx);
             assert!(window.find("previous-month").visible());
