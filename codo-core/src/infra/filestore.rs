@@ -437,17 +437,17 @@ comment = "昼食"
                 LedgerError::TransactionItemNotFound(_)
             ))
         ));
-        // 資産の品目は取引の品目として選べない
-        let invalid_tag = load_with_replaced(
+        // 資産の品目の相手先に支出の品目は選べない
+        let invalid_pair = load_with_replaced(
             "item = 1
 counterpart = 2",
             "item = 2
 counterpart = 1",
         );
         assert!(matches!(
-            invalid_tag,
+            invalid_pair,
             Err(StorageError::InvalidLedger(LedgerError::Transaction(
-                TransactionError::InvalidItemTag(Tag::Asset)
+                TransactionError::InvalidPair(Tag::Asset, Tag::Expense)
             )))
         ));
     }

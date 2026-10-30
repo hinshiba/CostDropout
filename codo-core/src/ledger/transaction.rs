@@ -180,63 +180,106 @@ pub enum TransactionError {
 mod tests {
     use super::*;
 
+    /// 取引にできる組と, その向き.
+    const PAIRS: [(Tag, Tag, Direction); 7] = [
+        (Tag::Income, Tag::Asset, Direction::Same),
+        (Tag::Expense, Tag::Asset, Direction::Opposite),
+        (Tag::Expense, Tag::Liability, Direction::Same),
+        (Tag::Liability, Tag::Asset, Direction::Same),
+        (Tag::Asset, Tag::Asset, Direction::Opposite),
+        (Tag::OpeningBalance, Tag::Asset, Direction::Same),
+        (Tag::OpeningBalance, Tag::Liability, Direction::Opposite),
+    ];
+
+    /// `item` と `counterpart` の取引の相手先の増減を求める.
+    fn counterpart_amount(
+        item: Tag,
+        counterpart: Tag,
+        amount: i32,
+    ) -> Result<Money, TransactionError> {
+        let [item_id, counterpart_id] = [ItemId(1), ItemId(2)];
+        let draft = TransactionDraft::new(
+            NaiveDate::from_ymd_opt(2026, 10, 12).unwrap(),
+            Money::from(amount),
+            item_id,
+            counterpart_id,
+            String::new(),
+        );
+        draft.counterpart_amount(|id| Ok(if id == item_id { item } else { counterpart }))
+    }
+
     #[test]
-    fn check_tags_test() {
-        for (item, counterpart) in [
-            (Tag::Expense, Tag::Asset),
-            (Tag::Expense, Tag::Liability),
-            (Tag::Income, Tag::Asset),
-            (Tag::Liability, Tag::Asset),
-            (Tag::Liability, Tag::OpeningBalance),
-        ] {
+    fn direction_of_test() {
+        for (item, counterpart, expected) in PAIRS {
             assert_eq!(
-                check_tags(item, counterpart),
-                Ok(()),
+                Direction::of(item, counterpart),
+                Ok(expected),
                 "{item:?} {counterpart:?}"
             );
         }
     }
 
     #[test]
-    fn check_tags_error_test() {
-        for (item, counterpart, expected) in [
-            (
-                Tag::Asset,
-                Tag::Income,
-                TransactionError::InvalidItemTag(Tag::Asset),
-            ),
-            (
-                Tag::OpeningBalance,
-                Tag::Asset,
-                TransactionError::InvalidItemTag(Tag::OpeningBalance),
-            ),
-            // 品目として選べないことを先に判定する
-            (
-                Tag::Asset,
-                Tag::Asset,
-                TransactionError::InvalidItemTag(Tag::Asset),
-            ),
-            (
-                Tag::Income,
-                Tag::Income,
-                TransactionError::SameTag(Tag::Income),
-            ),
-            (
-                Tag::Expense,
-                Tag::Expense,
-                TransactionError::SameTag(Tag::Expense),
-            ),
-            (
-                Tag::Liability,
-                Tag::Liability,
-                TransactionError::SameTag(Tag::Liability),
-            ),
-        ] {
-            assert_eq!(
-                check_tags(item, counterpart),
-                Err(expected),
-                "{item:?} {counterpart:?}"
-            );
+    fn direction_of_error_test() {
+        for item in Tag::ALL {
+            for counterpart in Tag::ALL {
+                if PAIRS.iter().any(|&(i, c, _)| (i, c) == (item, counterpart)) {
+                    continue;
+                }
+                assert_eq!(
+                    Direction::of(item, counterpart),
+                    Err(TransactionError::InvalidPair(item, counterpart)),
+                    "{item:?} {counterpart:?}"
+                );
+            }
         }
+    }
+
+    #[test]
+    fn counterpart_amount_test() {
+        for (item, counterpart, direction) in PAIRS {
+            for amount in [-1000, 0, 1000, i32::MAX] {
+                let expected = match direction {
+                    Direction::Same => amount,
+                    Direction::Opposite => -amount,
+                };
+                assert_eq!(
+                    counterpart_amount(item, counterpart, amount),
+                    Ok(Money::from(expected)),
+                    "{item:?} {counterpart:?} {amount}"
+                );
+            }
+        }
+    }
+
+    /// 同じ符号なら `i32::MIN` も相手先の増減として表せるが, 異なる符号では表せない.
+    #[test]
+    fn counterpart_amount_of_min_test() {
+        let min = Money::from(i32::MIN);
+        assert_eq!(
+            counterpart_amount(Tag::Income, Tag::Asset, i32::MIN),
+            Ok(min)
+        );
+        assert_eq!(
+            counterpart_amount(Tag::Expense, Tag::Asset, i32::MIN),
+            Err(TransactionError::CounterpartOverflow(min))
+        );
+    }
+
+    #[test]
+    fn counterpart_amount_rejects_same_item_test() {
+        let cash = ItemId(1);
+        let draft = TransactionDraft::new(
+            NaiveDate::from_ymd_opt(2026, 10, 12).unwrap(),
+            Money::from(1000),
+            cash,
+            cash,
+            String::new(),
+        );
+
+        assert_eq!(
+            draft.counterpart_amount(|_| Ok::<_, TransactionError>(Tag::Asset)),
+            Err(TransactionError::SameItem(cash))
+        );
     }
 }
