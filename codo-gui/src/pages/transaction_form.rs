@@ -180,7 +180,8 @@ mod tests {
         let mut ledger = Ledger::new();
         let cash = ledger.add_item("現金", Tag::Asset).unwrap();
         let bank = ledger.add_item("銀行口座", Tag::Asset).unwrap();
-        let state = cx.new(|_| AppState { ledger });
+        let (state, _directory) = AppState::for_test(ledger);
+        let state = cx.new(|_| state);
         let (handle, form) = cx.update(|cx| {
             gpui_kit::open_window(WindowOptions::default(), cx, |window, cx| {
                 cx.new(|cx| TransactionForm::new(state.clone(), window, cx))
@@ -198,7 +199,7 @@ mod tests {
         })
         .unwrap();
         cx.read(|cx| {
-            let ledger = &state.read(cx).ledger;
+            let ledger = state.read(cx).ledger();
             let transaction = ledger.transactions().iter().next().unwrap();
             assert_eq!(
                 (transaction.item(), transaction.counterpart()),
