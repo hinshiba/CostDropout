@@ -5,8 +5,11 @@ use crate::pages::{
     monthly_report::MonthlyReport, transaction_form::TransactionForm,
     transaction_list::TransactionList,
 };
+use chrono::Local;
 use codo_core::ledger::Ledger;
 use gpui_kit::component::button::Button;
+use gpui_kit::component::date_picker::DatePickerState;
+use gpui_kit::component::input::InputState;
 use gpui_kit::component::sidebar::{Sidebar, SidebarMenu, SidebarMenuItem};
 use gpui_kit::*;
 
@@ -56,9 +59,27 @@ impl App {
         let items = cx.new(|_| Items::new(state.clone()));
 
         let expense_bar_chart = cx.new(|_| ExpenseBarChart::new(state.clone()));
+
         let monthly_report = cx.new(|_| MonthlyReport::new(state.clone()));
 
-        let budget = cx.new(|_| BudgetPage::new());
+        let budget = cx.new(|cx| {
+            let amount = cx.new(|cx| InputState::new(window, cx).placeholder("予算額"));
+
+            let start_date = cx.new(|cx| {
+                let mut state = DatePickerState::new(window, cx);
+                state.set_date(Local::now().date_naive(), window, cx);
+                state
+            });
+
+            let end_date = cx.new(|cx| {
+                let mut state = DatePickerState::new(window, cx);
+                state.set_date(Local::now().date_naive(), window, cx);
+                state
+            });
+
+            BudgetPage::new(state.clone(), amount, start_date, end_date)
+        });
+
         Self {
             transaction_form,
             transaction_list,
