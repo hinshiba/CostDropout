@@ -1,37 +1,11 @@
 //! 取引の日付・金額・品目を入力して帳簿に追加する画面。
 
 use crate::app::AppState;
-use crate::transaction_fields::{FieldsChanged, TransactionFields};
-use codo_core::ledger::LedgerError;
-use codo_core::transaction::TransactionError;
+use crate::transaction_fields::{FieldsChanged, TransactionFields, friendly_error};
 use codo_core::transaction_input::{FormError, submit_transaction};
 use gpui_kit::component::button::Button;
 use gpui_kit::prelude::FluentBuilder;
 use gpui_kit::*;
-
-/// コアのエラーを、画面利用者向けのメッセージに変換する。
-fn friendly_error(error: &FormError) -> String {
-    match error {
-        FormError::Ledger(error) => match error {
-            LedgerError::TransactionItemNotFound(_) => {
-                "選択した品目または相手先が見つかりません。選び直してください".into()
-            }
-            LedgerError::InvalidItemTag(tag) => format!(
-                "{}の品目は取引の品目として選べません。収入・支出・負債から選んでください",
-                tag.label()
-            ),
-            LedgerError::SameTag(tag) => format!(
-                "品目と相手先がどちらも{}です。異なる分類の品目を選んでください",
-                tag.label()
-            ),
-            LedgerError::Transaction(TransactionError::SameItemAndCounterpart(_)) => {
-                "品目と相手先には異なる品目を選んでください".into()
-            }
-            _ => "取引を追加できませんでした。品目と相手先を確認してください".into(),
-        },
-        error => error.to_string(),
-    }
-}
 
 /// 共有帳簿に取引を追加する画面。
 pub struct TransactionForm {

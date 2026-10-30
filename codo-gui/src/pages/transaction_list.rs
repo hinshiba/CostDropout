@@ -1,9 +1,11 @@
 //! 月別の取引一覧と削除操作。
 
 use crate::app::AppState;
+use crate::transaction_fields::{TransactionFields, friendly_error};
 use chrono::Local;
 use codo_core::period::YearMonth;
 use codo_core::transaction::TransactionId;
+use codo_core::transaction_input::{FormError, submit_transaction_update};
 use gpui_kit::component::WindowExt;
 use gpui_kit::component::button::Button;
 use gpui_kit::component::table::{Table, TableBody, TableCell, TableHead, TableHeader, TableRow};
@@ -15,6 +17,8 @@ pub struct TransactionList {
     state: Entity<AppState>,
     month: YearMonth,
     error_message: Option<String>,
+    editing: Option<(TransactionId, Entity<TransactionFields>)>,
+    edit_error: Option<String>,
     scroll_handle: ScrollHandle,
     _subscription: Subscription,
 }
@@ -26,6 +30,8 @@ impl TransactionList {
             state,
             month: YearMonth::from_date(Local::now().date_naive()),
             error_message: None,
+            editing: None,
+            edit_error: None,
             scroll_handle: ScrollHandle::new(),
             _subscription: subscription,
         }
@@ -78,6 +84,62 @@ impl TransactionList {
         self.error_message = result.err().map(|error| error.to_string());
         cx.notify();
     }
+
+    /// 取引の訂正を始める. 入力欄に今の値を入れて, 訂正パネルを開く.
+    fn start_edit(&mut self, id: TransactionId, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(transaction) = self.state.read(cx).ledger.transactions().get(id).cloned() else {
+            return;
+        };
+        let state = self.state.clone();
+        let fields = cx.new(|cx| TransactionFields::new(state, window, cx));
+        fields.update(cx, |fields, cx| fields.set_values(&transaction, window, cx));
+        self.editing = Some((id, fields));
+        self.edit_error = None;
+        self.error_message = None;
+        cx.notify();
+    }
+
+    /// 訂正をやめて, 訂正パネルを閉じる.
+    fn cancel_edit(&mut self, cx: &mut Context<Self>) {
+        self.editing = None;
+        self.edit_error = None;
+        cx.notify();
+    }
+
+    /// 訂正を確定する. 成功したら訂正パネルを閉じる.
+    fn confirm_edit(&mut self, cx: &mut Context<Self>) {
+        let Some((id, fields)) = self.editing.clone() else {
+            return;
+        };
+        let values = fields.read(cx).values(cx);
+        let result: Result<(), FormError> = self.state.update(cx, |state, cx| {
+            submit_transaction_update(
+                &mut state.ledger,
+                id,
+                values.date,
+                &values.amount,
+                values.item,
+                values.counterpart,
+                values.comment,
+            )?;
+            cx.notify();
+            Ok(())
+        });
+        match result {
+            Ok(()) => {
+                self.editing = None;
+                self.edit_error = None;
+            }
+            Err(error @ FormError::Amount(_)) => {
+                fields.update(cx, |fields, cx| {
+                    fields.set_amount_error(Some(friendly_error(&error)), cx)
+                });
+                self.edit_error = None;
+            }
+            Err(error) => self.edit_error = Some(friendly_error(&error)),
+        }
+        cx.notify();
+    }
 }
 
 impl Render for TransactionList {
@@ -107,16 +169,65 @@ impl Render for TransactionList {
                     .child(TableCell::new().child(transaction.comment().to_string()))
                     .child(
                         TableCell::new().child(
-                            Button::new(format!("remove-transaction-{id:?}"))
-                                .label("削除")
-                                .on_click(cx.listener(move |this, _, window, cx| {
-                                    this.confirm_remove_transaction(id, label.clone(), window, cx)
-                                })),
+                            div()
+                                .flex()
+                                .gap_2()
+                                .child(
+                                    Button::new(format!("edit-transaction-{id:?}"))
+                                        .label("編集")
+                                        .on_click(cx.listener(move |this, _, window, cx| {
+                                            this.start_edit(id, window, cx)
+                                        })),
+                                )
+                                .child(
+                                    Button::new(format!("remove-transaction-{id:?}"))
+                                        .label("削除")
+                                        .on_click(cx.listener(move |this, _, window, cx| {
+                                            this.confirm_remove_transaction(
+                                                id,
+                                                label.clone(),
+                                                window,
+                                                cx,
+                                            )
+                                        })),
+                                ),
                         ),
                     )
             })
             .collect::<Vec<_>>();
         let count = rows.len();
+
+        let edit_panel = self.editing.as_ref().map(|(_, fields)| {
+            div()
+                .flex()
+                .flex_col()
+                .gap_4()
+                .p_4()
+                .border_1()
+                .border_color(rgb(0xe0e0e0))
+                .rounded_md()
+                .max_w(px(560.))
+                .child(div().text_lg().child("取引を訂正"))
+                .child(fields.clone())
+                .when_some(self.edit_error.clone(), |this, message| {
+                    this.child(div().text_color(rgb(0xc62828)).child(message))
+                })
+                .child(
+                    div()
+                        .flex()
+                        .gap_2()
+                        .child(
+                            Button::new("confirm-edit")
+                                .label("確定")
+                                .on_click(cx.listener(|this, _, _, cx| this.confirm_edit(cx))),
+                        )
+                        .child(
+                            Button::new("cancel-edit")
+                                .label("キャンセル")
+                                .on_click(cx.listener(|this, _, _, cx| this.cancel_edit(cx))),
+                        ),
+                )
+        });
         let table = Table::new()
             .min_w(px(720.))
             .child(
@@ -153,6 +264,7 @@ impl Render for TransactionList {
             .when_some(self.error_message.clone(), |this, message| {
                 this.child(div().text_color(rgb(0xc62828)).child(message))
             })
+            .children(edit_panel)
             .child(
                 div()
                     .id("transaction-list-scroll")

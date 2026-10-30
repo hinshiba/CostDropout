@@ -3,7 +3,9 @@
 use crate::app::AppState;
 use chrono::{Local, NaiveDate};
 use codo_core::item::{Item, ItemId, Tag};
-use codo_core::transaction_input::{counterpart_choices, item_choices};
+use codo_core::ledger::LedgerError;
+use codo_core::transaction::{Transaction, TransactionError};
+use codo_core::transaction_input::{FormError, counterpart_choices, item_choices};
 use gpui_kit::component::date_picker::{DatePicker, DatePickerEvent, DatePickerState};
 use gpui_kit::component::input::{Input, InputEvent, InputState};
 use gpui_kit::component::select::{Select, SelectEvent, SelectItem, SelectState};
@@ -198,6 +200,32 @@ impl TransactionFields {
             input.update(cx, |state, cx| state.set_value("", window, cx));
         }
     }
+
+    /// 取引の値を入力欄に入れる. 訂正のときに使う.
+    pub fn set_values(
+        &mut self,
+        transaction: &Transaction,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.controls.date.update(cx, |state, cx| {
+            state.set_date(transaction.date(), window, cx)
+        });
+        self.controls.amount.update(cx, |state, cx| {
+            state.set_value(transaction.amount().to_string(), window, cx)
+        });
+        self.controls.comment.update(cx, |state, cx| {
+            state.set_value(transaction.comment().to_string(), window, cx)
+        });
+        self.controls.item.update(cx, |state, cx| {
+            state.set_selected_value(&transaction.item(), window, cx)
+        });
+        // 品目に合わせて相手先の候補を作ってから, 相手先を選ぶ
+        self.refresh_choices(window, cx);
+        self.controls.counterpart.update(cx, |state, cx| {
+            state.set_selected_value(&transaction.counterpart(), window, cx)
+        });
+    }
 }
 
 #[cfg(test)]
@@ -276,5 +304,32 @@ impl From<&Item> for ItemChoice {
             name: item.name().to_string().into(),
             tag: item.tag(),
         }
+    }
+}
+
+/// コアのエラーを、画面利用者向けのメッセージに変換する。
+pub fn friendly_error(error: &FormError) -> String {
+    match error {
+        FormError::Ledger(error) => match error {
+            LedgerError::TransactionItemNotFound(_) => {
+                "選択した品目または相手先が見つかりません。選び直してください".into()
+            }
+            LedgerError::InvalidItemTag(tag) => format!(
+                "{}の品目は取引の品目として選べません。収入・支出・負債から選んでください",
+                tag.label()
+            ),
+            LedgerError::SameTag(tag) => format!(
+                "品目と相手先がどちらも{}です。異なる分類の品目を選んでください",
+                tag.label()
+            ),
+            LedgerError::Transaction(TransactionError::SameItemAndCounterpart(_)) => {
+                "品目と相手先には異なる品目を選んでください".into()
+            }
+            LedgerError::Transaction(TransactionError::NotFound(_)) => {
+                "訂正する取引が見つかりません。一覧を確認してください".into()
+            }
+            _ => "取引を保存できませんでした。品目と相手先を確認してください".into(),
+        },
+        error => error.to_string(),
     }
 }
