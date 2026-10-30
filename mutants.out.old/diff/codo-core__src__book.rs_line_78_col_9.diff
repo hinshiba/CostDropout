@@ -1,0 +1,27 @@
+--- codo-core/src/book.rs
++++ replace Book<S, H>::load -> Result<Self, BookError> with Ok(Default::default())
+@@ -70,23 +70,17 @@
+ 
+ impl<S: LedgerStore, H: History> Book<S, H> {
+     /// 保存先から帳簿を読み込む.
+     ///
+     /// # Errors
+     ///
+     /// `LedgerStore::load` のエラー.
+     pub fn load(store: S, history: H) -> Result<Self, BookError> {
+-        let ledger = store.load()?;
+-        Ok(Self {
+-            store,
+-            history,
+-            saved: ledger.clone(),
+-            ledger,
+-        })
++        Ok(Default::default()) /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     /// 帳簿を返す.
+     pub fn ledger(&self) -> &Ledger {
+         &self.ledger
+     }
+ 
+     /// 変更できる帳簿を返す.

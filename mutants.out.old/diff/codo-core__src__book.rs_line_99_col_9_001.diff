@@ -1,0 +1,21 @@
+--- codo-core/src/book.rs
++++ replace Book<S, H>::is_dirty -> bool with false
+@@ -91,17 +91,17 @@
+ 
+     /// 変更できる帳簿を返す.
+     pub fn ledger_mut(&mut self) -> &mut Ledger {
+         &mut self.ledger
+     }
+ 
+     /// 最後に保存した帳簿と内容が異なるか.
+     pub fn is_dirty(&self) -> bool {
+-        self.ledger != self.saved
++        false /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     //保存した最新の帳簿を読み込んで反映する．
+     fn reload(&mut self) -> Result<(), BookError> {
+         self.ledger = self.store.load()?;
+         self.saved = self.ledger.clone();
+         Ok(())
+     }

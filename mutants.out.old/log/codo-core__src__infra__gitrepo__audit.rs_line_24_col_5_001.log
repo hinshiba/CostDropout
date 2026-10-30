@@ -1,0 +1,140 @@
+
+*** codo-core/src/infra/gitrepo/audit.rs:24:5: replace log -> Result<Vec<CommitInfo>, AuditError> with Ok(vec![Default::default()])
+
+*** mutation diff:
+--- codo-core/src/infra/gitrepo/audit.rs
++++ replace log -> Result<Vec<CommitInfo>, AuditError> with Ok(vec![Default::default()])
+@@ -16,75 +16,17 @@
+     /// コミットメッセージ
+     pub message: String,
+ }
+ 
+ /// HEAD から遡るコミットを新しい順に最大 `limit` 件返す。
+ ///
+ /// `limit` が `0` の場合と、コミットがないリポジトリでは空の `Vec` を返す。
+ pub fn log(repo: &GitRepo, limit: usize) -> Result<Vec<CommitInfo>, AuditError> {
+-    if limit == 0 {
+-        return Ok(Vec::new());
+-    }
+-
+-    let head = git_command(repo.path())
+-        .args(["rev-parse", "--verify", "--quiet", "HEAD"])
+-        .output()
+-        .map_err(GitError::Command)?;
+-
+-    if !head.status.success() {
+-        return Ok(Vec::new());
+-    }
+-
+-    let git_limit = limit.min(i32::MAX as usize);
+-
+-    let output = git_command(repo.path())
+-        .arg("log")
+-        .arg("--pretty=tformat:%H%x00%an%x00%aI%x00%B%x00")
+-        .arg("-n")
+-        .arg(git_limit.to_string())
+-        .output()
+-        .map_err(GitError::Command)?;
+-
+-    if !output.status.success() {
+-        return Err(GitError::CommandFailed(
+-            "git log -n".to_string(),
+-            String::from_utf8_lossy(&output.stderr).trim().to_string(),
+-        )
+-        .into());
+-    }
+-
+-    let text = String::from_utf8_lossy(&output.stdout);
+-    let mut fields = text.split('\0');
+-    let mut logs = Vec::new();
+-
+-    while let Some(hash) = fields.next() {
+-        let hash = hash.trim();
+-        if hash.is_empty() {
+-            continue;
+-        }
+-        let author = fields.next().ok_or(AuditError::OutputDataFailed)?;
+-        let date_text = fields.next().ok_or(AuditError::OutputDataFailed)?;
+-        let date = DateTime::parse_from_rfc3339(date_text).map_err(|source| {
+-            AuditError::DateTimeFailed {
+-                date_text: date_text.to_string(),
+-                source,
+-            }
+-        })?;
+-        let message = fields.next().ok_or(AuditError::OutputDataFailed)?;
+-
+-        logs.push(CommitInfo {
+-            hash: hash.to_string(),
+-            author: author.to_string(),
+-            date,
+-            message: message.trim_end_matches('\n').to_string(),
+-        });
+-    }
+-
+-    Ok(logs)
++    Ok(vec![Default::default()]) /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ /// 指定したコミットの第1親を取得する
+ fn first_parent(repo: &GitRepo, hash: &str) -> Result<Option<String>, AuditError> {
+     let output = git_command(repo.path())
+         .args(["rev-list", "--parents", "-n", "1"])
+         .arg("--end-of-options")
+         .arg(hash)
+
+
+*** C:\\Users\\motoka\ ren\\.rustup\\toolchains\\stable-aarch64-pc-windows-msvc\\bin\\cargo.exe test --no-run --verbose --package=codo-core@0.1.0
+       Fresh unicode-ident v1.0.26
+       Fresh autocfg v1.5.1
+       Fresh windows-link v0.2.1
+       Fresh cfg-if v1.0.5
+       Fresh proc-macro2 v1.0.107
+       Fresh winnow v1.0.4
+       Fresh toml_writer v1.1.2+spec-1.1.0
+       Fresh quote v1.0.47
+       Fresh serde_core v1.0.229
+       Fresh getrandom v0.4.3
+       Fresh toml_parser v1.1.3+spec-1.1.0
+       Fresh windows-sys v0.61.2
+       Fresh once_cell v1.21.4
+       Fresh fastrand v2.5.0
+       Fresh syn v3.0.6
+       Fresh num-traits v0.2.19
+       Fresh serde_spanned v1.1.1
+       Fresh toml_datetime v1.1.1+spec-1.1.0
+       Fresh uuid v1.26.1
+       Fresh tempfile v3.27.0
+       Fresh serde_derive v1.0.229
+       Fresh thiserror-impl v2.0.21
+       Fresh toml v1.1.6+spec-1.1.0
+       Fresh serde v1.0.229
+       Fresh thiserror v2.0.21
+       Fresh chrono v0.4.45
+       Dirty codo-core v0.1.0 (C:\Users\motoka ren\CostDropout\codo-core): the file `codo-core\src\infra\gitrepo\audit.rs` has changed (13437857222.036370400s, 9s after last build at 13437857213.744747100s)
+   Compiling codo-core v0.1.0 (C:\Users\motoka ren\CostDropout\codo-core)
+     Running `C:\Users\motoka ren\.rustup\toolchains\stable-aarch64-pc-windows-msvc\bin\rustc.exe --crate-name codo_core --edition=2024 codo-core\src\lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --emit=dep-info,link -C embed-bitcode=no -C debuginfo=2 --test --check-cfg cfg(docsrs,test) --check-cfg "cfg(feature, values())" -C metadata=634c37a14c66b141 -C extra-filename=-aa2efa74124bc3cf --out-dir "C:\Users\motoka ren\CostDropout\target\debug\deps" -C "incremental=C:\Users\motoka ren\CostDropout\target\debug\incremental" -L "dependency=C:\Users\motoka ren\CostDropout\target\debug\deps" --extern "chrono=C:\Users\motoka ren\CostDropout\target\debug\deps\libchrono-b583c5db377e5c7f.rlib" --extern "serde=C:\Users\motoka ren\CostDropout\target\debug\deps\libserde-73c1611331c701f9.rlib" --extern "tempfile=C:\Users\motoka ren\CostDropout\target\debug\deps\libtempfile-e32dac550154354b.rlib" --extern "thiserror=C:\Users\motoka ren\CostDropout\target\debug\deps\libthiserror-c8cd5ea7754ebbb5.rlib" --extern "toml=C:\Users\motoka ren\CostDropout\target\debug\deps\libtoml-9bdf0c052588d19d.rlib" --extern "uuid=C:\Users\motoka ren\CostDropout\target\debug\deps\libuuid-af0d6211f74adf0d.rlib"`
+     Running `C:\Users\motoka ren\.rustup\toolchains\stable-aarch64-pc-windows-msvc\bin\rustc.exe --crate-name codo_core --edition=2024 codo-core\src\lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --crate-type lib --emit=dep-info,metadata,link -C embed-bitcode=no -C debuginfo=2 --check-cfg cfg(docsrs,test) --check-cfg "cfg(feature, values())" -C metadata=cc860a47a5baec1a -C extra-filename=-c1940edf2b9003a4 --out-dir "C:\Users\motoka ren\CostDropout\target\debug\deps" -C "incremental=C:\Users\motoka ren\CostDropout\target\debug\incremental" -L "dependency=C:\Users\motoka ren\CostDropout\target\debug\deps" --extern "chrono=C:\Users\motoka ren\CostDropout\target\debug\deps\libchrono-b583c5db377e5c7f.rmeta" --extern "serde=C:\Users\motoka ren\CostDropout\target\debug\deps\libserde-73c1611331c701f9.rmeta" --extern "thiserror=C:\Users\motoka ren\CostDropout\target\debug\deps\libthiserror-c8cd5ea7754ebbb5.rmeta" --extern "toml=C:\Users\motoka ren\CostDropout\target\debug\deps\libtoml-9bdf0c052588d19d.rmeta" --extern "uuid=C:\Users\motoka ren\CostDropout\target\debug\deps\libuuid-af0d6211f74adf0d.rmeta"`
+error[E0277]: the trait bound `CommitInfo: Default` is not satisfied
+  --> codo-core\src\infra\gitrepo\audit.rs:24:13
+   |
+24 |     Ok(vec![Default::default()]) /* ~ changed by cargo-mutants ~ */
+   |             ^^^^^^^^^^^^^^^^^^ the trait `Default` is not implemented for `CommitInfo`
+   |
+help: consider annotating `CommitInfo` with `#[derive(Default)]`
+   |
+ 9 + #[derive(Default)]
+10 | pub struct CommitInfo {
+   |
+
+For more information about this error, try `rustc --explain E0277`.
+error: could not compile `codo-core` (lib) due to 1 previous error
+
+Caused by:
+  process didn't exit successfully: `C:\Users\motoka ren\.rustup\toolchains\stable-aarch64-pc-windows-msvc\bin\rustc.exe --crate-name codo_core --edition=2024 codo-core\src\lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --crate-type lib --emit=dep-info,metadata,link -C embed-bitcode=no -C debuginfo=2 --check-cfg cfg(docsrs,test) --check-cfg "cfg(feature, values())" -C metadata=cc860a47a5baec1a -C extra-filename=-c1940edf2b9003a4 --out-dir "C:\Users\motoka ren\CostDropout\target\debug\deps" -C "incremental=C:\Users\motoka ren\CostDropout\target\debug\incremental" -L "dependency=C:\Users\motoka ren\CostDropout\target\debug\deps" --extern "chrono=C:\Users\motoka ren\CostDropout\target\debug\deps\libchrono-b583c5db377e5c7f.rmeta" --extern "serde=C:\Users\motoka ren\CostDropout\target\debug\deps\libserde-73c1611331c701f9.rmeta" --extern "thiserror=C:\Users\motoka ren\CostDropout\target\debug\deps\libthiserror-c8cd5ea7754ebbb5.rmeta" --extern "toml=C:\Users\motoka ren\CostDropout\target\debug\deps\libtoml-9bdf0c052588d19d.rmeta" --extern "uuid=C:\Users\motoka ren\CostDropout\target\debug\deps\libuuid-af0d6211f74adf0d.rmeta"` (exit code: 1)
+warning: build failed, waiting for other jobs to finish...
+error: could not compile `codo-core` (lib test) due to 1 previous error
+
+Caused by:
+  process didn't exit successfully: `C:\Users\motoka ren\.rustup\toolchains\stable-aarch64-pc-windows-msvc\bin\rustc.exe --crate-name codo_core --edition=2024 codo-core\src\lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --emit=dep-info,link -C embed-bitcode=no -C debuginfo=2 --test --check-cfg cfg(docsrs,test) --check-cfg "cfg(feature, values())" -C metadata=634c37a14c66b141 -C extra-filename=-aa2efa74124bc3cf --out-dir "C:\Users\motoka ren\CostDropout\target\debug\deps" -C "incremental=C:\Users\motoka ren\CostDropout\target\debug\incremental" -L "dependency=C:\Users\motoka ren\CostDropout\target\debug\deps" --extern "chrono=C:\Users\motoka ren\CostDropout\target\debug\deps\libchrono-b583c5db377e5c7f.rlib" --extern "serde=C:\Users\motoka ren\CostDropout\target\debug\deps\libserde-73c1611331c701f9.rlib" --extern "tempfile=C:\Users\motoka ren\CostDropout\target\debug\deps\libtempfile-e32dac550154354b.rlib" --extern "thiserror=C:\Users\motoka ren\CostDropout\target\debug\deps\libthiserror-c8cd5ea7754ebbb5.rlib" --extern "toml=C:\Users\motoka ren\CostDropout\target\debug\deps\libtoml-9bdf0c052588d19d.rlib" --extern "uuid=C:\Users\motoka ren\CostDropout\target\debug\deps\libuuid-af0d6211f74adf0d.rlib"` (exit code: 1)
+
+*** result: Failure(101)

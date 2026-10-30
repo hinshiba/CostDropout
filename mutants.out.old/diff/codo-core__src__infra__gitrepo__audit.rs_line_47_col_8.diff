@@ -1,0 +1,21 @@
+--- codo-core/src/infra/gitrepo/audit.rs
++++ delete ! in log
+@@ -39,17 +39,17 @@
+     let output = git_command(repo.path())
+         .arg("log")
+         .arg("--pretty=tformat:%H%x00%an%x00%aI%x00%B%x00")
+         .arg("-n")
+         .arg(git_limit.to_string())
+         .output()
+         .map_err(GitError::Command)?;
+ 
+-    if !output.status.success() {
++    if  /* ~ changed by cargo-mutants ~ */output.status.success() {
+         return Err(GitError::CommandFailed(
+             "git log -n".to_string(),
+             String::from_utf8_lossy(&output.stderr).trim().to_string(),
+         )
+         .into());
+     }
+ 
+     let text = String::from_utf8_lossy(&output.stdout);

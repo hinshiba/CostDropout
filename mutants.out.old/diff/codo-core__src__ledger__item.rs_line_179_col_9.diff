@@ -1,0 +1,27 @@
+--- codo-core/src/ledger/item.rs
++++ replace ItemList::update -> Result<(), ItemError> with Ok(())
+@@ -171,23 +171,17 @@
+     /// 名前の前後の空白は取り除く.
+     ///
+     /// # Errors
+     ///
+     /// 空白を取り除いた名前が空の場合は `ItemError::EmptyName` エラー.
+     /// 他の品目と名前が同じ場合は `ItemError::DuplicateName` エラー.
+     /// 品目が存在しない場合は `ItemError::NotFound` エラー.
+     pub(crate) fn update(&mut self, id: ItemId, name: &str, tag: Tag) -> Result<(), ItemError> {
+-        let name = self.validate_name(name, Some(id))?;
+-        let index = self.index_of(id)?;
+-
+-        let item = &mut self.items[index];
+-        item.name = name.to_string();
+-        item.tag = tag;
+-        Ok(())
++        Ok(()) /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     /// 品目を削除する.
+     ///
+     /// # Errors
+     ///
+     /// 品目が存在しない場合は `ItemError::NotFound` エラー.
+     pub(crate) fn remove(&mut self, id: ItemId) -> Result<(), ItemError> {

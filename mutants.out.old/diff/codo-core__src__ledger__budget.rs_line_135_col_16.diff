@@ -1,0 +1,21 @@
+--- codo-core/src/ledger/budget.rs
++++ delete ! in BudgetList::from_budgets
+@@ -127,17 +127,17 @@
+     pub fn from_budgets(mut budgets: Vec<Budget>) -> Result<Self, BudgetError> {
+         let mut ids = HashSet::new();
+         let mut periods = HashSet::new();
+ 
+         for budget in &budgets {
+             if !periods.insert(budget.period()) {
+                 return Err(BudgetError::DuplicatePeriod);
+             }
+-            if !ids.insert(budget.id()) {
++            if  /* ~ changed by cargo-mutants ~ */ids.insert(budget.id()) {
+                 return Err(BudgetError::DuplicateId(budget.id()));
+             }
+         }
+         // IDの昇順に並び替える
+         budgets.sort_by_key(|budget| budget.id().0);
+ 
+         Ok(Self { budgets })
+     }

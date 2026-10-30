@@ -1,0 +1,21 @@
+--- codo-core/src/ledger/transaction.rs
++++ delete ! in check_item_tag
+@@ -117,17 +117,17 @@
+ /// 取引の品目として選べるタグかを検査する.
+ ///
+ /// 収入, 支出, 負債だけが選べる.
+ ///
+ /// # Errors
+ ///
+ /// 選べない場合は `TransactionError::InvalidItemTag` エラー.
+ pub(crate) fn check_item_tag(tag: Tag) -> Result<(), TransactionError> {
+-    if !matches!(tag, Tag::Income | Tag::Expense | Tag::Liability) {
++    if  /* ~ changed by cargo-mutants ~ */matches!(tag, Tag::Income | Tag::Expense | Tag::Liability) {
+         return Err(TransactionError::InvalidItemTag(tag));
+     }
+     Ok(())
+ }
+ 
+ /// 取引の品目と相手先のタグの組み合わせを検査する.
+ ///
+ /// # Errors

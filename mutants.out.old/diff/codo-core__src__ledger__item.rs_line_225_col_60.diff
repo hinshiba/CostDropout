@@ -1,0 +1,21 @@
+--- codo-core/src/ledger/item.rs
++++ replace != with == in ItemList::validate_name
+@@ -217,17 +217,17 @@
+         if name.is_empty() {
+             return Err(ItemError::EmptyName);
+         }
+ 
+         // 重複だと気づかせるために, 特別に空白を取り除いた名前を入れる
+         if self
+             .items
+             .iter()
+-            .any(|item| item.name == name && Some(item.id) != id)
++            .any(|item| item.name == name && Some(item.id) == /* ~ changed by cargo-mutants ~ */ id)
+         {
+             return Err(ItemError::DuplicateName(name.to_string()));
+         }
+         Ok(name)
+     }
+ }
+ 
+ #[derive(Debug, Error, PartialEq, Eq)]

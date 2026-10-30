@@ -1,0 +1,25 @@
+--- codo-core/src/infra/filestore/record.rs
++++ replace <impl From<&Item> for ItemRecord>::from -> Self with Default::default()
+@@ -47,21 +47,17 @@
+     id: u32,
+     name: String,
+     #[serde(with = "TagRecord")]
+     tag: Tag,
+ }
+ 
+ impl From<&Item> for ItemRecord {
+     fn from(item: &Item) -> Self {
+-        Self {
+-            id: item.id().0,
+-            name: item.name().to_string(),
+-            tag: item.tag(),
+-        }
++        Default::default() /* ~ changed by cargo-mutants ~ */
+     }
+ }
+ 
+ impl From<ItemRecord> for Item {
+     fn from(record: ItemRecord) -> Self {
+         Item::new(ItemId(record.id), record.name, record.tag)
+     }
+ }

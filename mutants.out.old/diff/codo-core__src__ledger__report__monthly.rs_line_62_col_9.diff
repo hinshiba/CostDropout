@@ -1,0 +1,21 @@
+--- codo-core/src/ledger/report/monthly.rs
++++ replace MonthlySummary::days -> &[DailySummary] with Vec::leak(Vec::new())
+@@ -54,17 +54,17 @@
+ 
+     /// 月の支出を返す.
+     pub fn expense(&self) -> Money {
+         self.expense
+     }
+ 
+     /// 1日から末日までの日ごとの収支を返す.
+     pub fn days(&self) -> &[DailySummary] {
+-        &self.days
++        Vec::leak(Vec::new()) /* ~ changed by cargo-mutants ~ */
+     }
+ }
+ 
+ /// 1か月の収支と, 1日から末日までの日ごとの内訳を集計する.
+ ///
+ /// 取引がない日も0として含める.
+ ///
+ /// # Panics

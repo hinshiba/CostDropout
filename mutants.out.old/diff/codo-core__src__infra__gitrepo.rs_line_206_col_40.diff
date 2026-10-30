@@ -1,0 +1,21 @@
+--- codo-core/src/infra/gitrepo.rs
++++ replace || with && in GitRepo::pull_rebase
+@@ -198,17 +198,17 @@
+             .map_err(GitError::Command)?;
+ 
+         if output.status.success() {
+             return Ok(());
+         }
+ 
+         let stderr = String::from_utf8_lossy(&output.stderr);
+ 
+-        if stderr.contains("CONFLICT") || stderr.contains("could not apply") {
++        if stderr.contains("CONFLICT") && /* ~ changed by cargo-mutants ~ */ stderr.contains("could not apply") {
+             let _ = git_command(&self.path).args(["rebase", "--abort"]).output();
+ 
+             return Err(GitError::Conflict);
+         }
+ 
+         Err(GitError::CommandFailed(
+             "git -C <path> pull --rebase".to_string(),
+             stderr.trim().to_string(),

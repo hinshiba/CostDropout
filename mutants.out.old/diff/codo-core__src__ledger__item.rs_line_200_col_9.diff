@@ -1,0 +1,24 @@
+--- codo-core/src/ledger/item.rs
++++ replace ItemList::index_of -> Result<usize, ItemError> with Ok(0)
+@@ -192,20 +192,17 @@
+     /// 品目が存在しない場合は `ItemError::NotFound` エラー.
+     pub(crate) fn remove(&mut self, id: ItemId) -> Result<(), ItemError> {
+         let index = self.index_of(id)?;
+         self.items.remove(index);
+         Ok(())
+     }
+ 
+     fn index_of(&self, id: ItemId) -> Result<usize, ItemError> {
+-        self.items
+-            .iter()
+-            .position(|item| item.id == id)
+-            .ok_or(ItemError::NotFound(id))
++        Ok(0) /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     /// 前後の空白を取り除いた名前を返す.
+     ///
+     /// `id` の品目は重複の判定から除く.
+     ///
+     /// # Errors
+     ///

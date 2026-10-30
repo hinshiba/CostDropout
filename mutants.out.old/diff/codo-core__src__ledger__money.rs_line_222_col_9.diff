@@ -1,0 +1,32 @@
+--- codo-core/src/ledger/money.rs
++++ replace <impl FromStr for Money>::from_str -> Result<Self, Self::Err> with Ok(Default::default())
+@@ -214,28 +214,17 @@
+     /// assert_eq!("\\1 234".parse::<Money>(), Ok(Money::from(1234)));
+     /// ```
+     ///
+     /// # Errors
+     ///
+     /// 不正な形式の場合は `MoneyError::Parse` エラー.
+     /// 表現可能な範囲を超える場合は `MoneyError::Overflow` エラー.
+     fn from_str(s: &str) -> Result<Self, Self::Err> {
+-        let significant: String = s.chars().filter(|&c| !is_ignored(c)).collect();
+-        let digits = significant.strip_prefix(['+', '-']).unwrap_or(&significant);
+-
+-        if !is_digits(digits) {
+-            return Err(MoneyError::Parse(s.to_string()));
+-        }
+-
+-        // 形式は検証済みなので, 失敗するのは範囲外の場合に限る
+-        significant
+-            .parse::<i32>()
+-            .map(Money)
+-            .map_err(|_| MoneyError::Overflow)
++        Ok(Default::default()) /* ~ changed by cargo-mutants ~ */
+     }
+ }
+ 
+ #[derive(Debug, Error, PartialEq, Eq)]
+ pub enum MoneyError {
+     /// 金額として解釈できない文字列である場合.
+     #[error("金額として解釈できない文字列です: {0}")]
+     Parse(String),

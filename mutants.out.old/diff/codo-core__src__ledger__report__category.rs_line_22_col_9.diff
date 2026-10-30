@@ -1,0 +1,21 @@
+--- codo-core/src/ledger/report/category.rs
++++ replace ItemShare::item -> ItemId with Default::default()
+@@ -14,17 +14,17 @@
+     item: ItemId,
+     amount: Money,
+     ratio: f64,
+ }
+ 
+ impl ItemShare {
+     /// 品目を返す.
+     pub fn item(&self) -> ItemId {
+-        self.item
++        Default::default() /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     /// 品目の合計を返す.
+     pub fn amount(&self) -> Money {
+         self.amount
+     }
+ 
+     /// 期間内で同じ分類の総額に対する割合を返す.

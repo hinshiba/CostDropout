@@ -1,0 +1,21 @@
+--- codo-core/src/ledger/budget.rs
++++ delete ! in BudgetList::from_budgets
+@@ -124,17 +124,17 @@
+     /// IDの重複を検知した場合はエラーを返す
+     ///
+     /// IDまたは期間が重複している場合はエラーを返す
+     pub fn from_budgets(mut budgets: Vec<Budget>) -> Result<Self, BudgetError> {
+         let mut ids = HashSet::new();
+         let mut periods = HashSet::new();
+ 
+         for budget in &budgets {
+-            if !periods.insert(budget.period()) {
++            if  /* ~ changed by cargo-mutants ~ */periods.insert(budget.period()) {
+                 return Err(BudgetError::DuplicatePeriod);
+             }
+             if !ids.insert(budget.id()) {
+                 return Err(BudgetError::DuplicateId(budget.id()));
+             }
+         }
+         // IDの昇順に並び替える
+         budgets.sort_by_key(|budget| budget.id().0);

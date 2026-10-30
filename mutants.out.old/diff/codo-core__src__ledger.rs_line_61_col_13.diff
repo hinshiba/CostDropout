@@ -1,0 +1,21 @@
+--- codo-core/src/ledger.rs
++++ delete field items from struct Self expression in Ledger::with_presets
+@@ -53,17 +53,17 @@
+     /// 新しい空の帳簿を作成する.
+     pub fn new() -> Self {
+         Self::default()
+     }
+ 
+     /// プリセット品目を登録した帳簿を作成する.
+     pub fn with_presets() -> Self {
+         Self {
+-            items: preset_items(),
++             /* ~ changed by cargo-mutants ~ */
+             ..Self::default()
+         }
+     }
+ 
+     /// 品目一覧, 取引一覧, 予算一覧から帳簿を作成する.
+     ///
+     /// # Errors
+     ///

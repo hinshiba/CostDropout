@@ -1,0 +1,21 @@
+--- codo-core/src/ledger/money.rs
++++ replace <impl Sum<&'a Money> for Money>::sum -> Self with Default::default()
+@@ -143,17 +143,17 @@
+ 
+ impl<'a> Sum<&'a Money> for Money {
+     /// 金額を合計する.
+     ///
+     /// # Panics
+     ///
+     /// 途中の合計が `i32` の範囲を超える場合はパニック.
+     fn sum<I: Iterator<Item = &'a Money>>(iter: I) -> Self {
+-        iter.fold(Money(0), |total, item| total + *item)
++        Default::default() /* ~ changed by cargo-mutants ~ */
+     }
+ }
+ 
+ impl fmt::Display for Money {
+     /// 金額を整形して出力する.
+     ///
+     /// Unicode CLDR の ja ロケールの通貨書式にできるだけ準拠する.
+     /// ただし通貨記号として U+00A5 `¥` を用いる.

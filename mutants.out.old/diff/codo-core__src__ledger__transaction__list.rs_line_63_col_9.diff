@@ -1,0 +1,21 @@
+--- codo-core/src/ledger/transaction/list.rs
++++ replace TransactionList::uses_item -> bool with true
+@@ -55,17 +55,17 @@
+ 
+     /// ID が `id` である取引を返す.
+     pub fn get(&self, id: TransactionId) -> Option<&Transaction> {
+         self.transactions.iter().find(|t| t.id == id)
+     }
+ 
+     /// 品目または相手先として `item` を使う取引があるかを判定する.
+     pub(crate) fn uses_item(&self, item: ItemId) -> bool {
+-        self.transactions.iter().any(|t| t.uses(item))
++        true /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     /// 取引を追加し, 新しい ID を割り当てる.
+     pub(crate) fn add(&mut self, draft: TransactionDraft) -> TransactionId {
+         let id = TransactionId(Uuid::new_v4());
+         self.transactions.push(Transaction { id, draft });
+         self.sort();
+         id

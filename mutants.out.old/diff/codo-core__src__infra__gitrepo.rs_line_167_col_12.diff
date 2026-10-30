@@ -1,0 +1,21 @@
+--- codo-core/src/infra/gitrepo.rs
++++ delete ! in GitRepo::has_remote
+@@ -159,17 +159,17 @@
+ 
+         if !output.status.success() {
+             return Err(GitError::CommandFailed(
+                 "git -C <path> remote".to_string(),
+                 String::from_utf8_lossy(&output.stderr).trim().to_string(),
+             ));
+         }
+ 
+-        Ok(!String::from_utf8_lossy(&output.stdout).trim().is_empty())
++        Ok( /* ~ changed by cargo-mutants ~ */String::from_utf8_lossy(&output.stdout).trim().is_empty())
+     }
+ 
+     //git pushを実行して成功・失敗．その他の失敗を判定
+     pub fn push(&self) -> Result<(), GitError> {
+         let output = git_command(&self.path)
+             .args(["push", "--porcelain"])
+             .output()
+             .map_err(GitError::Command)?;

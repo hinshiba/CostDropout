@@ -1,0 +1,27 @@
+--- codo-core/src/ledger/report/calendar.rs
++++ replace expense_level -> u8 with 0
+@@ -4,23 +4,17 @@
+ 
+ /// 色の段階の数
+ pub const EXPENSE_LEVELS: u8 = 5;
+ 
+ /// その日の支出から，色の段階（0から EXPENSE_LEVELS まで）を求める
+ ///
+ /// 支出が0の日は0．それ以外は，月の最大支出を EXPENSE_LEVELS 等分して切り上げる
+ pub fn expense_level(expense: Money, max: Money) -> u8 {
+-    if !expense.is_positive() || !max.is_positive() {
+-        return 0;
+-    }
+-
+-    let ratio = expense.ratio(max).expect("maxは正なので割合は必ず求まる");
+-    let level = (ratio * f64::from(EXPENSE_LEVELS)).ceil();
+-    (level as u8).min(EXPENSE_LEVELS)
++    0 /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ #[cfg(test)]
+ mod tests {
+     use super::*;
+ 
+     #[test]
+     fn expense_level_is_zero_when_no_expense() {

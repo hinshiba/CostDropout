@@ -1,0 +1,28 @@
+--- codo-core/src/ledger/report/budget.rs
++++ replace BudgetStatus::calculate -> Result<BudgetStatus, BudgetError> with Ok(Default::default())
+@@ -41,24 +41,17 @@
+     /// # Errors
+     ///
+     /// 予算が存在しない場合は `BudgetError::NotFound` エラー.
+     ///
+     /// # Panics
+     ///
+     /// 支出の合計または残額が `i32` の範囲を超える場合はパニック.
+     pub fn calculate(ledger: &Ledger, id: BudgetId) -> Result<BudgetStatus, BudgetError> {
+-        let budget = ledger.budgets().get(id).ok_or(BudgetError::NotFound(id))?;
+-        let spent = expense_total(ledger, budget.period());
+-        Ok(BudgetStatus {
+-            budget: budget.clone(),
+-            spent,
+-            remaining: budget.amount() - spent,
+-            ratio: spent.ratio(budget.amount()),
+-        })
++        Ok(Default::default()) /* ~ changed by cargo-mutants ~ */
+     }
+ }
+ 
+ #[cfg(test)]
+ mod tests {
+     use super::*;
+     use crate::ledger::period::{Period, YearMonth};
+     use crate::ledger::report::fixture::{Book, date};

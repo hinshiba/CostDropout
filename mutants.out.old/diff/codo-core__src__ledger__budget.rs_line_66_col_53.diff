@@ -1,0 +1,21 @@
+--- codo-core/src/ledger/budget.rs
++++ replace == with != in BudgetList::get
+@@ -58,17 +58,17 @@
+ impl BudgetList {
+     pub fn new() -> Self {
+         Self {
+             budgets: Vec::new(),
+         }
+     }
+ 
+     pub fn get(&self, id: BudgetId) -> Option<&Budget> {
+-        self.budgets.iter().find(|budget| budget.id == id)
++        self.budgets.iter().find(|budget| budget.id != /* ~ changed by cargo-mutants ~ */ id)
+     }
+ 
+     /// 予算の追加
+     pub fn add(&mut self, amount: Money, period: Period) -> Result<BudgetId, BudgetError> {
+         if self.budgets.iter().any(|budget| budget.period == period) {
+             return Err(BudgetError::DuplicatePeriod);
+         }
+         let max_id = self

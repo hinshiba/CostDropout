@@ -1,0 +1,21 @@
+--- codo-core/src/ledger/report.rs
++++ replace expense_total -> Money with Default::default()
+@@ -68,17 +68,17 @@
+ }
+ 
+ /// 期間内の支出を合計する.
+ ///
+ /// # Panics
+ ///
+ /// 合計が `i32` の範囲を超える場合はパニック.
+ pub fn expense_total(ledger: &Ledger, period: Period) -> Money {
+-    total(ledger, period, Flow::Expense)
++    Default::default() /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ /// 集計のテストで共有する帳簿.
+ #[cfg(test)]
+ mod fixture {
+     use chrono::NaiveDate;
+ 
+     use crate::ledger::Ledger;

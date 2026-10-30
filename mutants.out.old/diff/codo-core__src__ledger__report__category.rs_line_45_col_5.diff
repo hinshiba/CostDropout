@@ -1,0 +1,37 @@
+--- codo-core/src/ledger/report/category.rs
++++ replace by_item -> Vec<ItemShare> with vec![]
+@@ -37,33 +37,17 @@
+ ///
+ /// 金額の大きい順, 同じ金額なら品目の ID の小さい順に並ぶ.
+ /// 該当する取引のない品目は含めない.
+ ///
+ /// # Panics
+ ///
+ /// 合計が `i32` の範囲を超える場合はパニック.
+ pub fn by_item(ledger: &Ledger, period: Period, flow: Flow) -> Vec<ItemShare> {
+-    let mut amounts: BTreeMap<ItemId, Money> = BTreeMap::new();
+-    for (tx, _) in flows_in(ledger, period).filter(|&(_, f)| f == flow) {
+-        *amounts.entry(tx.item()).or_default() += Money::from(tx.amount());
+-    }
+-
+-    let total: Money = amounts.values().sum();
+-    let mut result: Vec<ItemShare> = amounts
+-        .into_iter()
+-        .map(|(item, amount)| ItemShare {
+-            item,
+-            amount,
+-            // 取引の金額は正なので, 1件でもあれば総額は0にならない
+-            ratio: amount.ratio(total).expect("総額は0でない"),
+-        })
+-        .collect();
+-    result.sort_by(|a, b| b.amount.cmp(&a.amount).then(a.item.cmp(&b.item)));
+-    result
++    vec![] /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ #[cfg(test)]
+ mod tests {
+     use super::*;
+     use crate::ledger::period::YearMonth;
+     use crate::ledger::report::fixture::{Book, date};
+ 

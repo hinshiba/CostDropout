@@ -1,0 +1,671 @@
+
+*** codo-core/src/ledger/item.rs:225:35: replace == with != in ItemList::validate_name
+
+*** mutation diff:
+--- codo-core/src/ledger/item.rs
++++ replace == with != in ItemList::validate_name
+@@ -217,17 +217,17 @@
+         if name.is_empty() {
+             return Err(ItemError::EmptyName);
+         }
+ 
+         // 重複だと気づかせるために, 特別に空白を取り除いた名前を入れる
+         if self
+             .items
+             .iter()
+-            .any(|item| item.name == name && Some(item.id) != id)
++            .any(|item| item.name != /* ~ changed by cargo-mutants ~ */ name && Some(item.id) != id)
+         {
+             return Err(ItemError::DuplicateName(name.to_string()));
+         }
+         Ok(name)
+     }
+ }
+ 
+ #[derive(Debug, Error, PartialEq, Eq)]
+
+
+*** C:\\Users\\motoka\ ren\\.rustup\\toolchains\\stable-aarch64-pc-windows-msvc\\bin\\cargo.exe test --no-run --verbose --package=codo-core@0.1.0
+       Fresh unicode-ident v1.0.26
+       Fresh autocfg v1.5.1
+       Fresh cfg-if v1.0.5
+       Fresh windows-link v0.2.1
+       Fresh proc-macro2 v1.0.107
+       Fresh winnow v1.0.4
+       Fresh toml_writer v1.1.2+spec-1.1.0
+       Fresh serde_core v1.0.229
+       Fresh quote v1.0.47
+       Fresh getrandom v0.4.3
+       Fresh toml_parser v1.1.3+spec-1.1.0
+       Fresh windows-sys v0.61.2
+       Fresh once_cell v1.21.4
+       Fresh fastrand v2.5.0
+       Fresh syn v3.0.6
+       Fresh serde_spanned v1.1.1
+       Fresh toml_datetime v1.1.1+spec-1.1.0
+       Fresh num-traits v0.2.19
+       Fresh uuid v1.26.1
+       Fresh tempfile v3.27.0
+       Fresh serde_derive v1.0.229
+       Fresh thiserror-impl v2.0.21
+       Fresh toml v1.1.6+spec-1.1.0
+       Fresh serde v1.0.229
+       Fresh thiserror v2.0.21
+       Fresh chrono v0.4.45
+       Dirty codo-core v0.1.0 (C:\Users\motoka ren\CostDropout\codo-core): the file `codo-core\src\ledger\item.rs` has changed (13437856310.393221900s, 8s after last build at 13437856302.649733900s)
+   Compiling codo-core v0.1.0 (C:\Users\motoka ren\CostDropout\codo-core)
+     Running `C:\Users\motoka ren\.rustup\toolchains\stable-aarch64-pc-windows-msvc\bin\rustc.exe --crate-name codo_core --edition=2024 codo-core\src\lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --emit=dep-info,link -C embed-bitcode=no -C debuginfo=2 --test --check-cfg cfg(docsrs,test) --check-cfg "cfg(feature, values())" -C metadata=634c37a14c66b141 -C extra-filename=-aa2efa74124bc3cf --out-dir "C:\Users\motoka ren\CostDropout\target\debug\deps" -C "incremental=C:\Users\motoka ren\CostDropout\target\debug\incremental" -L "dependency=C:\Users\motoka ren\CostDropout\target\debug\deps" --extern "chrono=C:\Users\motoka ren\CostDropout\target\debug\deps\libchrono-b583c5db377e5c7f.rlib" --extern "serde=C:\Users\motoka ren\CostDropout\target\debug\deps\libserde-73c1611331c701f9.rlib" --extern "tempfile=C:\Users\motoka ren\CostDropout\target\debug\deps\libtempfile-e32dac550154354b.rlib" --extern "thiserror=C:\Users\motoka ren\CostDropout\target\debug\deps\libthiserror-c8cd5ea7754ebbb5.rlib" --extern "toml=C:\Users\motoka ren\CostDropout\target\debug\deps\libtoml-9bdf0c052588d19d.rlib" --extern "uuid=C:\Users\motoka ren\CostDropout\target\debug\deps\libuuid-af0d6211f74adf0d.rlib"`
+     Running `C:\Users\motoka ren\.rustup\toolchains\stable-aarch64-pc-windows-msvc\bin\rustc.exe --crate-name codo_core --edition=2024 codo-core\src\lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --crate-type lib --emit=dep-info,metadata,link -C embed-bitcode=no -C debuginfo=2 --check-cfg cfg(docsrs,test) --check-cfg "cfg(feature, values())" -C metadata=cc860a47a5baec1a -C extra-filename=-c1940edf2b9003a4 --out-dir "C:\Users\motoka ren\CostDropout\target\debug\deps" -C "incremental=C:\Users\motoka ren\CostDropout\target\debug\incremental" -L "dependency=C:\Users\motoka ren\CostDropout\target\debug\deps" --extern "chrono=C:\Users\motoka ren\CostDropout\target\debug\deps\libchrono-b583c5db377e5c7f.rmeta" --extern "serde=C:\Users\motoka ren\CostDropout\target\debug\deps\libserde-73c1611331c701f9.rmeta" --extern "thiserror=C:\Users\motoka ren\CostDropout\target\debug\deps\libthiserror-c8cd5ea7754ebbb5.rmeta" --extern "toml=C:\Users\motoka ren\CostDropout\target\debug\deps\libtoml-9bdf0c052588d19d.rmeta" --extern "uuid=C:\Users\motoka ren\CostDropout\target\debug\deps\libuuid-af0d6211f74adf0d.rmeta"`
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.26s
+  Executable `C:\Users\motoka ren\CostDropout\target\debug\deps\codo_core-aa2efa74124bc3cf.exe`
+
+*** result: Success
+
+*** C:\\Users\\motoka\ ren\\.rustup\\toolchains\\stable-aarch64-pc-windows-msvc\\bin\\cargo.exe test --verbose --package=codo-core@0.1.0
+       Fresh unicode-ident v1.0.26
+       Fresh autocfg v1.5.1
+       Fresh cfg-if v1.0.5
+       Fresh windows-link v0.2.1
+       Fresh proc-macro2 v1.0.107
+       Fresh winnow v1.0.4
+       Fresh toml_writer v1.1.2+spec-1.1.0
+       Fresh serde_core v1.0.229
+       Fresh quote v1.0.47
+       Fresh getrandom v0.4.3
+       Fresh toml_parser v1.1.3+spec-1.1.0
+       Fresh windows-sys v0.61.2
+       Fresh once_cell v1.21.4
+       Fresh fastrand v2.5.0
+       Fresh syn v3.0.6
+       Fresh toml_datetime v1.1.1+spec-1.1.0
+       Fresh num-traits v0.2.19
+       Fresh serde_spanned v1.1.1
+       Fresh uuid v1.26.1
+       Fresh tempfile v3.27.0
+       Fresh serde_derive v1.0.229
+       Fresh thiserror-impl v2.0.21
+       Fresh toml v1.1.6+spec-1.1.0
+       Fresh serde v1.0.229
+       Fresh thiserror v2.0.21
+       Fresh chrono v0.4.45
+       Fresh codo-core v0.1.0 (C:\Users\motoka ren\CostDropout\codo-core)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.30s
+     Running `C:\Users\motoka ren\CostDropout\target\debug\deps\codo_core-aa2efa74124bc3cf.exe`
+
+running 150 tests
+test book::tests::memory_store_load_before_save_returns_empty_ledger ... ok
+test book::tests::is_dirty_compares_with_saved_ledger ... FAILED
+test book::tests::load_returns_clean_book ... FAILED
+test book::tests::memory_store_save_then_load_returns_same_ledger ... FAILED
+test book::tests::open_rejects_missing_dir ... ok
+test book::tests::save_does_not_commit_when_store_fails ... FAILED
+test book::tests::save_keeps_dirty_when_commit_fails ... FAILED
+test book::tests::save_stores_then_commits ... FAILED
+test book::tests::sync_propagates_has_remote_error ... FAILED
+test book::tests::sync_pulls_then_pushes_when_rejected ... FAILED
+test book::tests::sync_returns_conflict_when_pull_rebase_fails ... FAILED
+test book::tests::sync_pushes_when_remote_exists ... FAILED
+test book::tests::sync_returns_error_when_dirty ... FAILED
+test book::tests::sync_succeeds_without_remote ... FAILED
+test infra::filestore::tests::month_of_file_returns_year_month_only_for_month_file ... ok
+test infra::filestore::tests::toml_store_invalid_budget_period_test ... ok
+test infra::filestore::tests::toml_store_budget_round_trip_test ... ok
+test infra::filestore::tests::toml_store_load_empty_dir_returns_empty_ledger ... ok
+test infra::filestore::tests::toml_store_load_ignores_non_toml_file ... FAILED
+test infra::filestore::tests::toml_store_load_ignores_non_month_file ... FAILED
+test infra::filestore::tests::toml_store_keeps_file_format ... ok
+test infra::filestore::tests::toml_store_load_missing_dir_returns_empty_ledger ... ok
+test infra::filestore::tests::toml_store_load_rejects_date_with_time ... FAILED
+test infra::filestore::tests::toml_store_load_rejects_duplicate_transaction_id ... FAILED
+test infra::filestore::tests::toml_store_load_rejects_invalid_ledger ... FAILED
+test infra::filestore::tests::toml_store_load_rejects_non_positive_amount ... FAILED
+test infra::filestore::tests::toml_store_save_keeps_non_month_file ... FAILED
+test infra::filestore::tests::toml_store_save_keeps_non_toml_file ... FAILED
+test infra::filestore::tests::toml_store_save_removes_empty_month_file ... FAILED
+test infra::filestore::tests::toml_store_save_then_load_returns_same_ledger ... FAILED
+test infra::filestore::tests::toml_store_save_twice_keeps_same_content ... FAILED
+test infra::filestore::tests::toml_store_writes_files_by_month ... FAILED
+test infra::filestore::tests::toml_store_writes_date_as_toml_date ... FAILED
+test book::tests::open_rejects_non_repository ... ok
+test book::tests::history_has_remote_returns_false ... ok
+test book::tests::open_loads_repository ... ok
+test infra::gitrepo::audit::tests::changed_files_returns_error_for_invalid_hash ... ok
+test book::tests::sync_pulls_remote_changes_into_book ... FAILED
+test infra::gitrepo::audit::tests::log_on_empty_repository_returns_empty_vec ... ok
+test book::tests::save_commits_to_repository ... ok
+test infra::gitrepo::audit::tests::changed_files_returns_changed_file_names ... ok
+test infra::gitrepo::audit::tests::log_handles_usize_max_limit ... ok
+test infra::gitrepo::audit::tests::log_preserves_multiline_message_and_pipe ... ok
+test infra::gitrepo::audit::tests::log_with_zero_limit_returns_empty_vec ... ok
+test infra::gitrepo::audit::tests::show_diff_returns_error_for_invalid_hash ... ok
+test infra::gitrepo::audit::tests::changed_files_returns_files_for_each_commit ... ok
+test infra::gitrepo::tests::commit_all_returns_none_when_no_changes ... ok
+test infra::gitrepo::tests::commit_all_accepts_empty_message ... ok
+test infra::gitrepo::tests::has_remote_returns_false_without_remote ... ok
+test ledger::budget::tests::add_id_overflow_test ... ok
+test ledger::budget::tests::add_test ... ok
+test ledger::budget::tests::budget_id_value_test ... ok
+test ledger::budget::tests::duplicate_period_test ... ok
+test ledger::budget::tests::from_budgets_duplicate_id_test ... ok
+test infra::gitrepo::audit::tests::show_diff_returns_added_content ... ok
+test ledger::budget::tests::from_budgets_duplicate_period_test ... ok
+test ledger::budget::tests::remove_not_found_test ... ok
+test ledger::budget::tests::remove_test ... ok
+test ledger::budget::tests::update_not_found_test ... ok
+test ledger::budget::tests::update_duplicate_period_test ... ok
+test ledger::budget::tests::update_test ... ok
+test ledger::item::tests::add_after_remove_test ... FAILED
+test ledger::item::tests::add_error_test ... ok
+test ledger::item::tests::add_max_id_test ... FAILED
+test ledger::item::tests::add_test ... FAILED
+test ledger::item::tests::from_items_error_test ... ok
+test ledger::item::tests::from_items_test ... ok
+test ledger::item::tests::remove_error_test ... ok
+test ledger::item::tests::remove_test ... ok
+test ledger::item::tests::update_error_test ... FAILED
+test ledger::item::tests::update_test ... FAILED
+test ledger::money::tests::display_from_str_roundtrip_test ... ok
+test ledger::money::tests::display_test ... ok
+test ledger::money::tests::from_str_overflow_test ... ok
+test ledger::money::tests::from_str_parse_error_test ... ok
+test ledger::money::tests::from_str_test ... ok
+test ledger::money::tests::into_f64_test ... ok
+test ledger::period::tests::days_test ... ok
+test ledger::period::tests::display_from_str_roundtrip_test ... ok
+test ledger::period::tests::from_str_parse_error_test ... ok
+test infra::gitrepo::tests::has_remote_returns_true ... ok
+test ledger::period::tests::from_str_test ... ok
+test ledger::period::tests::months_test ... ok
+test ledger::period::tests::new_error_test ... ok
+test ledger::period::tests::new_test ... ok
+test ledger::period::tests::period_new_test ... ok
+test ledger::preset::tests::preset_items_test ... FAILED
+test ledger::report::budget::tests::calculate_error_test ... ok
+test ledger::report::budget::tests::calculate_test ... FAILED
+test infra::gitrepo::tests::commit_all_creates_commit_and_returns_hash ... ok
+test ledger::report::calendar::tests::expense_level_does_not_overflow_with_large_amounts ... ok
+test ledger::report::calendar::tests::expense_level_is_one_for_smallest_expense ... ok
+test ledger::report::calendar::tests::expense_level_is_zero_when_expense_is_negative ... ok
+test ledger::report::calendar::tests::expense_level_is_highest_at_max ... ok
+test ledger::report::calendar::tests::expense_level_is_zero_when_max_is_zero ... ok
+test ledger::report::calendar::tests::expense_level_is_zero_when_no_expense ... ok
+test ledger::report::calendar::tests::expense_level_rounds_up_at_boundaries ... ok
+test ledger::report::category::tests::by_item_expense_sorts_larger_amount_first_test ... FAILED
+test ledger::report::category::tests::by_item_expense_test ... FAILED
+test ledger::report::category::tests::by_item_income_test ... FAILED
+test ledger::report::category::tests::by_item_without_expense_test ... FAILED
+test ledger::report::monthly::tests::monthly_summary_adds_amounts_to_each_day ... FAILED
+test ledger::report::monthly::tests::monthly_summary_has_28_or_29_days_in_february ... ok
+test ledger::report::monthly::tests::monthly_summary_has_every_day_of_month ... FAILED
+test ledger::report::monthly::tests::monthly_summary_of_month_without_transactions_is_all_zero ... FAILED
+test ledger::report::monthly::tests::monthly_summary_overflow_test - should panic ... ok
+test ledger::report::monthly::tests::monthly_summary_totals_match_sum_of_days ... FAILED
+test ledger::report::tests::flow_from_tag_test ... ok
+test ledger::report::tests::total_overflow_test - should panic ... ok
+test ledger::report::tests::total_test ... FAILED
+test ledger::report::trend::tests::monthly_expense_overflow_test - should panic ... ok
+test ledger::report::trend::tests::monthly_expense_test ... FAILED
+test ledger::report::trend::tests::monthly_expense_with_item_test ... FAILED
+test ledger::report::trend::tests::yearly_expense_one_or_no_transaction_test ... FAILED
+test ledger::report::trend::tests::yearly_expense_overflow_test - should panic ... ok
+test ledger::report::trend::tests::yearly_expense_test ... FAILED
+test ledger::tests::add_transaction_error_test ... FAILED
+test ledger::tests::add_transaction_test ... FAILED
+test ledger::tests::budget_error_is_converted_to_ledger_error ... ok
+test ledger::tests::counterpart_choices_test ... FAILED
+test ledger::tests::choices_reflect_item_changes_test ... FAILED
+test ledger::tests::from_parts_error_test ... FAILED
+test ledger::tests::remove_item_error_test ... FAILED
+test ledger::tests::remove_transaction_error_test ... FAILED
+test ledger::tests::update_budget_delegates_to_budget_list ... ok
+test ledger::tests::item_choices_test ... FAILED
+test ledger::tests::update_item_test ... FAILED
+test ledger::tests::update_transaction_error_test ... FAILED
+test ledger::tests::update_transaction_test ... FAILED
+test ledger::tests::update_item_error_test ... FAILED
+test ledger::transaction::amount::tests::from_str_test ... ok
+test ledger::transaction::amount::tests::try_from_error_test ... ok
+test ledger::transaction::amount::tests::try_from_test ... ok
+test ledger::transaction::amount::tests::display_test ... ok
+test ledger::transaction::list::tests::add_test ... FAILED
+test ledger::transaction::list::tests::from_transactions_test ... FAILED
+test ledger::transaction::list::tests::from_transactions_error_test ... FAILED
+test ledger::transaction::list::tests::add_keeps_order_test ... FAILED
+test ledger::transaction::list::tests::remove_error_test ... FAILED
+test ledger::transaction::list::tests::remove_test ... FAILED
+test ledger::transaction::list::tests::update_error_test ... FAILED
+test ledger::transaction::list::tests::iter_in_test ... FAILED
+test ledger::transaction::list::tests::uses_item_test ... FAILED
+test ledger::transaction::tests::check_tags_error_test ... ok
+test ledger::transaction::tests::check_tags_test ... ok
+test ledger::transaction::list::tests::update_test ... FAILED
+test infra::gitrepo::audit::tests::log_returns_commits_in_newest_first_order ... ok
+test infra::gitrepo::audit::tests::merge_commit_uses_first_parent_for_audit ... ok
+test infra::gitrepo::tests::push_returns_rejected_when_remote_has_new_commit ... ok
+test infra::gitrepo::tests::pull_rebase_returns_conflict ... ok
+
+failures:
+
+---- book::tests::is_dirty_compares_with_saved_ledger stdout ----
+
+thread 'book::tests::is_dirty_compares_with_saved_ledger' (976) panicked at codo-core\src\ledger\preset.rs:29:14:
+プリセット品目は有効なので到達不能: DuplicateName("娯楽")
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- book::tests::load_returns_clean_book stdout ----
+
+thread 'book::tests::load_returns_clean_book' (35436) panicked at codo-core\src\ledger\preset.rs:29:14:
+プリセット品目は有効なので到達不能: DuplicateName("娯楽")
+
+---- book::tests::memory_store_save_then_load_returns_same_ledger stdout ----
+
+thread 'book::tests::memory_store_save_then_load_returns_same_ledger' (34644) panicked at codo-core\src\ledger\preset.rs:29:14:
+プリセット品目は有効なので到達不能: DuplicateName("娯楽")
+
+---- book::tests::save_does_not_commit_when_store_fails stdout ----
+
+thread 'book::tests::save_does_not_commit_when_store_fails' (27552) panicked at codo-core\src\ledger\preset.rs:29:14:
+プリセット品目は有効なので到達不能: DuplicateName("娯楽")
+
+---- book::tests::save_keeps_dirty_when_commit_fails stdout ----
+
+thread 'book::tests::save_keeps_dirty_when_commit_fails' (32276) panicked at codo-core\src\ledger\preset.rs:29:14:
+プリセット品目は有効なので到達不能: DuplicateName("娯楽")
+
+---- book::tests::save_stores_then_commits stdout ----
+
+thread 'book::tests::save_stores_then_commits' (19692) panicked at codo-core\src\ledger\preset.rs:29:14:
+プリセット品目は有効なので到達不能: DuplicateName("娯楽")
+
+---- book::tests::sync_propagates_has_remote_error stdout ----
+
+thread 'book::tests::sync_propagates_has_remote_error' (3200) panicked at codo-core\src\ledger\preset.rs:29:14:
+プリセット品目は有効なので到達不能: DuplicateName("娯楽")
+
+---- book::tests::sync_pulls_then_pushes_when_rejected stdout ----
+
+thread 'book::tests::sync_pulls_then_pushes_when_rejected' (30768) panicked at codo-core\src\ledger\preset.rs:29:14:
+プリセット品目は有効なので到達不能: DuplicateName("娯楽")
+
+---- book::tests::sync_returns_conflict_when_pull_rebase_fails stdout ----
+
+thread 'book::tests::sync_returns_conflict_when_pull_rebase_fails' (26584) panicked at codo-core\src\ledger\preset.rs:29:14:
+プリセット品目は有効なので到達不能: DuplicateName("娯楽")
+
+---- book::tests::sync_pushes_when_remote_exists stdout ----
+
+thread 'book::tests::sync_pushes_when_remote_exists' (12408) panicked at codo-core\src\ledger\preset.rs:29:14:
+プリセット品目は有効なので到達不能: DuplicateName("娯楽")
+
+---- book::tests::sync_returns_error_when_dirty stdout ----
+
+thread 'book::tests::sync_returns_error_when_dirty' (31752) panicked at codo-core\src\ledger\preset.rs:29:14:
+プリセット品目は有効なので到達不能: DuplicateName("娯楽")
+
+---- book::tests::sync_succeeds_without_remote stdout ----
+
+thread 'book::tests::sync_succeeds_without_remote' (32404) panicked at codo-core\src\ledger\preset.rs:29:14:
+プリセット品目は有効なので到達不能: DuplicateName("娯楽")
+
+---- infra::filestore::tests::toml_store_load_ignores_non_toml_file stdout ----
+
+thread 'infra::filestore::tests::toml_store_load_ignores_non_toml_file' (26364) panicked at codo-core\src\infra\filestore.rs:279:56:
+called `Result::unwrap()` on an `Err` value: Item(DuplicateName("現金"))
+
+---- infra::filestore::tests::toml_store_load_ignores_non_month_file stdout ----
+
+thread 'infra::filestore::tests::toml_store_load_ignores_non_month_file' (32532) panicked at codo-core\src\infra\filestore.rs:279:56:
+called `Result::unwrap()` on an `Err` value: Item(DuplicateName("現金"))
+
+---- infra::filestore::tests::toml_store_load_rejects_date_with_time stdout ----
+
+thread 'infra::filestore::tests::toml_store_load_rejects_date_with_time' (27772) panicked at codo-core\src\infra\filestore.rs:279:56:
+called `Result::unwrap()` on an `Err` value: Item(DuplicateName("現金"))
+
+---- infra::filestore::tests::toml_store_load_rejects_duplicate_transaction_id stdout ----
+
+thread 'infra::filestore::tests::toml_store_load_rejects_duplicate_transaction_id' (6376) panicked at codo-core\src\infra\filestore.rs:279:56:
+called `Result::unwrap()` on an `Err` value: Item(DuplicateName("現金"))
+
+---- infra::filestore::tests::toml_store_load_rejects_invalid_ledger stdout ----
+
+thread 'infra::filestore::tests::toml_store_load_rejects_invalid_ledger' (9980) panicked at codo-core\src\infra\filestore.rs:279:56:
+called `Result::unwrap()` on an `Err` value: Item(DuplicateName("現金"))
+
+---- infra::filestore::tests::toml_store_load_rejects_non_positive_amount stdout ----
+
+thread 'infra::filestore::tests::toml_store_load_rejects_non_positive_amount' (20684) panicked at codo-core\src\infra\filestore.rs:279:56:
+called `Result::unwrap()` on an `Err` value: Item(DuplicateName("現金"))
+
+---- infra::filestore::tests::toml_store_save_keeps_non_month_file stdout ----
+
+thread 'infra::filestore::tests::toml_store_save_keeps_non_month_file' (1432) panicked at codo-core\src\infra\filestore.rs:279:56:
+called `Result::unwrap()` on an `Err` value: Item(DuplicateName("現金"))
+
+---- infra::filestore::tests::toml_store_save_keeps_non_toml_file stdout ----
+
+thread 'infra::filestore::tests::toml_store_save_keeps_non_toml_file' (28168) panicked at codo-core\src\infra\filestore.rs:279:56:
+called `Result::unwrap()` on an `Err` value: Item(DuplicateName("現金"))
+
+---- infra::filestore::tests::toml_store_save_removes_empty_month_file stdout ----
+
+thread 'infra::filestore::tests::toml_store_save_removes_empty_month_file' (31604) panicked at codo-core\src\infra\filestore.rs:279:56:
+called `Result::unwrap()` on an `Err` value: Item(DuplicateName("現金"))
+
+---- infra::filestore::tests::toml_store_save_then_load_returns_same_ledger stdout ----
+
+thread 'infra::filestore::tests::toml_store_save_then_load_returns_same_ledger' (2028) panicked at codo-core\src\infra\filestore.rs:279:56:
+called `Result::unwrap()` on an `Err` value: Item(DuplicateName("現金"))
+
+---- infra::filestore::tests::toml_store_save_twice_keeps_same_content stdout ----
+
+thread 'infra::filestore::tests::toml_store_save_twice_keeps_same_content' (34648) panicked at codo-core\src\infra\filestore.rs:279:56:
+called `Result::unwrap()` on an `Err` value: Item(DuplicateName("現金"))
+
+---- infra::filestore::tests::toml_store_writes_files_by_month stdout ----
+
+thread 'infra::filestore::tests::toml_store_writes_files_by_month' (30820) panicked at codo-core\src\infra\filestore.rs:279:56:
+called `Result::unwrap()` on an `Err` value: Item(DuplicateName("現金"))
+
+---- infra::filestore::tests::toml_store_writes_date_as_toml_date stdout ----
+
+thread 'infra::filestore::tests::toml_store_writes_date_as_toml_date' (35704) panicked at codo-core\src\infra\filestore.rs:279:56:
+called `Result::unwrap()` on an `Err` value: Item(DuplicateName("現金"))
+
+---- book::tests::sync_pulls_remote_changes_into_book stdout ----
+
+thread 'book::tests::sync_pulls_remote_changes_into_book' (11636) panicked at codo-core\src\ledger\preset.rs:29:14:
+プリセット品目は有効なので到達不能: DuplicateName("娯楽")
+
+---- ledger::item::tests::add_after_remove_test stdout ----
+
+thread 'ledger::item::tests::add_after_remove_test' (35484) panicked at codo-core\src\ledger\item.rs:328:9:
+assertion `left == right` failed
+  left: Err(DuplicateName("住宅"))
+ right: Ok(ItemId(4))
+
+---- ledger::item::tests::add_max_id_test stdout ----
+
+thread 'ledger::item::tests::add_max_id_test' (27996) panicked at codo-core\src\ledger\item.rs:336:9:
+assertion `left == right` failed
+  left: Err(DuplicateName("現金"))
+ right: Ok(ItemId(4294967295))
+
+---- ledger::item::tests::add_test stdout ----
+
+thread 'ledger::item::tests::add_test' (15648) panicked at codo-core\src\ledger\item.rs:318:42:
+called `Result::unwrap()` on an `Err` value: DuplicateName("給与")
+
+---- ledger::item::tests::update_error_test stdout ----
+
+thread 'ledger::item::tests::update_error_test' (12592) panicked at codo-core\src\ledger\item.rs:390:13:
+assertion `left == right` failed: 住宅
+  left: Err(DuplicateName("住宅"))
+ right: Err(NotFound(ItemId(4)))
+
+---- ledger::item::tests::update_test stdout ----
+
+thread 'ledger::item::tests::update_test' (25220) panicked at codo-core\src\ledger\item.rs:368:47:
+called `Result::unwrap()` on an `Err` value: DuplicateName("外食")
+
+---- ledger::preset::tests::preset_items_test stdout ----
+
+thread 'ledger::preset::tests::preset_items_test' (11688) panicked at codo-core\src\ledger\preset.rs:29:14:
+プリセット品目は有効なので到達不能: DuplicateName("娯楽")
+
+---- ledger::report::budget::tests::calculate_test stdout ----
+
+thread 'ledger::report::budget::tests::calculate_test' (29964) panicked at codo-core\src\ledger\report.rs:101:66:
+called `Result::unwrap()` on an `Err` value: Item(DuplicateName("娯楽"))
+
+---- ledger::report::category::tests::by_item_expense_sorts_larger_amount_first_test stdout ----
+
+thread 'ledger::report::category::tests::by_item_expense_sorts_larger_amount_first_test' (34636) panicked at codo-core\src\ledger\report.rs:101:66:
+called `Result::unwrap()` on an `Err` value: Item(DuplicateName("娯楽"))
+
+---- ledger::report::category::tests::by_item_expense_test stdout ----
+
+thread 'ledger::report::category::tests::by_item_expense_test' (35696) panicked at codo-core\src\ledger\report.rs:101:66:
+called `Result::unwrap()` on an `Err` value: Item(DuplicateName("娯楽"))
+
+---- ledger::report::category::tests::by_item_income_test stdout ----
+
+thread 'ledger::report::category::tests::by_item_income_test' (14636) panicked at codo-core\src\ledger\report.rs:101:66:
+called `Result::unwrap()` on an `Err` value: Item(DuplicateName("娯楽"))
+
+---- ledger::report::category::tests::by_item_without_expense_test stdout ----
+
+thread 'ledger::report::category::tests::by_item_without_expense_test' (14088) panicked at codo-core\src\ledger\report.rs:101:66:
+called `Result::unwrap()` on an `Err` value: Item(DuplicateName("娯楽"))
+
+---- ledger::report::monthly::tests::monthly_summary_adds_amounts_to_each_day stdout ----
+
+thread 'ledger::report::monthly::tests::monthly_summary_adds_amounts_to_each_day' (28752) panicked at codo-core\src\ledger\report.rs:101:66:
+called `Result::unwrap()` on an `Err` value: Item(DuplicateName("娯楽"))
+
+---- ledger::report::monthly::tests::monthly_summary_has_every_day_of_month stdout ----
+
+thread 'ledger::report::monthly::tests::monthly_summary_has_every_day_of_month' (35456) panicked at codo-core\src\ledger\report.rs:101:66:
+called `Result::unwrap()` on an `Err` value: Item(DuplicateName("娯楽"))
+
+---- ledger::report::monthly::tests::monthly_summary_of_month_without_transactions_is_all_zero stdout ----
+
+thread 'ledger::report::monthly::tests::monthly_summary_of_month_without_transactions_is_all_zero' (27176) panicked at codo-core\src\ledger\report.rs:101:66:
+called `Result::unwrap()` on an `Err` value: Item(DuplicateName("娯楽"))
+
+---- ledger::report::monthly::tests::monthly_summary_totals_match_sum_of_days stdout ----
+
+thread 'ledger::report::monthly::tests::monthly_summary_totals_match_sum_of_days' (30196) panicked at codo-core\src\ledger\report.rs:101:66:
+called `Result::unwrap()` on an `Err` value: Item(DuplicateName("娯楽"))
+
+---- ledger::report::tests::total_test stdout ----
+
+thread 'ledger::report::tests::total_test' (10888) panicked at codo-core\src\ledger\report.rs:101:66:
+called `Result::unwrap()` on an `Err` value: Item(DuplicateName("娯楽"))
+
+---- ledger::report::trend::tests::monthly_expense_test stdout ----
+
+thread 'ledger::report::trend::tests::monthly_expense_test' (35572) panicked at codo-core\src\ledger\report.rs:101:66:
+called `Result::unwrap()` on an `Err` value: Item(DuplicateName("娯楽"))
+
+---- ledger::report::trend::tests::monthly_expense_with_item_test stdout ----
+
+thread 'ledger::report::trend::tests::monthly_expense_with_item_test' (6364) panicked at codo-core\src\ledger\report.rs:101:66:
+called `Result::unwrap()` on an `Err` value: Item(DuplicateName("娯楽"))
+
+---- ledger::report::trend::tests::yearly_expense_one_or_no_transaction_test stdout ----
+
+thread 'ledger::report::trend::tests::yearly_expense_one_or_no_transaction_test' (20916) panicked at codo-core\src\ledger\report.rs:101:66:
+called `Result::unwrap()` on an `Err` value: Item(DuplicateName("娯楽"))
+
+---- ledger::report::trend::tests::yearly_expense_test stdout ----
+
+thread 'ledger::report::trend::tests::yearly_expense_test' (25932) panicked at codo-core\src\ledger\report.rs:101:66:
+called `Result::unwrap()` on an `Err` value: Item(DuplicateName("娯楽"))
+
+---- ledger::tests::add_transaction_error_test stdout ----
+
+thread 'ledger::tests::add_transaction_error_test' (28240) panicked at codo-core\src\ledger.rs:273:55:
+called `Result::unwrap()` on an `Err` value: Item(DuplicateName("給与"))
+
+---- ledger::tests::add_transaction_test stdout ----
+
+thread 'ledger::tests::add_transaction_test' (10132) panicked at codo-core\src\ledger.rs:273:55:
+called `Result::unwrap()` on an `Err` value: Item(DuplicateName("給与"))
+
+---- ledger::tests::counterpart_choices_test stdout ----
+
+thread 'ledger::tests::counterpart_choices_test' (6200) panicked at codo-core\src\ledger.rs:297:77:
+called `Result::unwrap()` on an `Err` value: Item(DuplicateName("負債"))
+
+---- ledger::tests::choices_reflect_item_changes_test stdout ----
+
+thread 'ledger::tests::choices_reflect_item_changes_test' (34220) panicked at codo-core\src\ledger.rs:297:77:
+called `Result::unwrap()` on an `Err` value: Item(DuplicateName("負債"))
+
+---- ledger::tests::from_parts_error_test stdout ----
+
+thread 'ledger::tests::from_parts_error_test' (27896) panicked at codo-core\src\ledger.rs:273:55:
+called `Result::unwrap()` on an `Err` value: Item(DuplicateName("給与"))
+
+---- ledger::tests::remove_item_error_test stdout ----
+
+thread 'ledger::tests::remove_item_error_test' (25012) panicked at codo-core\src\ledger.rs:273:55:
+called `Result::unwrap()` on an `Err` value: Item(DuplicateName("給与"))
+
+---- ledger::tests::remove_transaction_error_test stdout ----
+
+thread 'ledger::tests::remove_transaction_error_test' (31772) panicked at codo-core\src\ledger.rs:273:55:
+called `Result::unwrap()` on an `Err` value: Item(DuplicateName("給与"))
+
+---- ledger::tests::item_choices_test stdout ----
+
+thread 'ledger::tests::item_choices_test' (8060) panicked at codo-core\src\ledger.rs:297:77:
+called `Result::unwrap()` on an `Err` value: Item(DuplicateName("負債"))
+
+---- ledger::tests::update_item_test stdout ----
+
+thread 'ledger::tests::update_item_test' (6040) panicked at codo-core\src\ledger.rs:273:55:
+called `Result::unwrap()` on an `Err` value: Item(DuplicateName("給与"))
+
+---- ledger::tests::update_transaction_error_test stdout ----
+
+thread 'ledger::tests::update_transaction_error_test' (32868) panicked at codo-core\src\ledger.rs:273:55:
+called `Result::unwrap()` on an `Err` value: Item(DuplicateName("給与"))
+
+---- ledger::tests::update_transaction_test stdout ----
+
+thread 'ledger::tests::update_transaction_test' (24320) panicked at codo-core\src\ledger.rs:273:55:
+called `Result::unwrap()` on an `Err` value: Item(DuplicateName("給与"))
+
+---- ledger::tests::update_item_error_test stdout ----
+
+thread 'ledger::tests::update_item_error_test' (19344) panicked at codo-core\src\ledger.rs:273:55:
+called `Result::unwrap()` on an `Err` value: Item(DuplicateName("給与"))
+
+---- ledger::transaction::list::tests::add_test stdout ----
+
+thread 'ledger::transaction::list::tests::add_test' (30664) panicked at codo-core\src\ledger\transaction\list.rs:131:52:
+called `Result::unwrap()` on an `Err` value: DuplicateName("現金")
+
+---- ledger::transaction::list::tests::from_transactions_test stdout ----
+
+thread 'ledger::transaction::list::tests::from_transactions_test' (7420) panicked at codo-core\src\ledger\transaction\list.rs:131:52:
+called `Result::unwrap()` on an `Err` value: DuplicateName("現金")
+
+---- ledger::transaction::list::tests::from_transactions_error_test stdout ----
+
+thread 'ledger::transaction::list::tests::from_transactions_error_test' (23676) panicked at codo-core\src\ledger\transaction\list.rs:131:52:
+called `Result::unwrap()` on an `Err` value: DuplicateName("現金")
+
+---- ledger::transaction::list::tests::add_keeps_order_test stdout ----
+
+thread 'ledger::transaction::list::tests::add_keeps_order_test' (9504) panicked at codo-core\src\ledger\transaction\list.rs:131:52:
+called `Result::unwrap()` on an `Err` value: DuplicateName("現金")
+
+---- ledger::transaction::list::tests::remove_error_test stdout ----
+
+thread 'ledger::transaction::list::tests::remove_error_test' (23484) panicked at codo-core\src\ledger\transaction\list.rs:131:52:
+called `Result::unwrap()` on an `Err` value: DuplicateName("現金")
+
+---- ledger::transaction::list::tests::remove_test stdout ----
+
+thread 'ledger::transaction::list::tests::remove_test' (12840) panicked at codo-core\src\ledger\transaction\list.rs:131:52:
+called `Result::unwrap()` on an `Err` value: DuplicateName("現金")
+
+---- ledger::transaction::list::tests::update_error_test stdout ----
+
+thread 'ledger::transaction::list::tests::update_error_test' (29100) panicked at codo-core\src\ledger\transaction\list.rs:131:52:
+called `Result::unwrap()` on an `Err` value: DuplicateName("現金")
+
+---- ledger::transaction::list::tests::iter_in_test stdout ----
+
+thread 'ledger::transaction::list::tests::iter_in_test' (30088) panicked at codo-core\src\ledger\transaction\list.rs:131:52:
+called `Result::unwrap()` on an `Err` value: DuplicateName("現金")
+
+---- ledger::transaction::list::tests::uses_item_test stdout ----
+
+thread 'ledger::transaction::list::tests::uses_item_test' (14996) panicked at codo-core\src\ledger\transaction\list.rs:131:52:
+called `Result::unwrap()` on an `Err` value: DuplicateName("現金")
+
+---- ledger::transaction::list::tests::update_test stdout ----
+
+thread 'ledger::transaction::list::tests::update_test' (32100) panicked at codo-core\src\ledger\transaction\list.rs:131:52:
+called `Result::unwrap()` on an `Err` value: DuplicateName("現金")
+
+
+failures:
+    book::tests::is_dirty_compares_with_saved_ledger
+    book::tests::load_returns_clean_book
+    book::tests::memory_store_save_then_load_returns_same_ledger
+    book::tests::save_does_not_commit_when_store_fails
+    book::tests::save_keeps_dirty_when_commit_fails
+    book::tests::save_stores_then_commits
+    book::tests::sync_propagates_has_remote_error
+    book::tests::sync_pulls_remote_changes_into_book
+    book::tests::sync_pulls_then_pushes_when_rejected
+    book::tests::sync_pushes_when_remote_exists
+    book::tests::sync_returns_conflict_when_pull_rebase_fails
+    book::tests::sync_returns_error_when_dirty
+    book::tests::sync_succeeds_without_remote
+    infra::filestore::tests::toml_store_load_ignores_non_month_file
+    infra::filestore::tests::toml_store_load_ignores_non_toml_file
+    infra::filestore::tests::toml_store_load_rejects_date_with_time
+    infra::filestore::tests::toml_store_load_rejects_duplicate_transaction_id
+    infra::filestore::tests::toml_store_load_rejects_invalid_ledger
+    infra::filestore::tests::toml_store_load_rejects_non_positive_amount
+    infra::filestore::tests::toml_store_save_keeps_non_month_file
+    infra::filestore::tests::toml_store_save_keeps_non_toml_file
+    infra::filestore::tests::toml_store_save_removes_empty_month_file
+    infra::filestore::tests::toml_store_save_then_load_returns_same_ledger
+    infra::filestore::tests::toml_store_save_twice_keeps_same_content
+    infra::filestore::tests::toml_store_writes_date_as_toml_date
+    infra::filestore::tests::toml_store_writes_files_by_month
+    ledger::item::tests::add_after_remove_test
+    ledger::item::tests::add_max_id_test
+    ledger::item::tests::add_test
+    ledger::item::tests::update_error_test
+    ledger::item::tests::update_test
+    ledger::preset::tests::preset_items_test
+    ledger::report::budget::tests::calculate_test
+    ledger::report::category::tests::by_item_expense_sorts_larger_amount_first_test
+    ledger::report::category::tests::by_item_expense_test
+    ledger::report::category::tests::by_item_income_test
+    ledger::report::category::tests::by_item_without_expense_test
+    ledger::report::monthly::tests::monthly_summary_adds_amounts_to_each_day
+    ledger::report::monthly::tests::monthly_summary_has_every_day_of_month
+    ledger::report::monthly::tests::monthly_summary_of_month_without_transactions_is_all_zero
+    ledger::report::monthly::tests::monthly_summary_totals_match_sum_of_days
+    ledger::report::tests::total_test
+    ledger::report::trend::tests::monthly_expense_test
+    ledger::report::trend::tests::monthly_expense_with_item_test
+    ledger::report::trend::tests::yearly_expense_one_or_no_transaction_test
+    ledger::report::trend::tests::yearly_expense_test
+    ledger::tests::add_transaction_error_test
+    ledger::tests::add_transaction_test
+    ledger::tests::choices_reflect_item_changes_test
+    ledger::tests::counterpart_choices_test
+    ledger::tests::from_parts_error_test
+    ledger::tests::item_choices_test
+    ledger::tests::remove_item_error_test
+    ledger::tests::remove_transaction_error_test
+    ledger::tests::update_item_error_test
+    ledger::tests::update_item_test
+    ledger::tests::update_transaction_error_test
+    ledger::tests::update_transaction_test
+    ledger::transaction::list::tests::add_keeps_order_test
+    ledger::transaction::list::tests::add_test
+    ledger::transaction::list::tests::from_transactions_error_test
+    ledger::transaction::list::tests::from_transactions_test
+    ledger::transaction::list::tests::iter_in_test
+    ledger::transaction::list::tests::remove_error_test
+    ledger::transaction::list::tests::remove_test
+    ledger::transaction::list::tests::update_error_test
+    ledger::transaction::list::tests::update_test
+    ledger::transaction::list::tests::uses_item_test
+
+test result: FAILED. 82 passed; 68 failed; 0 ignored; 0 measured; 0 filtered out; finished in 6.99s
+
+error: test failed, to rerun pass `-p codo-core --lib`
+
+*** result: Failure(101)

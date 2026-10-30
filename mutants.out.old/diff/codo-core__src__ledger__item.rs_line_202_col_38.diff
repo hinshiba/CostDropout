@@ -1,0 +1,21 @@
+--- codo-core/src/ledger/item.rs
++++ replace == with != in ItemList::index_of
+@@ -194,17 +194,17 @@
+         let index = self.index_of(id)?;
+         self.items.remove(index);
+         Ok(())
+     }
+ 
+     fn index_of(&self, id: ItemId) -> Result<usize, ItemError> {
+         self.items
+             .iter()
+-            .position(|item| item.id == id)
++            .position(|item| item.id != /* ~ changed by cargo-mutants ~ */ id)
+             .ok_or(ItemError::NotFound(id))
+     }
+ 
+     /// 前後の空白を取り除いた名前を返す.
+     ///
+     /// `id` の品目は重複の判定から除く.
+     ///
+     /// # Errors

@@ -1,0 +1,21 @@
+--- codo-core/src/ledger/period.rs
++++ replace YearMonth::checked_prev -> Option<Self> with Some(Default::default())
+@@ -87,17 +87,17 @@
+     pub fn checked_next(&self) -> Option<Self> {
+         self.0.checked_add_months(Months::new(1)).map(YearMonth)
+     }
+ 
+     /// 前月を返す.
+     ///
+     /// 前月が chrono で表現できる範囲を超える場合は `None`.
+     pub fn checked_prev(&self) -> Option<Self> {
+-        self.0.checked_sub_months(Months::new(1)).map(YearMonth)
++        Some(Default::default()) /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     /// 日付がこの年月に含まれるかを判定する.
+     pub fn contains(&self, date: NaiveDate) -> bool {
+         Self::from_date(date) == *self
+     }
+ }
+ 

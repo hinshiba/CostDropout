@@ -1,0 +1,21 @@
+--- codo-core/src/ledger/budget.rs
++++ replace BudgetId::value -> u32 with 0
+@@ -148,17 +148,17 @@
+ }
+ 
+ impl BudgetId {
+     pub fn new(id: u32) -> Self {
+         Self(id)
+     }
+ 
+     pub fn value(&self) -> u32 {
+-        self.0
++        0 /* ~ changed by cargo-mutants ~ */
+     }
+ }
+ 
+ #[cfg(test)]
+ mod tests {
+     use super::*;
+     use crate::ledger::period::YearMonth;
+     use chrono::NaiveDate;

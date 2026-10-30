@@ -1,0 +1,7 @@
+codo-core/src/infra/gitrepo.rs:229:9: replace <impl History for GitRepo>::commit_all -> Result<(), GitError> with Ok(())
+codo-core/src/ledger/money.rs:129:9: replace <impl SubAssign for Money>::sub_assign with ()
+codo-core/src/ledger/money.rs:129:23: replace - with + in <impl SubAssign for Money>::sub_assign
+codo-core/src/ledger/period.rs:95:9: replace YearMonth::checked_prev -> Option<Self> with None
+codo-core/src/ledger/period.rs:100:9: replace YearMonth::contains -> bool with true
+codo-core/src/ledger/period.rs:100:9: replace YearMonth::contains -> bool with false
+codo-core/src/ledger/period.rs:100:31: replace == with != in YearMonth::contains

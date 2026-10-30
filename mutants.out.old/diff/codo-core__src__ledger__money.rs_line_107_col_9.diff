@@ -1,0 +1,21 @@
+--- codo-core/src/ledger/money.rs
++++ replace Money::is_negative -> bool with true
+@@ -99,17 +99,17 @@
+     pub fn is_positive(&self) -> bool {
+         0 < self.0
+     }
+ 
+     /// 金額が0より小さいかを判定する.
+     ///
+     /// 0は負の値に含まれない.
+     pub fn is_negative(&self) -> bool {
+-        self.0 < 0
++        true /* ~ changed by cargo-mutants ~ */
+     }
+ }
+ 
+ impl AddAssign for Money {
+     /// 金額を加算して代入する.
+     ///
+     /// # Panics
+     ///

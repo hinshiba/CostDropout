@@ -1,0 +1,21 @@
+--- codo-core/src/ledger/report/budget.rs
++++ replace BudgetStatus::ratio -> Option<f64> with None
+@@ -28,17 +28,17 @@
+     pub fn remaining(&self) -> Money {
+         self.remaining
+     }
+ 
+     /// 予算額に対する支出の割合を返す.
+     ///
+     /// 予算額が0円の場合は `None`.
+     pub fn ratio(&self) -> Option<f64> {
+-        self.ratio
++        None /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     /// ID が `id` である予算の使用状況を求める.
+     ///
+     /// # Errors
+     ///
+     /// 予算が存在しない場合は `BudgetError::NotFound` エラー.
+     ///

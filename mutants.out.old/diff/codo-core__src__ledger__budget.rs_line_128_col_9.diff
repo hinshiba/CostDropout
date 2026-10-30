@@ -1,0 +1,35 @@
+--- codo-core/src/ledger/budget.rs
++++ replace BudgetList::from_budgets -> Result<Self, BudgetError> with Ok(Default::default())
+@@ -120,31 +120,17 @@
+         Ok(())
+     }
+ 
+     /// 保存済みのIDを変更せずに予算一覧を復元する
+     /// IDの重複を検知した場合はエラーを返す
+     ///
+     /// IDまたは期間が重複している場合はエラーを返す
+     pub fn from_budgets(mut budgets: Vec<Budget>) -> Result<Self, BudgetError> {
+-        let mut ids = HashSet::new();
+-        let mut periods = HashSet::new();
+-
+-        for budget in &budgets {
+-            if !periods.insert(budget.period()) {
+-                return Err(BudgetError::DuplicatePeriod);
+-            }
+-            if !ids.insert(budget.id()) {
+-                return Err(BudgetError::DuplicateId(budget.id()));
+-            }
+-        }
+-        // IDの昇順に並び替える
+-        budgets.sort_by_key(|budget| budget.id().0);
+-
+-        Ok(Self { budgets })
++        Ok(Default::default()) /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     pub fn iter(&self) -> impl Iterator<Item = &Budget> {
+         self.budgets.iter()
+     }
+ }
+ 
+ impl BudgetId {

@@ -1,0 +1,26 @@
+--- codo-core/src/ledger/period.rs
++++ replace <impl FromStr for YearMonth>::from_str -> Result<Self, Self::Err> with Ok(Default::default())
+@@ -139,22 +139,17 @@
+     /// assert_eq!("+10000-01".parse(), YearMonth::new(10000, 1));
+     /// ```
+     ///
+     /// # Errors
+     ///
+     /// 年月として解釈できない場合は `PeriodError::Parse` エラー.
+     fn from_str(s: &str) -> Result<Self, Self::Err> {
+         // 書式は日を含まないので, 日付として組み立てるために初日を補う
+-        let mut parsed = Parsed::new();
+-        format::parse(&mut parsed, s, StrftimeItems::new(YEAR_MONTH_FORMAT))
+-            .and_then(|()| parsed.set_day(1))
+-            .and_then(|()| parsed.to_naive_date())
+-            .map(YearMonth)
+-            .map_err(|_| PeriodError::Parse(s.to_string()))
++        Ok(Default::default()) /* ~ changed by cargo-mutants ~ */
+     }
+ }
+ 
+ /// 期間を表現する.
+ ///
+ /// 閉区間であり範囲の境界を常に含む.
+ #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+ pub struct Period {

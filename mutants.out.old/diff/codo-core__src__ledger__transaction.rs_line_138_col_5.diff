@@ -1,0 +1,25 @@
+--- codo-core/src/ledger/transaction.rs
++++ replace check_tags -> Result<(), TransactionError> with Ok(())
+@@ -130,21 +130,17 @@
+ 
+ /// 取引の品目と相手先のタグの組み合わせを検査する.
+ ///
+ /// # Errors
+ ///
+ /// 品目のタグが取引の品目として選べない場合は `TransactionError::InvalidItemTag` エラー.
+ /// 相手先のタグが品目のタグと同じ場合は `TransactionError::SameTag` エラー.
+ pub(crate) fn check_tags(item: Tag, counterpart: Tag) -> Result<(), TransactionError> {
+-    check_item_tag(item)?;
+-    if item == counterpart {
+-        return Err(TransactionError::SameTag(item));
+-    }
+-    Ok(())
++    Ok(()) /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ #[derive(Debug, Error, PartialEq, Eq)]
+ pub enum TransactionError {
+     /// 品目のタグが取引の品目として選べない場合.
+     #[error("取引の品目のタグ {0} が収入・支出・負債ではありません")]
+     InvalidItemTag(Tag),
+     /// 相手先のタグが品目のタグと同じ場合.

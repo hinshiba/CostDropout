@@ -1,0 +1,21 @@
+--- codo-core/src/ledger/budget.rs
++++ replace == with != in BudgetList::update
+@@ -86,17 +86,17 @@
+ 
+     /// 既存の予算の編集
+     pub fn update(
+         &mut self,
+         id: BudgetId,
+         amount: Money,
+         period: Period,
+     ) -> Result<(), BudgetError> {
+-        let Some(index) = self.budgets.iter().position(|budget| budget.id == id) else {
++        let Some(index) = self.budgets.iter().position(|budget| budget.id != /* ~ changed by cargo-mutants ~ */ id) else {
+             return Err(BudgetError::NotFound(id));
+         };
+ 
+         if self
+             .budgets
+             .iter()
+             .any(|budget| budget.period() == period && budget.id() != id)
+         {

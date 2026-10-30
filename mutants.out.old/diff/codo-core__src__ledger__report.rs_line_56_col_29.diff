@@ -1,0 +1,21 @@
+--- codo-core/src/ledger/report.rs
++++ replace == with != in total
+@@ -48,17 +48,17 @@
+ 
+ /// 期間内で分類が `flow` である取引の金額を合計する.
+ ///
+ /// # Panics
+ ///
+ /// 合計が `i32` の範囲を超える場合はパニック.
+ pub fn total(ledger: &Ledger, period: Period, flow: Flow) -> Money {
+     flows_in(ledger, period)
+-        .filter(|&(_, f)| f == flow)
++        .filter(|&(_, f)| f != /* ~ changed by cargo-mutants ~ */ flow)
+         .map(|(tx, _)| Money::from(tx.amount()))
+         .sum()
+ }
+ 
+ /// 期間内の収入を合計する.
+ ///
+ /// # Panics
+ ///

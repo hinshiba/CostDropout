@@ -1,0 +1,21 @@
+--- codo-core/src/ledger/money.rs
++++ replace <impl AddAssign for Money>::add_assign with ()
+@@ -110,17 +110,17 @@
+ 
+ impl AddAssign for Money {
+     /// 金額を加算して代入する.
+     ///
+     /// # Panics
+     ///
+     /// 加算結果が `i32` の範囲を超える場合はパニック.
+     fn add_assign(&mut self, rhs: Self) {
+-        *self = *self + rhs
++        () /* ~ changed by cargo-mutants ~ */
+     }
+ }
+ 
+ impl SubAssign for Money {
+     /// 金額を減算して代入する.
+     ///
+     /// # Panics
+     ///

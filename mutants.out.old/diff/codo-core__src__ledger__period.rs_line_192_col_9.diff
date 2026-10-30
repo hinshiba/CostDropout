@@ -1,0 +1,27 @@
+--- codo-core/src/ledger/period.rs
++++ replace Period::year -> Self with Default::default()
+@@ -184,23 +184,17 @@
+     }
+ 
+     /// 年の1月1日から12月31日までの期間を生成する.
+     ///
+     /// # Panics
+     ///
+     /// 年が chrono で表現できる範囲を超える場合はパニック.
+     pub fn year(year: i32) -> Self {
+-        let date = |month, day| {
+-            NaiveDate::from_ymd_opt(year, month, day).expect("表現できる範囲を超えました")
+-        };
+-        Self {
+-            start: date(1, 1),
+-            end: date(12, 31),
+-        }
++        Default::default() /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     /// 開始日を返す.
+     pub fn start(&self) -> NaiveDate {
+         self.start
+     }
+ 
+     /// 終了日を返す.

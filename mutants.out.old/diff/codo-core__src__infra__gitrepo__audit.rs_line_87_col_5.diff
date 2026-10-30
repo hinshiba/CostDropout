@@ -1,0 +1,41 @@
+--- codo-core/src/infra/gitrepo/audit.rs
++++ replace first_parent -> Result<Option<String>, AuditError> with Ok(None)
+@@ -79,37 +79,17 @@
+         });
+     }
+ 
+     Ok(logs)
+ }
+ 
+ /// 指定したコミットの第1親を取得する
+ fn first_parent(repo: &GitRepo, hash: &str) -> Result<Option<String>, AuditError> {
+-    let output = git_command(repo.path())
+-        .args(["rev-list", "--parents", "-n", "1"])
+-        .arg("--end-of-options")
+-        .arg(hash)
+-        .output()
+-        .map_err(GitError::Command)?;
+-
+-    if !output.status.success() {
+-        return Err(GitError::CommandFailed(
+-            format!("git rev-list --parents -n 1 {}", hash),
+-            String::from_utf8_lossy(&output.stderr).trim().to_string(),
+-        )
+-        .into());
+-    }
+-
+-    let text = String::from_utf8_lossy(&output.stdout);
+-    let mut hashes = text.split_whitespace();
+-
+-    hashes.next().ok_or(AuditError::OutputDataFailed)?;
+-
+-    Ok(hashes.next().map(str::to_string))
++    Ok(None) /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ /// 指定したコミットで変更されたファイル名の一覧を取得する。
+ pub fn changed_files(repo: &GitRepo, hash: &str) -> Result<Vec<String>, AuditError> {
+     let output = match first_parent(repo, hash)? {
+         Some(parent) => git_command(repo.path())
+             .args(["diff", "--no-renames", "--name-only", "-z"])
+             .arg(&parent)

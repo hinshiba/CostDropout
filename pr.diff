@@ -1,0 +1,18 @@
+diff --git a/codo-core/src/book.rs b/codo-core/src/book.rs
+index 0d387c0..2a022e5 100644
+--- a/codo-core/src/book.rs
++++ b/codo-core/src/book.rs
+@@ -661,4 +661,13 @@ mod tests {
+                 .any(|item| item.to_string() == "A専用品目")
+         );
+     }
++
++    #[test]
++    fn history_has_remote_returns_false() {
++        let dir = tempfile::tempdir().unwrap();
++
++        let repo = GitRepo::init(dir.path().to_path_buf()).unwrap();
++
++        assert!(!<GitRepo as History>::has_remote(&repo).unwrap());
++    }
+ }

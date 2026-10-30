@@ -1,0 +1,24 @@
+--- codo-core/src/ledger/money.rs
++++ replace Money::checked_sub -> Result<Money, MoneyError> with Ok(Default::default())
+@@ -72,20 +72,17 @@
+     }
+ 
+     /// 金額を減算する.
+     ///
+     /// # Errors
+     ///
+     /// 減算結果が `i32` の範囲を超える場合は `MoneyError::Overflow` エラー.
+     pub fn checked_sub(self, rhs: Money) -> Result<Money, MoneyError> {
+-        match self.0.checked_sub(rhs.0) {
+-            Some(value) => Ok(Money(value)),
+-            None => Err(MoneyError::Overflow),
+-        }
++        Ok(Default::default()) /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     /// `base` に対する比率を返す.
+     ///
+     /// `base` が0の場合は `None`.
+     pub fn ratio(self, base: Money) -> Option<f64> {
+         if base.0 == 0 {
+             return None;

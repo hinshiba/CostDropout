@@ -1,0 +1,21 @@
+--- codo-core/src/ledger/item.rs
++++ replace == with != in ItemList::from_items
+@@ -118,17 +118,17 @@
+                 return Err(ItemError::EmptyName);
+             }
+             if !names.insert(item.name.as_str()) {
+                 return Err(ItemError::DuplicateName(item.name.clone()));
+             }
+         }
+ 
+         items.sort_by_key(|item| item.id);
+-        if let Some(pair) = items.windows(2).find(|pair| pair[0].id == pair[1].id) {
++        if let Some(pair) = items.windows(2).find(|pair| pair[0].id != /* ~ changed by cargo-mutants ~ */ pair[1].id) {
+             return Err(ItemError::DuplicateId(pair[0].id));
+         }
+         Ok(Self { items })
+     }
+ 
+     /// 品目を走査するイテレーターを返す.
+     pub fn iter(&self) -> impl Iterator<Item = &Item> {
+         self.items.iter()

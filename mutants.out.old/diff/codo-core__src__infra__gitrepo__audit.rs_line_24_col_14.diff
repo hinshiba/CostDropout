@@ -1,0 +1,21 @@
+--- codo-core/src/infra/gitrepo/audit.rs
++++ replace == with != in log
+@@ -16,17 +16,17 @@
+     /// コミットメッセージ
+     pub message: String,
+ }
+ 
+ /// HEAD から遡るコミットを新しい順に最大 `limit` 件返す。
+ ///
+ /// `limit` が `0` の場合と、コミットがないリポジトリでは空の `Vec` を返す。
+ pub fn log(repo: &GitRepo, limit: usize) -> Result<Vec<CommitInfo>, AuditError> {
+-    if limit == 0 {
++    if limit != /* ~ changed by cargo-mutants ~ */ 0 {
+         return Ok(Vec::new());
+     }
+ 
+     let head = git_command(repo.path())
+         .args(["rev-parse", "--verify", "--quiet", "HEAD"])
+         .output()
+         .map_err(GitError::Command)?;
+ 

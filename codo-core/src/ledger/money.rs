@@ -336,4 +336,13 @@ mod tests {
             assert_eq!(money.to_string().parse::<Money>(), Ok(money), "{value}");
         }
     }
+
+    #[test]
+    fn sub_assign_test() {
+        let mut money = Money::from(1000);
+
+        money -= Money::from(300);
+
+        assert_eq!(money, Money::from(700));
+    }
 }

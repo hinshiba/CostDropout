@@ -1,0 +1,21 @@
+--- codo-core/src/ledger/item.rs
++++ replace Item::name -> &str with "xyzzy"
+@@ -61,17 +61,17 @@
+         Self { id, name, tag }
+     }
+ 
+     pub fn id(&self) -> ItemId {
+         self.id
+     }
+ 
+     pub(crate) fn name(&self) -> &str {
+-        &self.name
++        "xyzzy" /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     pub(crate) fn tag(&self) -> Tag {
+         self.tag
+     }
+ }
+ 
+ impl fmt::Display for Item {

@@ -1,0 +1,21 @@
+--- codo-core/src/ledger/item.rs
++++ delete ! in ItemList::from_items
+@@ -112,17 +112,17 @@
+             item.name = item.name.trim().to_string();
+         }
+ 
+         let mut names = HashSet::new();
+         for item in &items {
+             if item.name.is_empty() {
+                 return Err(ItemError::EmptyName);
+             }
+-            if !names.insert(item.name.as_str()) {
++            if  /* ~ changed by cargo-mutants ~ */names.insert(item.name.as_str()) {
+                 return Err(ItemError::DuplicateName(item.name.clone()));
+             }
+         }
+ 
+         items.sort_by_key(|item| item.id);
+         if let Some(pair) = items.windows(2).find(|pair| pair[0].id == pair[1].id) {
+             return Err(ItemError::DuplicateId(pair[0].id));
+         }

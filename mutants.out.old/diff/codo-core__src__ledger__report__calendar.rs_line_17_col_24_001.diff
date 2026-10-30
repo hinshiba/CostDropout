@@ -1,0 +1,21 @@
+--- codo-core/src/ledger/report/calendar.rs
++++ replace * with / in expense_level
+@@ -9,17 +9,17 @@
+ ///
+ /// 支出が0の日は0．それ以外は，月の最大支出を EXPENSE_LEVELS 等分して切り上げる
+ pub fn expense_level(expense: Money, max: Money) -> u8 {
+     if !expense.is_positive() || !max.is_positive() {
+         return 0;
+     }
+ 
+     let ratio = expense.ratio(max).expect("maxは正なので割合は必ず求まる");
+-    let level = (ratio * f64::from(EXPENSE_LEVELS)).ceil();
++    let level = (ratio / /* ~ changed by cargo-mutants ~ */ f64::from(EXPENSE_LEVELS)).ceil();
+     (level as u8).min(EXPENSE_LEVELS)
+ }
+ 
+ #[cfg(test)]
+ mod tests {
+     use super::*;
+ 
+     #[test]

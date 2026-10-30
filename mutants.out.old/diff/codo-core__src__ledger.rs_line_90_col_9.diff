@@ -1,0 +1,21 @@
+--- codo-core/src/ledger.rs
++++ replace Ledger::items -> &ItemList with Box::leak(Box::new(Default::default()))
+@@ -82,17 +82,17 @@
+         for t in ledger.transactions.iter() {
+             t.check_tags(|id| ledger.tag_of(id))?;
+         }
+         Ok(ledger)
+     }
+ 
+     /// 品目一覧を返す.
+     pub fn items(&self) -> &ItemList {
+-        &self.items
++        Box::leak(Box::new(Default::default())) /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     /// 取引一覧を返す.
+     pub fn transactions(&self) -> &TransactionList {
+         &self.transactions
+     }
+ 
+     /// 予算一覧を返す.

@@ -1,0 +1,41 @@
+--- codo-core/src/infra/gitrepo.rs
++++ replace GitRepo::pull_rebase -> Result<(), GitError> with Ok(())
+@@ -187,37 +187,17 @@
+             ));
+         }
+ 
+         Ok(())
+     }
+ 
+     //git pull --rebaseを実行して成功・コンフリクト・その他失敗を判定
+     pub fn pull_rebase(&self) -> Result<(), GitError> {
+-        let output = git_command(&self.path)
+-            .args(["pull", "--rebase"])
+-            .output()
+-            .map_err(GitError::Command)?;
+-
+-        if output.status.success() {
+-            return Ok(());
+-        }
+-
+-        let stderr = String::from_utf8_lossy(&output.stderr);
+-
+-        if stderr.contains("CONFLICT") || stderr.contains("could not apply") {
+-            let _ = git_command(&self.path).args(["rebase", "--abort"]).output();
+-
+-            return Err(GitError::Conflict);
+-        }
+-
+-        Err(GitError::CommandFailed(
+-            "git -C <path> pull --rebase".to_string(),
+-            stderr.trim().to_string(),
+-        ))
++        Ok(()) /* ~ changed by cargo-mutants ~ */
+     }
+ }
+ 
+ /// 帳簿の変更履歴
+ pub trait History {
+     /// すべての変更を commit する.
+     ///
+     /// 変更がなければ何もしない.

@@ -1,0 +1,21 @@
+--- codo-core/src/infra/filestore.rs
++++ delete ! in month_of_file
+@@ -18,17 +18,17 @@
+ 
+ /// 拡張子がtomlかの判断
+ fn is_toml(path: &Path) -> bool {
+     Some(OsStr::new("toml")) == path.extension()
+ }
+ 
+ /// 月ファイル(2026-10.tomlなど)なら，その年月を返す
+ fn month_of_file(path: &Path) -> Option<YearMonth> {
+-    if !is_toml(path) {
++    if  /* ~ changed by cargo-mutants ~ */is_toml(path) {
+         return None;
+     }
+ 
+     let stem = path.file_stem()?.to_str()?;
+     let ym = stem.parse::<YearMonth>().ok()?;
+ 
+     // 保存時と同じ表記YYYY-MMのものだけを月ファイルとする
+     (ym.to_string() == stem).then_some(ym)

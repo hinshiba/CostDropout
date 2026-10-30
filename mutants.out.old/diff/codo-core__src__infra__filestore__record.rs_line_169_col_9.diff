@@ -1,0 +1,18 @@
+--- codo-core/src/infra/filestore/record.rs
++++ replace toml_date::deserialize -> Result<NaiveDate, D::Error> with Ok(Default::default())
+@@ -161,14 +161,11 @@
+             .map_err(serde::ser::Error::custom)?;
+         datetime.serialize(serializer)
+     }
+ 
+     /// # Errors
+     ///
+     /// TOML の日付型でない場合と, 時刻を含む場合はエラー.
+     pub fn deserialize<'de, D: Deserializer<'de>>(deserializer: D) -> Result<NaiveDate, D::Error> {
+-        Datetime::deserialize(deserializer)?
+-            .to_string()
+-            .parse::<NaiveDate>()
+-            .map_err(serde::de::Error::custom)
++        Ok(Default::default()) /* ~ changed by cargo-mutants ~ */
+     }
+ }

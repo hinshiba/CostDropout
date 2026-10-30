@@ -1,0 +1,21 @@
+--- codo-core/src/ledger/item.rs
++++ replace <impl fmt::Display for Item>::fmt -> fmt::Result with Ok(Default::default())
+@@ -72,17 +72,17 @@
+     pub(crate) fn tag(&self) -> Tag {
+         self.tag
+     }
+ }
+ 
+ impl fmt::Display for Item {
+     /// 品目名を出力する.
+     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+-        f.write_str(&self.name)
++        Ok(Default::default()) /* ~ changed by cargo-mutants ~ */
+     }
+ }
+ 
+ /// 品目一覧.
+ ///
+ /// 次の要件を満たす.
+ /// * ID の昇順に並ぶ
+ /// * 名前は前後に空白がなく空でない

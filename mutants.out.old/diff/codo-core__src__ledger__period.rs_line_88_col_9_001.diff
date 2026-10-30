@@ -1,0 +1,21 @@
+--- codo-core/src/ledger/period.rs
++++ replace YearMonth::checked_next -> Option<Self> with Some(Default::default())
+@@ -80,17 +80,17 @@
+     pub fn prev(&self) -> Self {
+         self.checked_prev().expect("表現できる範囲を超えました")
+     }
+ 
+     /// 翌月を返す.
+     ///
+     /// 翌月が chrono で表現できる範囲を超える場合は `None`.
+     pub fn checked_next(&self) -> Option<Self> {
+-        self.0.checked_add_months(Months::new(1)).map(YearMonth)
++        Some(Default::default()) /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     /// 前月を返す.
+     ///
+     /// 前月が chrono で表現できる範囲を超える場合は `None`.
+     pub fn checked_prev(&self) -> Option<Self> {
+         self.0.checked_sub_months(Months::new(1)).map(YearMonth)
+     }

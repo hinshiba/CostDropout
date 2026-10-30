@@ -1,0 +1,21 @@
+--- codo-core/src/ledger/money.rs
++++ replace <impl Add for Money>::add -> Money with Default::default()
+@@ -36,17 +36,17 @@
+     type Output = Money;
+ 
+     /// 金額を加算する.
+     ///
+     /// # Panics
+     ///
+     /// 加算結果が `i32` の範囲を超える場合はパニック.
+     fn add(self, rhs: Money) -> Money {
+-        self.checked_add(rhs).expect("overflowしました")
++        Default::default() /* ~ changed by cargo-mutants ~ */
+     }
+ }
+ 
+ impl Sub for Money {
+     type Output = Money;
+ 
+     /// 金額を減算する.
+     ///

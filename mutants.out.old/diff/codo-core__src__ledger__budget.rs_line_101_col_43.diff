@@ -1,0 +1,21 @@
+--- codo-core/src/ledger/budget.rs
++++ replace == with != in BudgetList::update
+@@ -93,17 +93,17 @@
+     ) -> Result<(), BudgetError> {
+         let Some(index) = self.budgets.iter().position(|budget| budget.id == id) else {
+             return Err(BudgetError::NotFound(id));
+         };
+ 
+         if self
+             .budgets
+             .iter()
+-            .any(|budget| budget.period() == period && budget.id() != id)
++            .any(|budget| budget.period() != /* ~ changed by cargo-mutants ~ */ period && budget.id() != id)
+         {
+             return Err(BudgetError::DuplicatePeriod);
+         }
+ 
+         self.budgets[index].amount = amount;
+         self.budgets[index].period = period;
+ 
+         Ok(())

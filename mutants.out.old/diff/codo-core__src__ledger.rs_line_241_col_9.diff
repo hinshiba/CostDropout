@@ -1,0 +1,21 @@
+--- codo-core/src/ledger.rs
++++ replace Ledger::remove_budget -> Result<(), LedgerError> with Ok(())
+@@ -233,17 +233,17 @@
+     }
+ 
+     /// 予算を削除する.
+     ///
+     /// # Errors
+     ///
+     /// `BudgetList::remove` のエラー.
+     pub fn remove_budget(&mut self, id: BudgetId) -> Result<(), LedgerError> {
+-        Ok(self.budgets.remove(id)?)
++        Ok(()) /* ~ changed by cargo-mutants ~ */
+     }
+ }
+ 
+ #[cfg(test)]
+ mod tests {
+     use super::*;
+     use crate::ledger::money::Money;
+     use crate::ledger::period::YearMonth;

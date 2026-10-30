@@ -1,0 +1,31 @@
+--- codo-core/src/infra/gitrepo.rs
++++ replace is_repository -> Result<bool, GitError> with Ok(true)
+@@ -19,27 +19,17 @@
+         .env_remove("GIT_WORK_TREE")
+         .env_remove("GIT_INDEX_FILE");
+ 
+     command
+ }
+ 
+ /// 指定されたパス自体がGitリポジトリのルートか判定する。
+ fn is_repository(path: &Path) -> Result<bool, GitError> {
+-    let output = git_command(path)
+-        .args(["rev-parse", "--show-cdup"])
+-        .output()
+-        .map_err(GitError::Command)?;
+-
+-    if !output.status.success() {
+-        return Ok(false);
+-    }
+-
+-    // ルートでは空行を出力する
+-    Ok(output.stdout.trim_ascii().is_empty())
++    Ok(true) /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ /// Gitリポジトリを操作するためのラッパー。
+ pub struct GitRepo {
+     path: PathBuf,
+ }
+ 
+ impl GitRepo {

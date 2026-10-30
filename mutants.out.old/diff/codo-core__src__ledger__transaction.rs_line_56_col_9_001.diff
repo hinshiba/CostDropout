@@ -1,0 +1,21 @@
+--- codo-core/src/ledger/transaction.rs
++++ replace Transaction::comment -> &str with "xyzzy"
+@@ -48,17 +48,17 @@
+     }
+ 
+     /// 相手先の品目を返す.
+     pub fn counterpart(&self) -> ItemId {
+         self.draft.counterpart
+     }
+ 
+     pub fn comment(&self) -> &str {
+-        &self.draft.comment
++        "xyzzy" /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     /// `TransactionDraft::check_tags` と同じ.
+     pub(crate) fn check_tags<E: From<TransactionError>>(
+         &self,
+         tag_of: impl Fn(ItemId) -> Result<Tag, E>,
+     ) -> Result<(), E> {
+         self.draft.check_tags(tag_of)

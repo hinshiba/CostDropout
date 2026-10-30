@@ -1,0 +1,21 @@
+--- codo-core/src/ledger/transaction/list.rs
++++ replace < with > in TransactionList::iter_in
+@@ -41,17 +41,17 @@
+         self.transactions.iter()
+     }
+ 
+     /// 日付が `period` に含まれる取引を走査するイテレーターを返す.
+     pub fn iter_in(&self, period: Period) -> impl DoubleEndedIterator<Item = &Transaction> {
+         // 期間の両端を二分探索する
+         let start = self
+             .transactions
+-            .partition_point(|t| t.draft.date < period.start());
++            .partition_point(|t| t.draft.date > /* ~ changed by cargo-mutants ~ */ period.start());
+         let end = self
+             .transactions
+             .partition_point(|t| t.draft.date <= period.end());
+         self.transactions[start..end].iter()
+     }
+ 
+     /// ID が `id` である取引を返す.
+     pub fn get(&self, id: TransactionId) -> Option<&Transaction> {

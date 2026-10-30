@@ -1,0 +1,23 @@
+--- codo-core/src/book.rs
++++ replace Book<S, H>::reload -> Result<(), BookError> with Ok(())
+@@ -96,19 +96,17 @@
+ 
+     /// 最後に保存した帳簿と内容が異なるか.
+     pub fn is_dirty(&self) -> bool {
+         self.ledger != self.saved
+     }
+ 
+     //保存した最新の帳簿を読み込んで反映する．
+     fn reload(&mut self) -> Result<(), BookError> {
+-        self.ledger = self.store.load()?;
+-        self.saved = self.ledger.clone();
+-        Ok(())
++        Ok(()) /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     /// 帳簿を保存してから commit する.
+     ///
+     /// 失敗した場合は保存していないものとして扱い, 次の `save` で書き直す.
+     ///
+     /// # Errors
+     ///

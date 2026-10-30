@@ -1,0 +1,21 @@
+--- codo-core/src/infra/gitrepo.rs
++++ delete ! in GitRepo::has_remote
+@@ -152,17 +152,17 @@
+ 
+     //Gitリポジトリにremoteなどが設定されているか調べる
+     pub fn has_remote(&self) -> Result<bool, GitError> {
+         let output = git_command(&self.path)
+             .arg("remote")
+             .output()
+             .map_err(GitError::Command)?;
+ 
+-        if !output.status.success() {
++        if  /* ~ changed by cargo-mutants ~ */output.status.success() {
+             return Err(GitError::CommandFailed(
+                 "git -C <path> remote".to_string(),
+                 String::from_utf8_lossy(&output.stderr).trim().to_string(),
+             ));
+         }
+ 
+         Ok(!String::from_utf8_lossy(&output.stdout).trim().is_empty())
+     }

@@ -1,0 +1,21 @@
+--- codo-core/src/ledger/money.rs
++++ replace < with <= in Money::is_positive
+@@ -92,17 +92,17 @@
+         }
+         Some(f64::from(self.0) / f64::from(base.0))
+     }
+ 
+     /// 金額が0より大きいかを判定する.
+     ///
+     /// 0は正の値に含まれない.
+     pub fn is_positive(&self) -> bool {
+-        0 < self.0
++        0 <= /* ~ changed by cargo-mutants ~ */ self.0
+     }
+ 
+     /// 金額が0より小さいかを判定する.
+     ///
+     /// 0は負の値に含まれない.
+     pub fn is_negative(&self) -> bool {
+         self.0 < 0
+     }

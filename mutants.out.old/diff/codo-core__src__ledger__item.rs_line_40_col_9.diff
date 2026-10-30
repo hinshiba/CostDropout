@@ -1,0 +1,28 @@
+--- codo-core/src/ledger/item.rs
++++ replace <impl fmt::Display for Tag>::fmt -> fmt::Result with Ok(Default::default())
+@@ -32,24 +32,17 @@
+         Tag::Income,
+         Tag::Expense,
+     ];
+ }
+ 
+ impl fmt::Display for Tag {
+     /// タグの表示名を出力する.
+     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+-        let label = match self {
+-            Tag::Asset => "資産",
+-            Tag::Liability => "負債",
+-            Tag::OpeningBalance => "初期残高",
+-            Tag::Income => "収入",
+-            Tag::Expense => "支出",
+-        };
+-        f.write_str(label)
++        Ok(Default::default()) /* ~ changed by cargo-mutants ~ */
+     }
+ }
+ 
+ /// 品目.
+ #[derive(Debug, Clone, PartialEq, Eq)]
+ pub struct Item {
+     id: ItemId,
+     name: String,

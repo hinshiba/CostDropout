@@ -1,0 +1,21 @@
+--- codo-core/src/infra/gitrepo.rs
++++ replace <impl History for GitRepo>::commit_all -> Result<(), GitError> with Ok(())
+@@ -221,17 +221,17 @@
+     /// すべての変更を commit する.
+     ///
+     /// 変更がなければ何もしない.
+     fn commit_all(&self, message: &str) -> Result<(), GitError>;
+ }
+ 
+ impl History for GitRepo {
+     fn commit_all(&self, message: &str) -> Result<(), GitError> {
+-        GitRepo::commit_all(self, message).map(drop)
++        Ok(()) /* ~ changed by cargo-mutants ~ */
+     }
+ }
+ 
+ /// Git操作中に発生するエラー。
+ #[derive(Debug, Error)]
+ pub enum GitError {
+     #[error("gitを実行できません")]
+     Command(#[source] std::io::Error),

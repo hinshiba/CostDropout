@@ -1,0 +1,21 @@
+--- codo-core/src/ledger/money.rs
++++ replace + with * in <impl Sum<Money> for Money>::sum
+@@ -132,17 +132,17 @@
+ 
+ impl Sum<Money> for Money {
+     /// 金額を合計する.
+     ///
+     /// # Panics
+     ///
+     /// 途中の合計が `i32` の範囲を超える場合はパニック.
+     fn sum<I: Iterator<Item = Money>>(iter: I) -> Self {
+-        iter.fold(Money(0), |total, item| total + item)
++        iter.fold(Money(0), |total, item| total * /* ~ changed by cargo-mutants ~ */ item)
+     }
+ }
+ 
+ impl<'a> Sum<&'a Money> for Money {
+     /// 金額を合計する.
+     ///
+     /// # Panics
+     ///

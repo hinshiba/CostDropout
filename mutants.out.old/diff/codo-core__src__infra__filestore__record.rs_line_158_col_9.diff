@@ -1,0 +1,25 @@
+--- codo-core/src/infra/filestore/record.rs
++++ replace toml_date::serialize -> Result<S::Ok, S::Error> with Ok(Default::default())
+@@ -150,21 +150,17 @@
+ ///
+ /// `#[serde(with = "toml_date")]` で使う.
+ mod toml_date {
+     use chrono::NaiveDate;
+     use serde::{Deserialize, Deserializer, Serialize, Serializer};
+     use toml::value::Datetime;
+ 
+     pub fn serialize<S: Serializer>(date: &NaiveDate, serializer: S) -> Result<S::Ok, S::Error> {
+-        let datetime = date
+-            .to_string()
+-            .parse::<Datetime>()
+-            .map_err(serde::ser::Error::custom)?;
+-        datetime.serialize(serializer)
++        Ok(Default::default()) /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     /// # Errors
+     ///
+     /// TOML の日付型でない場合と, 時刻を含む場合はエラー.
+     pub fn deserialize<'de, D: Deserializer<'de>>(deserializer: D) -> Result<NaiveDate, D::Error> {
+         Datetime::deserialize(deserializer)?
+             .to_string()

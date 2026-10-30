@@ -1,0 +1,21 @@
+--- codo-core/src/ledger/money.rs
++++ replace <impl From<i32> for Money>::from -> Self with Default::default()
+@@ -14,17 +14,17 @@
+     /// ファイルへの保存に使う内部の値を返す.
+     pub(crate) fn to_i32(self) -> i32 {
+         self.0
+     }
+ }
+ 
+ impl From<i32> for Money {
+     fn from(value: i32) -> Self {
+-        Money(value)
++        Default::default() /* ~ changed by cargo-mutants ~ */
+     }
+ }
+ 
+ // FIXME: gpui-kitのチャートが値にf32かf64しか受け付けないため公開している.
+ // チャートがMoneyを描けるようになったら削除する.
+ impl From<Money> for f64 {
+     /// 金額を損失なく `f64` に変換する.
+     fn from(value: Money) -> Self {

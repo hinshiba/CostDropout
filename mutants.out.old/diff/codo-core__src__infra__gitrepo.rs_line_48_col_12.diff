@@ -1,0 +1,21 @@
+--- codo-core/src/infra/gitrepo.rs
++++ delete ! in GitRepo::open
+@@ -40,17 +40,17 @@
+ /// Gitリポジトリを操作するためのラッパー。
+ pub struct GitRepo {
+     path: PathBuf,
+ }
+ 
+ impl GitRepo {
+     /// 指定されたパスがGitリポジトリのルートであることを確認して開く。
+     pub fn open(path: PathBuf) -> Result<GitRepo, GitError> {
+-        if !is_repository(&path)? {
++        if  /* ~ changed by cargo-mutants ~ */is_repository(&path)? {
+             return Err(GitError::CommandFailed(
+                 "git -C <path> rev-parse --show-cdup".to_string(),
+                 "指定されたパスはGitリポジトリのルートではありません".to_string(),
+             ));
+         }
+ 
+         Ok(GitRepo { path })
+     }

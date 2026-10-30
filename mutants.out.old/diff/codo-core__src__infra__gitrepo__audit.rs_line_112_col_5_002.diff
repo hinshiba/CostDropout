@@ -1,0 +1,58 @@
+--- codo-core/src/infra/gitrepo/audit.rs
++++ replace changed_files -> Result<Vec<String>, AuditError> with Ok(vec!["xyzzy".into()])
+@@ -104,54 +104,17 @@
+ 
+     hashes.next().ok_or(AuditError::OutputDataFailed)?;
+ 
+     Ok(hashes.next().map(str::to_string))
+ }
+ 
+ /// 指定したコミットで変更されたファイル名の一覧を取得する。
+ pub fn changed_files(repo: &GitRepo, hash: &str) -> Result<Vec<String>, AuditError> {
+-    let output = match first_parent(repo, hash)? {
+-        Some(parent) => git_command(repo.path())
+-            .args(["diff", "--no-renames", "--name-only", "-z"])
+-            .arg(&parent)
+-            .arg(hash)
+-            .output()
+-            .map_err(GitError::Command)?,
+-        None => git_command(repo.path())
+-            .args([
+-                "diff-tree",
+-                "--root",
+-                "--no-commit-id",
+-                "--name-only",
+-                "-r",
+-                "-z",
+-            ])
+-            .arg(hash)
+-            .output()
+-            .map_err(GitError::Command)?,
+-    };
+-
+-    if !output.status.success() {
+-        return Err(GitError::CommandFailed(
+-            format!("git diff --name-only -z {}", hash),
+-            String::from_utf8_lossy(&output.stderr).trim().to_string(),
+-        )
+-        .into());
+-    }
+-
+-    let text = String::from_utf8_lossy(&output.stdout);
+-
+-    let files: Vec<String> = text
+-        .split('\0')
+-        .filter(|file_name| !file_name.is_empty())
+-        .map(str::to_string)
+-        .collect();
+-
+-    Ok(files)
++    Ok(vec!["xyzzy".into()]) /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ /// 指定したコミットの差分を取得する
+ pub fn show_diff(repo: &GitRepo, hash: &str) -> Result<String, AuditError> {
+     let output = match first_parent(repo, hash)? {
+         Some(parent) => git_command(repo.path())
+             .args(["diff", "--no-color", "--no-ext-diff"])
+             .arg(&parent)

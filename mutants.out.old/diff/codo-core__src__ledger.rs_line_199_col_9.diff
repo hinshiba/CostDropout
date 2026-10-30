@@ -1,0 +1,22 @@
+--- codo-core/src/ledger.rs
++++ replace Ledger::update_transaction -> Result<(), LedgerError> with Ok(())
+@@ -191,18 +191,17 @@
+     ///
+     /// 品目または相手先が存在しない場合は `LedgerError::TransactionItemNotFound` エラー.
+     /// タグの組み合わせが不正な場合と, 取引が存在しない場合は `LedgerError::Transaction` エラー.
+     pub fn update_transaction(
+         &mut self,
+         id: TransactionId,
+         draft: TransactionDraft,
+     ) -> Result<(), LedgerError> {
+-        draft.check_tags(|id| self.tag_of(id))?;
+-        Ok(self.transactions.update(id, draft)?)
++        Ok(()) /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     /// 取引を削除する.
+     ///
+     /// # Errors
+     ///
+     /// 取引が存在しない場合は `TransactionError::NotFound` エラー.
+     pub fn remove_transaction(&mut self, id: TransactionId) -> Result<(), LedgerError> {

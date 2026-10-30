@@ -1,0 +1,21 @@
+--- codo-core/src/ledger/transaction/list.rs
++++ delete ! in TransactionList::from_transactions
+@@ -22,17 +22,17 @@
+     ///
+     /// # Errors
+     ///
+     /// ID が重複する場合は `TransactionError::DuplicateId` エラー.
+     pub(crate) fn from_transactions(
+         transactions: Vec<Transaction>,
+     ) -> Result<Self, TransactionError> {
+         let mut ids = HashSet::new();
+-        if let Some(t) = transactions.iter().find(|t| !ids.insert(t.id)) {
++        if let Some(t) = transactions.iter().find(|t|  /* ~ changed by cargo-mutants ~ */ids.insert(t.id)) {
+             return Err(TransactionError::DuplicateId(t.id));
+         }
+ 
+         let mut list = Self { transactions };
+         list.sort();
+         Ok(list)
+     }
+ 

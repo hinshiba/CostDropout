@@ -1,0 +1,35 @@
+--- codo-core/src/ledger/item.rs
++++ replace ItemList::validate_name -> Result<&'a str, ItemError> with Ok("")
+@@ -207,31 +207,17 @@
+     ///
+     /// `id` の品目は重複の判定から除く.
+     ///
+     /// # Errors
+     ///
+     /// 空白を取り除いた名前が空の場合は `ItemError::EmptyName` エラー.
+     /// 他の品目と名前が同じ場合は `ItemError::DuplicateName` エラー.
+     fn validate_name<'a>(&self, name: &'a str, id: Option<ItemId>) -> Result<&'a str, ItemError> {
+-        let name = name.trim();
+-
+-        if name.is_empty() {
+-            return Err(ItemError::EmptyName);
+-        }
+-
+-        // 重複だと気づかせるために, 特別に空白を取り除いた名前を入れる
+-        if self
+-            .items
+-            .iter()
+-            .any(|item| item.name == name && Some(item.id) != id)
+-        {
+-            return Err(ItemError::DuplicateName(name.to_string()));
+-        }
+-        Ok(name)
++        Ok("") /* ~ changed by cargo-mutants ~ */
+     }
+ }
+ 
+ #[derive(Debug, Error, PartialEq, Eq)]
+ pub enum ItemError {
+     /// 品目名が空の場合.
+     #[error("品目名が空です")]
+     EmptyName,

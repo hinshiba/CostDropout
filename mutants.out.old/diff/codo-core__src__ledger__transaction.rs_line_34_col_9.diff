@@ -1,0 +1,21 @@
+--- codo-core/src/ledger/transaction.rs
++++ replace Transaction::id -> TransactionId with Default::default()
+@@ -26,17 +26,17 @@
+ }
+ 
+ impl Transaction {
+     pub(crate) fn new(id: TransactionId, draft: TransactionDraft) -> Self {
+         Self { id, draft }
+     }
+ 
+     pub fn id(&self) -> TransactionId {
+-        self.id
++        Default::default() /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     pub fn date(&self) -> NaiveDate {
+         self.draft.date
+     }
+ 
+     pub fn amount(&self) -> Amount {
+         self.draft.amount

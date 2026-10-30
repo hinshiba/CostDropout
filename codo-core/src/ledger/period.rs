@@ -247,6 +247,7 @@ pub enum PeriodError {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use chrono::NaiveDate;
 
     fn date(year: i32, month: u32, day: u32) -> NaiveDate {
         NaiveDate::from_ymd_opt(year, month, day).unwrap()
@@ -403,5 +404,21 @@ mod tests {
             let period = Period::new(start, end).unwrap();
             assert_eq!(period.months().collect::<Vec<_>>(), expected, "{period:?}");
         }
+    }
+
+    #[test]
+    fn checked_prev_returns_previous_month() {
+        let month = YearMonth::new(2024, 5).unwrap();
+
+        assert_eq!(month.checked_prev(), Some(YearMonth::new(2024, 4).unwrap()));
+    }
+
+    #[test]
+    fn contains_returns_true_only_for_same_month() {
+        let month = YearMonth::new(2024, 5).unwrap();
+
+        assert!(month.contains(NaiveDate::from_ymd_opt(2024, 5, 15).unwrap()));
+
+        assert!(!month.contains(NaiveDate::from_ymd_opt(2024, 6, 1).unwrap()));
     }
 }

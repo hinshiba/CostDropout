@@ -1,0 +1,24 @@
+--- codo-core/src/ledger/transaction/list.rs
++++ replace TransactionList::add -> TransactionId with Default::default()
+@@ -60,20 +60,17 @@
+ 
+     /// 品目または相手先として `item` を使う取引があるかを判定する.
+     pub(crate) fn uses_item(&self, item: ItemId) -> bool {
+         self.transactions.iter().any(|t| t.uses(item))
+     }
+ 
+     /// 取引を追加し, 新しい ID を割り当てる.
+     pub(crate) fn add(&mut self, draft: TransactionDraft) -> TransactionId {
+-        let id = TransactionId(Uuid::new_v4());
+-        self.transactions.push(Transaction { id, draft });
+-        self.sort();
+-        id
++        Default::default() /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     /// 取引の内容を `draft` に置き換える.
+     ///
+     /// # Errors
+     ///
+     /// 取引が存在しない場合は `TransactionError::NotFound` エラー.
+     pub(crate) fn update(

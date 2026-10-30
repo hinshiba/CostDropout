@@ -1,0 +1,24 @@
+--- codo-core/src/ledger/period.rs
++++ replace YearMonth::from_date -> Self with Default::default()
+@@ -29,20 +29,17 @@
+     pub fn new(year: i32, month: u32) -> Result<Self, PeriodError> {
+         NaiveDate::from_ymd_opt(year, month, 1)
+             .map(YearMonth)
+             .ok_or(PeriodError::InvalidYearMonth { year, month })
+     }
+ 
+     /// 日付を含む年月を返す.
+     pub fn from_date(date: NaiveDate) -> Self {
+-        YearMonth(
+-            date.with_day(1)
+-                .expect("月の初日は常に存在するため到達不能"),
+-        )
++        Default::default() /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     /// 年を返す.
+     pub fn year(&self) -> i32 {
+         self.0.year()
+     }
+ 
+     /// 月を返す.

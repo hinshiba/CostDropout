@@ -1,0 +1,21 @@
+--- codo-core/src/infra/filestore.rs
++++ replace == with != in is_toml
+@@ -13,17 +13,17 @@
+ use crate::ledger::budget::{Budget, BudgetError, BudgetList};
+ use crate::ledger::item::{Item, ItemError, ItemList};
+ use crate::ledger::period::{PeriodError, YearMonth};
+ use crate::ledger::transaction::{AmountError, Transaction, TransactionError, TransactionList};
+ use crate::ledger::{Ledger, LedgerError};
+ 
+ /// 拡張子がtomlかの判断
+ fn is_toml(path: &Path) -> bool {
+-    Some(OsStr::new("toml")) == path.extension()
++    Some(OsStr::new("toml")) != /* ~ changed by cargo-mutants ~ */ path.extension()
+ }
+ 
+ /// 月ファイル(2026-10.tomlなど)なら，その年月を返す
+ fn month_of_file(path: &Path) -> Option<YearMonth> {
+     if !is_toml(path) {
+         return None;
+     }
+ 

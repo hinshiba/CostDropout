@@ -1,0 +1,21 @@
+--- codo-core/src/ledger/item.rs
++++ replace ItemList::iter_with_tag -> impl Iterator<Item =&Item> with ::std::iter::empty()
+@@ -131,17 +131,17 @@
+ 
+     /// 品目を走査するイテレーターを返す.
+     pub fn iter(&self) -> impl Iterator<Item = &Item> {
+         self.items.iter()
+     }
+ 
+     /// タグが `tag` である品目を走査するイテレーターを返す.
+     pub fn iter_with_tag(&self, tag: Tag) -> impl Iterator<Item = &Item> {
+-        self.items.iter().filter(move |item| item.tag == tag)
++        ::std::iter::empty() /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     /// ID が `id` である品目を返す.
+     pub fn get(&self, id: ItemId) -> Option<&Item> {
+         self.items.iter().find(|item| item.id == id)
+     }
+ 
+     /// 品目を追加し, 最大の ID に1を足した ID を割り当てる.

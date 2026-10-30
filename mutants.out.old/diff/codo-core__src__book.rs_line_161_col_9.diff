@@ -1,0 +1,34 @@
+--- codo-core/src/book.rs
++++ replace Book<TomlStore, GitRepo>::open -> Result<Self, BookError> with Ok(Default::default())
+@@ -153,30 +153,17 @@
+     /// 空のディレクトリなら git リポジトリにし, プリセット品目の帳簿を保存して commit する.
+     ///
+     /// # Errors
+     ///
+     /// ディレクトリを読めない場合は `BookError::Storage` エラー.
+     /// 空でなく git リポジトリのルートでもない場合は `BookError::History` エラー.
+     /// そのほか `TomlStore` と `GitRepo` のエラー.
+     pub fn open(dir: &Path) -> Result<Self, BookError> {
+-        let store = TomlStore::new(dir.to_path_buf());
+-        let is_empty = dir.read_dir().map_err(StorageError::from)?.next().is_none();
+-        if !is_empty {
+-            return Self::load(store, GitRepo::open(dir.to_path_buf())?);
+-        }
+-
+-        let mut book = Self {
+-            store,
+-            history: GitRepo::init(dir.to_path_buf())?,
+-            ledger: Ledger::with_presets(),
+-            saved: Ledger::new(),
+-        };
+-        book.save("帳簿を作成")?;
+-        Ok(book)
++        Ok(Default::default()) /* ~ changed by cargo-mutants ~ */
+     }
+ }
+ 
+ #[cfg(test)]
+ mod tests {
+     use super::*;
+     use crate::ledger::LedgerError;
+     use std::cell::RefCell;

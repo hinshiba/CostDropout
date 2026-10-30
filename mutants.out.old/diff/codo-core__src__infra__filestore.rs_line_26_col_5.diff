@@ -1,0 +1,29 @@
+--- codo-core/src/infra/filestore.rs
++++ replace month_of_file -> Option<YearMonth> with None
+@@ -18,25 +18,17 @@
+ 
+ /// 拡張子がtomlかの判断
+ fn is_toml(path: &Path) -> bool {
+     Some(OsStr::new("toml")) == path.extension()
+ }
+ 
+ /// 月ファイル(2026-10.tomlなど)なら，その年月を返す
+ fn month_of_file(path: &Path) -> Option<YearMonth> {
+-    if !is_toml(path) {
+-        return None;
+-    }
+-
+-    let stem = path.file_stem()?.to_str()?;
+-    let ym = stem.parse::<YearMonth>().ok()?;
+-
+-    // 保存時と同じ表記YYYY-MMのものだけを月ファイルとする
+-    (ym.to_string() == stem).then_some(ym)
++    None /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ /// 帳簿の保存先
+ pub trait LedgerStore {
+     /// 帳簿を読み込む
+     fn load(&self) -> Result<Ledger, StorageError>;
+ 
+     /// 帳簿を保存する

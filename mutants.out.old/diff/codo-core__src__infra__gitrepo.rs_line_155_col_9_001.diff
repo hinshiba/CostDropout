@@ -1,0 +1,33 @@
+--- codo-core/src/infra/gitrepo.rs
++++ replace GitRepo::has_remote -> Result<bool, GitError> with Ok(false)
+@@ -147,29 +147,17 @@
+ 
+         let hash = String::from_utf8_lossy(&output.stdout).trim().to_string();
+ 
+         Ok(Some(hash))
+     }
+ 
+     //Gitリポジトリにremoteなどが設定されているか調べる
+     pub fn has_remote(&self) -> Result<bool, GitError> {
+-        let output = git_command(&self.path)
+-            .arg("remote")
+-            .output()
+-            .map_err(GitError::Command)?;
+-
+-        if !output.status.success() {
+-            return Err(GitError::CommandFailed(
+-                "git -C <path> remote".to_string(),
+-                String::from_utf8_lossy(&output.stderr).trim().to_string(),
+-            ));
+-        }
+-
+-        Ok(!String::from_utf8_lossy(&output.stdout).trim().is_empty())
++        Ok(false) /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     //git pushを実行して成功・失敗．その他の失敗を判定
+     pub fn push(&self) -> Result<(), GitError> {
+         let output = git_command(&self.path)
+             .args(["push", "--porcelain"])
+             .output()
+             .map_err(GitError::Command)?;

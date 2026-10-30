@@ -1,0 +1,24 @@
+--- codo-core/src/ledger/transaction/list.rs
++++ replace TransactionList::update -> Result<(), TransactionError> with Ok(())
+@@ -76,20 +76,17 @@
+     /// # Errors
+     ///
+     /// 取引が存在しない場合は `TransactionError::NotFound` エラー.
+     pub(crate) fn update(
+         &mut self,
+         id: TransactionId,
+         draft: TransactionDraft,
+     ) -> Result<(), TransactionError> {
+-        let index = self.index_of(id)?;
+-        self.transactions[index].draft = draft;
+-        self.sort();
+-        Ok(())
++        Ok(()) /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     /// 取引を削除する.
+     ///
+     /// # Errors
+     ///
+     /// 取引が存在しない場合は `TransactionError::NotFound` エラー.
+     pub(crate) fn remove(&mut self, id: TransactionId) -> Result<(), TransactionError> {

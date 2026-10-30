@@ -1,0 +1,23 @@
+--- codo-core/src/ledger.rs
++++ replace Ledger::item_choices -> impl Iterator<Item =&Item> with ::std::iter::empty()
+@@ -97,19 +97,17 @@
+ 
+     /// 予算一覧を返す.
+     pub fn budgets(&self) -> &BudgetList {
+         &self.budgets
+     }
+ 
+     /// 取引の品目として選べる品目を返す.
+     pub fn item_choices(&self) -> impl Iterator<Item = &Item> {
+-        self.items
+-            .iter()
+-            .filter(|item| check_item_tag(item.tag()).is_ok())
++        ::std::iter::empty() /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     /// 品目が `item` である取引の相手先として選べる品目を返す.
+     ///
+     /// `item` が存在しないか, 取引の品目として選べない場合は空.
+     pub fn counterpart_choices(&self, item: ItemId) -> impl Iterator<Item = &Item> {
+         let tag = self.items.get(item).map(Item::tag);
+         self.items.iter().filter(move |candidate| {

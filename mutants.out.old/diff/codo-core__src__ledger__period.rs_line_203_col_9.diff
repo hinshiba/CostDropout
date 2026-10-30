@@ -1,0 +1,21 @@
+--- codo-core/src/ledger/period.rs
++++ replace Period::start -> NaiveDate with Default::default()
+@@ -195,17 +195,17 @@
+         Self {
+             start: date(1, 1),
+             end: date(12, 31),
+         }
+     }
+ 
+     /// 開始日を返す.
+     pub fn start(&self) -> NaiveDate {
+-        self.start
++        Default::default() /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     /// 終了日を返す.
+     pub fn end(&self) -> NaiveDate {
+         self.end
+     }
+ 
+     /// 日付が期間に含まれるかを判定する.

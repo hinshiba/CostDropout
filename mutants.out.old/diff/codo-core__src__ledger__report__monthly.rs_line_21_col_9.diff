@@ -1,0 +1,21 @@
+--- codo-core/src/ledger/report/monthly.rs
++++ replace DailySummary::date -> NaiveDate with Default::default()
+@@ -13,17 +13,17 @@
+     date: NaiveDate,
+     income: Money,
+     expense: Money,
+ }
+ 
+ impl DailySummary {
+     /// 日付を返す.
+     pub fn date(&self) -> NaiveDate {
+-        self.date
++        Default::default() /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     /// その日の収入を返す.
+     pub fn income(&self) -> Money {
+         self.income
+     }
+ 
+     /// その日の支出を返す.

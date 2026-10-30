@@ -1,0 +1,24 @@
+--- codo-core/src/ledger/transaction/amount.rs
++++ replace <impl TryFrom<Money> for Amount>::try_from -> Result<Self, Self::Error> with Ok(Default::default())
+@@ -16,20 +16,17 @@
+     type Error = AmountError;
+ 
+     /// 金額を `Amount` にする.
+     ///
+     /// # Errors
+     ///
+     /// 金額が0以下の場合は `AmountError::NonPositive` エラー.
+     fn try_from(money: Money) -> Result<Self, Self::Error> {
+-        if !money.is_positive() {
+-            return Err(AmountError::NonPositive(money));
+-        }
+-        Ok(Self(money))
++        Ok(Default::default()) /* ~ changed by cargo-mutants ~ */
+     }
+ }
+ 
+ impl From<Amount> for Money {
+     fn from(amount: Amount) -> Self {
+         amount.0
+     }
+ }

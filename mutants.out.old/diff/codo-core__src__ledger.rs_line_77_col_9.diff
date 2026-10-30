@@ -1,0 +1,29 @@
+--- codo-core/src/ledger.rs
++++ replace Ledger::from_parts -> Result<Self, LedgerError> with Ok(Default::default())
+@@ -69,25 +69,17 @@
+     ///
+     /// 取引の品目または相手先が存在しない場合は `LedgerError::TransactionItemNotFound` エラー.
+     /// 取引のタグの組み合わせが不正な場合は `LedgerError::Transaction` エラー.
+     pub(crate) fn from_parts(
+         items: ItemList,
+         transactions: TransactionList,
+         budgets: BudgetList,
+     ) -> Result<Self, LedgerError> {
+-        let ledger = Self {
+-            items,
+-            transactions,
+-            budgets,
+-        };
+-        for t in ledger.transactions.iter() {
+-            t.check_tags(|id| ledger.tag_of(id))?;
+-        }
+-        Ok(ledger)
++        Ok(Default::default()) /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     /// 品目一覧を返す.
+     pub fn items(&self) -> &ItemList {
+         &self.items
+     }
+ 
+     /// 取引一覧を返す.

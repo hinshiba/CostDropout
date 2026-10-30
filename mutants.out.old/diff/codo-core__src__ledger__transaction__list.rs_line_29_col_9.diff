@@ -1,0 +1,28 @@
+--- codo-core/src/ledger/transaction/list.rs
++++ replace TransactionList::from_transactions -> Result<Self, TransactionError> with Ok(Default::default())
+@@ -21,24 +21,17 @@
+     /// `Vec<Transaction>` から取引一覧を作成する.
+     ///
+     /// # Errors
+     ///
+     /// ID が重複する場合は `TransactionError::DuplicateId` エラー.
+     pub(crate) fn from_transactions(
+         transactions: Vec<Transaction>,
+     ) -> Result<Self, TransactionError> {
+-        let mut ids = HashSet::new();
+-        if let Some(t) = transactions.iter().find(|t| !ids.insert(t.id)) {
+-            return Err(TransactionError::DuplicateId(t.id));
+-        }
+-
+-        let mut list = Self { transactions };
+-        list.sort();
+-        Ok(list)
++        Ok(Default::default()) /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     /// 取引を走査するイテレーターを返す.
+     pub fn iter(&self) -> impl DoubleEndedIterator<Item = &Transaction> {
+         self.transactions.iter()
+     }
+ 
+     /// 日付が `period` に含まれる取引を走査するイテレーターを返す.

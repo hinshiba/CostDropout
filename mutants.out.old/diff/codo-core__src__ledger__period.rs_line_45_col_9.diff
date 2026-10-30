@@ -1,0 +1,21 @@
+--- codo-core/src/ledger/period.rs
++++ replace YearMonth::year -> i32 with 0
+@@ -37,17 +37,17 @@
+         YearMonth(
+             date.with_day(1)
+                 .expect("月の初日は常に存在するため到達不能"),
+         )
+     }
+ 
+     /// 年を返す.
+     pub fn year(&self) -> i32 {
+-        self.0.year()
++        0 /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     /// 月を返す.
+     pub fn month(&self) -> u32 {
+         self.0.month()
+     }
+ 
+     /// 月の初日を返す.

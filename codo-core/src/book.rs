@@ -661,4 +661,47 @@ mod tests {
                 .any(|item| item.to_string() == "A専用品目")
         );
     }
+
+    #[test]
+    fn history_has_remote_returns_false() {
+        let dir = tempfile::tempdir().unwrap();
+
+        let repo = GitRepo::init(dir.path().to_path_buf()).unwrap();
+
+        assert!(!<GitRepo as History>::has_remote(&repo).unwrap());
+    }
+
+    #[test]
+    fn save_creates_git_commit() {
+        let dir = tempfile::tempdir().unwrap();
+
+        let repo = GitRepo::init(dir.path().to_path_buf()).unwrap();
+
+        configure_user(dir.path());
+
+        let store = TomlStore::new(dir.path().to_path_buf());
+
+        store.save(&Ledger::with_presets()).unwrap();
+
+        let mut book = Book::load(store, repo).unwrap();
+
+        book.ledger_mut().add_item("書籍", Tag::Expense).unwrap();
+
+        book.save("書籍を追加").unwrap();
+
+        let output = git_command(dir.path())
+            .args(["rev-list", "--count", "HEAD"])
+            .output()
+            .unwrap();
+
+        assert!(output.status.success());
+
+        let count = String::from_utf8(output.stdout)
+            .unwrap()
+            .trim()
+            .parse::<u32>()
+            .unwrap();
+
+        assert_eq!(count, 1);
+    }
 }

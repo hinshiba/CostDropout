@@ -1,0 +1,30 @@
+--- codo-core/src/ledger/item.rs
++++ replace ItemList::add -> Result<ItemId, ItemError> with Ok(Default::default())
+@@ -149,26 +149,17 @@
+     /// 名前の前後の空白は取り除く.
+     ///
+     /// # Errors
+     ///
+     /// 空白を取り除いた名前が空の場合は `ItemError::EmptyName` エラー.
+     /// 他の品目と名前が同じ場合は `ItemError::DuplicateName` エラー.
+     /// 割り当てる ID が `u32` の範囲を超える場合は `ItemError::Overflow` エラー.
+     pub(crate) fn add(&mut self, name: &str, tag: Tag) -> Result<ItemId, ItemError> {
+-        let name = self.validate_name(name, None)?;
+-        let max_id = self.items.iter().map(|item| item.id.0).max().unwrap_or(0);
+-        let id = ItemId(max_id.checked_add(1).ok_or(ItemError::Overflow)?);
+-
+-        self.items.push(Item {
+-            id,
+-            name: name.to_string(),
+-            tag,
+-        });
+-        Ok(id)
++        Ok(Default::default()) /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     /// 品目の名前とタグを更新する.
+     ///
+     /// 名前の前後の空白は取り除く.
+     ///
+     /// # Errors
+     ///

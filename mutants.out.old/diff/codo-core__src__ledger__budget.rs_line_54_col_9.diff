@@ -1,0 +1,21 @@
+--- codo-core/src/ledger/budget.rs
++++ replace Budget::period -> Period with Default::default()
+@@ -46,17 +46,17 @@
+         self.id
+     }
+ 
+     pub fn amount(&self) -> Money {
+         self.amount
+     }
+ 
+     pub fn period(&self) -> Period {
+-        self.period
++        Default::default() /* ~ changed by cargo-mutants ~ */
+     }
+ }
+ 
+ impl BudgetList {
+     pub fn new() -> Self {
+         Self {
+             budgets: Vec::new(),
+         }

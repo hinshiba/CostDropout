@@ -1,0 +1,43 @@
+--- codo-core/src/infra/gitrepo/audit.rs
++++ replace show_diff -> Result<String, AuditError> with Ok("xyzzy".into())
+@@ -146,39 +146,17 @@
+         .map(str::to_string)
+         .collect();
+ 
+     Ok(files)
+ }
+ 
+ /// 指定したコミットの差分を取得する
+ pub fn show_diff(repo: &GitRepo, hash: &str) -> Result<String, AuditError> {
+-    let output = match first_parent(repo, hash)? {
+-        Some(parent) => git_command(repo.path())
+-            .args(["diff", "--no-color", "--no-ext-diff"])
+-            .arg(&parent)
+-            .arg(hash)
+-            .output()
+-            .map_err(GitError::Command)?,
+-        None => git_command(repo.path())
+-            .args(["show", "--root", "--format="])
+-            .arg(hash)
+-            .output()
+-            .map_err(GitError::Command)?,
+-    };
+-
+-    if !output.status.success() {
+-        return Err(GitError::CommandFailed(
+-            format!("git diff --name-only -z {}", hash),
+-            String::from_utf8_lossy(&output.stderr).trim().to_string(),
+-        )
+-        .into());
+-    }
+-
+-    Ok(String::from_utf8_lossy(&output.stdout).into_owned())
++    Ok("xyzzy".into()) /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ #[derive(Debug, Error)]
+ pub enum AuditError {
+     /// Git操作に失敗した場合
+     #[error(transparent)]
+     Git(#[from] GitError),
+ 
