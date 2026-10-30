@@ -88,7 +88,7 @@ impl Render for ExpenseCalendar {
                             .border_color(rgb(0xe0e0e0)),
                         Some(day) => {
                             let level = expense_level(day.expense(), max_expense);
-                            let text_color = if level >= EXPENSE_LEVELS {
+                            let text_color = if EXPENSE_LEVELS <= level {
                                 rgb(0xffffff)
                             } else {
                                 rgb(0x000000)

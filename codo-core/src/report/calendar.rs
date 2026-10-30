@@ -9,7 +9,7 @@ pub const EXPENSE_LEVELS: u8 = 5;
 ///
 /// 支出が0の日は0．それ以外は，月の最大支出を EXPENSE_LEVELS 等分して切り上げる
 pub fn expense_level(expense: Money, max: Money) -> u8 {
-    if expense.0 <= 0 || max.0 <= 0 {
+    if !expense.is_positive() || !max.is_positive() {
         return 0;
     }
 
