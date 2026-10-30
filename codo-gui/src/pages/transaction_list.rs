@@ -278,3 +278,164 @@ impl Render for TransactionList {
             )
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::TransactionList;
+    use crate::app::AppState;
+    use chrono::Local;
+    use codo_core::{
+        item::ItemId, ledger::Ledger, money::Money, transaction::TransactionDraft,
+        transaction::TransactionId,
+    };
+    use gpui_kit::test::TestWindowExt;
+    use gpui_kit::{App, AppContext, Entity, TestAppContext, Window, WindowOptions};
+
+    /// テストで使う取引の情報.
+    struct Fixture {
+        list: Entity<TransactionList>,
+        state: Entity<AppState>,
+        id: TransactionId,
+        food: ItemId,
+        cash: ItemId,
+    }
+
+    /// 今月の取引を1件持つ取引一覧を開き, その中で `f` を実行する.
+    fn with_list(cx: &mut TestAppContext, f: impl FnOnce(&Fixture, &mut Window, &mut App)) {
+        cx.update(gpui_kit::init);
+        let mut ledger = Ledger::with_presets();
+        let food = ledger.items().find_by_name("食費").unwrap().id();
+        let cash = ledger.items().find_by_name("現金").unwrap().id();
+        let id = ledger
+            .add_transaction(TransactionDraft::new(
+                Local::now().date_naive(),
+                Money::from(1200),
+                food,
+                cash,
+                "昼食".into(),
+            ))
+            .unwrap();
+        let state = cx.new(|_| AppState { ledger });
+        let (handle, list) = cx.update(|cx| {
+            gpui_kit::open_window(WindowOptions::default(), cx, |_, cx| {
+                cx.new(|cx| TransactionList::new(state.clone(), cx))
+            })
+            .unwrap()
+        });
+        let fixture = Fixture {
+            list,
+            state,
+            id,
+            food,
+            cash,
+        };
+        cx.update_window(handle, |_, window, cx| f(&fixture, window, cx))
+            .unwrap();
+    }
+
+    #[gpui_kit::test]
+    fn start_edit_fills_fields_with_transaction(cx: &mut TestAppContext) {
+        with_list(cx, |fixture, window, cx| {
+            let id = fixture.id;
+            fixture
+                .list
+                .update(cx, |list, cx| list.start_edit(id, window, cx));
+            let (editing_id, fields) = fixture.list.read(cx).editing.clone().unwrap();
+            assert_eq!(editing_id, id);
+            let values = fields.read(cx).values(cx);
+            assert_eq!(values.date, Some(Local::now().date_naive()));
+            assert_eq!(values.amount, "¥1,200");
+            assert_eq!(values.item, Some(fixture.food));
+            assert_eq!(values.counterpart, Some(fixture.cash));
+            assert_eq!(values.comment, "昼食");
+        });
+    }
+
+    #[gpui_kit::test]
+    fn confirm_edit_updates_transaction_and_closes_panel(cx: &mut TestAppContext) {
+        with_list(cx, |fixture, window, cx| {
+            let id = fixture.id;
+            fixture
+                .list
+                .update(cx, |list, cx| list.start_edit(id, window, cx));
+            let (_, fields) = fixture.list.read(cx).editing.clone().unwrap();
+            fields.update(cx, |fields, cx| {
+                fields.fill_for_test(fixture.food, fixture.cash, "3,000", window, cx)
+            });
+            window.render_frame(cx);
+            window.click("confirm-edit", cx);
+            let list = fixture.list.read(cx);
+            assert!(list.editing.is_none());
+            assert_eq!(list.edit_error, None);
+            let ledger = &fixture.state.read(cx).ledger;
+            // 追加ではなく訂正なので, 件数は増えない
+            assert_eq!(ledger.transactions().iter().count(), 1);
+            let transaction = ledger.transactions().get(id).unwrap();
+            assert_eq!(transaction.amount(), Money::from(3000));
+            assert_eq!(transaction.comment(), "昼食");
+        });
+    }
+
+    #[gpui_kit::test]
+    fn confirm_edit_keeps_panel_and_ledger_on_amount_error(cx: &mut TestAppContext) {
+        with_list(cx, |fixture, window, cx| {
+            let id = fixture.id;
+            let before = fixture.state.read(cx).ledger.clone();
+            fixture
+                .list
+                .update(cx, |list, cx| list.start_edit(id, window, cx));
+            let (_, fields) = fixture.list.read(cx).editing.clone().unwrap();
+            fields.update(cx, |fields, cx| {
+                fields.fill_for_test(fixture.food, fixture.cash, "abc", window, cx)
+            });
+            window.render_frame(cx);
+            window.click("confirm-edit", cx);
+            let list = fixture.list.read(cx);
+            // 金額のエラーは入力欄の金額の下に出すので, パネルのエラーは空のまま
+            assert!(list.editing.is_some());
+            assert_eq!(list.edit_error, None);
+            assert_eq!(fixture.state.read(cx).ledger, before);
+        });
+    }
+
+    #[gpui_kit::test]
+    fn confirm_edit_shows_error_when_transaction_was_removed(cx: &mut TestAppContext) {
+        with_list(cx, |fixture, window, cx| {
+            let id = fixture.id;
+            fixture
+                .list
+                .update(cx, |list, cx| list.start_edit(id, window, cx));
+            // 訂正中に, 別の操作で取引が消された場合
+            fixture
+                .state
+                .update(cx, |state, _| state.ledger.remove_transaction(id).unwrap());
+            window.render_frame(cx);
+            window.click("confirm-edit", cx);
+            let list = fixture.list.read(cx);
+            assert!(list.editing.is_some());
+            assert_eq!(
+                list.edit_error.as_deref(),
+                Some("訂正する取引が見つかりません。一覧を確認してください")
+            );
+        });
+    }
+
+    #[gpui_kit::test]
+    fn cancel_edit_closes_panel_without_changes(cx: &mut TestAppContext) {
+        with_list(cx, |fixture, window, cx| {
+            let id = fixture.id;
+            let before = fixture.state.read(cx).ledger.clone();
+            fixture
+                .list
+                .update(cx, |list, cx| list.start_edit(id, window, cx));
+            let (_, fields) = fixture.list.read(cx).editing.clone().unwrap();
+            fields.update(cx, |fields, cx| {
+                fields.fill_for_test(fixture.food, fixture.cash, "9,999", window, cx)
+            });
+            window.render_frame(cx);
+            window.click("cancel-edit", cx);
+            assert!(fixture.list.read(cx).editing.is_none());
+            assert_eq!(fixture.state.read(cx).ledger, before);
+        });
+    }
+}
