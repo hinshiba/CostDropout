@@ -340,4 +340,228 @@ mod tests {
         })
         .unwrap();
     }
+
+    /// Progress に渡した値を, 実際のバーと背景トラックの幅の比で検証する.
+    fn assert_progress(window: &gpui_kit::Window, color: u32, expected_percent: f32) {
+        use gpui_kit::{Background, rgb};
+
+        let quads = window.painted_quads();
+        let background = Background::from(rgb(color));
+        let tracks: Vec<_> = quads
+            .iter()
+            .filter(|quad| quad.background == background.opacity(0.2))
+            .collect();
+        assert_eq!(tracks.len(), 1, "進捗バーの背景トラックが1本あること");
+        let track = tracks[0];
+        let track_width = track.bounds.size.width.as_f32();
+        assert!(0. < track_width);
+        let indicators: Vec<_> = quads
+            .iter()
+            .filter(|quad| quad.background == background)
+            .collect();
+        // 幅0の要素は描画時に除外される場合がある.
+        if expected_percent == 0. {
+            assert!(
+                indicators
+                    .iter()
+                    .all(|quad| quad.bounds.size.width.as_f32() == 0.)
+            );
+        } else {
+            assert_eq!(indicators.len(), 1, "進捗バーが1本描画されていること");
+            let indicator = indicators[0];
+            assert_eq!(indicator.bounds.origin, track.bounds.origin);
+            let actual_percent = indicator.bounds.size.width.as_f32() / track_width * 100.;
+            assert!(
+                (actual_percent - expected_percent).abs() < 0.1,
+                "進捗: expected {expected_percent}%, actual {actual_percent}%"
+            );
+        }
+    }
+
+    #[gpui_kit::test]
+    fn budget_card_renders_boundary_statuses_and_progress(cx: &mut gpui_kit::TestAppContext) {
+        use super::budget_card;
+        use codo_core::{budget::BudgetStatus, transaction::TransactionDraft};
+        use gpui_kit::test::TestWindowExt;
+        use gpui_kit::{
+            AppContext, Bounds, Context, IntoElement, ParentElement, Render, Styled, Window,
+            WindowBounds, WindowOptions, div, px, size,
+        };
+
+        struct Card {
+            status: BudgetStatus,
+            today: NaiveDate,
+        }
+
+        impl Render for Card {
+            fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+                div()
+                    .size_full()
+                    .child(budget_card(&self.status, self.today, cx))
+            }
+        }
+
+        let today = NaiveDate::from_ymd_opt(2026, 10, 10).unwrap();
+        let month = Period::new(
+            NaiveDate::from_ymd_opt(2026, 10, 1).unwrap(),
+            NaiveDate::from_ymd_opt(2026, 10, 31).unwrap(),
+        )
+        .unwrap();
+        let single_day = Period::new(today, today).unwrap();
+        let status_for = |amount: i32, spent: i32, period: Period| {
+            let mut ledger = Ledger::with_presets();
+            let id = ledger.add_budget(Money::from(amount), period).unwrap();
+            if 0 < spent {
+                let food = ledger.items().find_by_name("食費").unwrap().id();
+                let cash = ledger.items().find_by_name("現金").unwrap().id();
+                ledger
+                    .add_transaction(TransactionDraft::new(
+                        today,
+                        Money::from(spent),
+                        food,
+                        cash,
+                        String::new(),
+                    ))
+                    .unwrap();
+            }
+            BudgetStatus::calculate(&ledger, id).unwrap()
+        };
+        cx.update(gpui_kit::init);
+        let (handle, card) = cx.update(|cx| {
+            cx.set_reduce_motion(true);
+            gpui_kit::open_window(
+                WindowOptions {
+                    window_bounds: Some(WindowBounds::Windowed(Bounds {
+                        origin: Default::default(),
+                        size: size(px(800.), px(600.)),
+                    })),
+                    ..Default::default()
+                },
+                cx,
+                |_, cx| {
+                    cx.new(|_| Card {
+                        status: status_for(10000, 2000, month),
+                        today,
+                    })
+                },
+            )
+            .unwrap()
+        });
+
+        // 金額, 支出, 期間, 状態, 割合ラベル, バーの支出割合, バーの経過割合, 色.
+        let cases = [
+            (
+                10000,
+                2000,
+                month,
+                "予算内のペースです",
+                "支出割合  20%",
+                20.,
+                1000. / 31.,
+                0x18794e,
+            ),
+            // 2000 / 6200 == 10 / 31: 同率ならペース超過にしない.
+            (
+                6200,
+                2000,
+                month,
+                "予算内のペースです",
+                "支出割合  32%",
+                1000. / 31.,
+                1000. / 31.,
+                0x18794e,
+            ),
+            // 残額0円は予算超過ではないが, 期間途中ならペース超過.
+            (
+                2000,
+                2000,
+                month,
+                "支出ペースが期間の経過を上回っています",
+                "支出割合  100%",
+                100.,
+                1000. / 31.,
+                0x946200,
+            ),
+            (
+                2000,
+                2000,
+                single_day,
+                "予算内のペースです",
+                "支出割合  100%",
+                100.,
+                100.,
+                0x18794e,
+            ),
+            // ラベルは200%, バーは100%を上限とする.
+            (
+                1000,
+                2000,
+                month,
+                "予算を超過しています",
+                "支出割合  200%",
+                100.,
+                1000. / 31.,
+                0xb42318,
+            ),
+            (
+                0,
+                2000,
+                month,
+                "予算を超過しています",
+                "支出割合  —（予算額が0円）",
+                100.,
+                1000. / 31.,
+                0xb42318,
+            ),
+            // 使用率が計算できない場合も, 支出の有無でバーが変わる.
+            (
+                0,
+                0,
+                month,
+                "予算内のペースです",
+                "支出割合  —（予算額が0円）",
+                0.,
+                1000. / 31.,
+                0x18794e,
+            ),
+            (
+                10000,
+                0,
+                month,
+                "予算内のペースです",
+                "支出割合  0%",
+                0.,
+                1000. / 31.,
+                0x18794e,
+            ),
+        ];
+        cx.update_window(handle, |_, window, cx| {
+            for (
+                amount,
+                spent,
+                period,
+                message,
+                percentage,
+                spending_progress,
+                time_progress,
+                color,
+            ) in cases
+            {
+                card.update(cx, |card, cx| {
+                    card.status = status_for(amount, spent, period);
+                    cx.notify();
+                });
+                window.render_frame(cx);
+                assert_eq!(
+                    window.find("budget-status-1").label(),
+                    Some(message),
+                    "予算{amount}, 支出{spent}, 期間{period:?}"
+                );
+                assert_eq!(window.find("budget-percentage-1").label(), Some(percentage));
+                assert_progress(window, color, spending_progress);
+                assert_progress(window, 0x64748b, time_progress);
+            }
+        })
+        .unwrap();
+    }
 }
