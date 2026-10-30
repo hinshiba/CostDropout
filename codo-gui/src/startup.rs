@@ -116,13 +116,16 @@ impl Render for Startup {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::Startup;
     use codo_core::{
+        book::Book,
         infra::filestore::{LedgerStore, TomlStore},
         infra::gitrepo::GitRepo,
         ledger::Ledger,
     };
     use gpui_kit::test::TestWindowExt;
+    use gpui_kit::{AppContext, TestAppContext, VisualTestContext, WindowOptions};
+    use std::path::PathBuf;
 
     #[gpui_kit::test]
     fn cancelled_selection_can_be_reopened(cx: &mut TestAppContext) {
