@@ -325,7 +325,7 @@ mod tests {
         ledger::Ledger,
         money::Money,
         period::{Period, YearMonth},
-        report::category::expense_by_item,
+        report::{Flow, category::by_item},
     };
     use gpui_kit::test::TestWindowExt;
     use gpui_kit::{AppContext, TestAppContext, WindowOptions};
@@ -373,9 +373,10 @@ mod tests {
         cx.run_until_parked();
         assert!(notified.get());
         cx.read(|cx| {
-            let expenses = expense_by_item(
+            let expenses = by_item(
                 &state.read(cx).ledger,
                 Period::month(YearMonth::from_date(Local::now().date_naive())),
+                Flow::Expense,
             );
             assert_eq!(expenses.len(), 1);
             assert_eq!(expenses[0].amount(), Money::from(1200));

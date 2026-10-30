@@ -264,7 +264,12 @@ mod tests {
     use super::{App, Page};
     use chrono::Local;
     use codo_core::period::YearMonth;
-    use codo_core::{item::Tag, ledger::Ledger, money::Money, transaction::TransactionDraft};
+    use codo_core::{
+        item::Tag,
+        ledger::Ledger,
+        money::Money,
+        transaction::{Amount, TransactionDraft},
+    };
     use gpui_kit::test::TestWindowExt;
     use gpui_kit::{AppContext, Bounds, TestAppContext, WindowBounds, WindowOptions, px, size};
 
@@ -276,7 +281,7 @@ mod tests {
             ledger
                 .add_transaction(TransactionDraft::new(
                     month.first_day(),
-                    Money::from(amount),
+                    Amount::try_from(Money::from(amount)).unwrap(),
                     food,
                     cash,
                     String::new(),
@@ -346,9 +351,9 @@ mod tests {
 
     #[gpui_kit::test]
     fn sidebar_opens_expense_bar_chart_and_switches_total_modes(cx: &mut TestAppContext) {
-        let mut ledger = Ledger::with_presets();
-        let food = ledger.items().find_by_name("食費").unwrap().id();
-        let cash = ledger.items().find_by_name("現金").unwrap().id();
+        let mut ledger = Ledger::new();
+        let food = ledger.add_item("食費", Tag::Expense).unwrap();
+        let cash = ledger.add_item("現金", Tag::Asset).unwrap();
 
         let transactions = [
             // 2025年
@@ -370,7 +375,7 @@ mod tests {
             ledger
                 .add_transaction(TransactionDraft::new(
                     date,
-                    Money::from(amount),
+                    Amount::try_from(Money::from(amount)).unwrap(),
                     food,
                     cash,
                     String::new(),

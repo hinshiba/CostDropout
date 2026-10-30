@@ -3,7 +3,6 @@
 use crate::app::AppState;
 use chrono::{Datelike, Local};
 use codo_core::item::{ItemId, Tag};
-use codo_core::money::MoneyError;
 use codo_core::period::{Period, YearMonth};
 use codo_core::report::trend::{monthly_expense, yearly_expense};
 use gpui_kit::component::ActiveTheme;
@@ -72,53 +71,45 @@ impl ExpenseBarChart {
             .expect("12か月の期間は常に有効なはずです")
     }
 
-    fn chart_data(&self, cx: &Context<Self>) -> Result<Vec<ExpenseData>, MoneyError> {
+    fn chart_data(&self, cx: &Context<Self>) -> Vec<ExpenseData> {
         let ledger = &self.state.read(cx).ledger;
 
         // 表示モードに応じて、グラフに使用する支出データを切り替える。
         match self.chart_mode {
             ChartMode::Item => {
                 let Some(item) = self.selected_item else {
-                    return Ok(Vec::new());
+                    return Vec::new();
                 };
 
-                monthly_expense(ledger, Self::current_period(), Some(item)).map(|expenses| {
-                    expenses
-                        .into_iter()
-                        .map(|(month, amount)| ExpenseData {
-                            label: month.to_string(),
-                            amount: f64::from(amount),
-                            is_dummy: false,
-                        })
-                        .collect()
-                })
+                monthly_expense(ledger, Self::current_period(), Some(item))
+                    .into_iter()
+                    .map(|(month, amount)| ExpenseData {
+                        label: month.to_string(),
+                        amount: f64::from(amount),
+                        is_dummy: false,
+                    })
+                    .collect()
             }
 
             ChartMode::Total => match self.total_mode {
-                TotalMode::Yearly => yearly_expense(ledger).map(|expenses| {
-                    expenses
+                TotalMode::Yearly => yearly_expense(ledger)
+                    .into_iter()
+                    .map(|(year, amount)| ExpenseData {
+                        label: format!("{year}年"),
+                        amount: f64::from(amount),
+                        is_dummy: false,
+                    })
+                    .collect(),
+
+                TotalMode::Monthly => {
+                    monthly_expense(ledger, Period::year(self.selected_year), None)
                         .into_iter()
-                        .map(|(year, amount)| ExpenseData {
-                            label: format!("{year}年"),
+                        .map(|(month, amount)| ExpenseData {
+                            label: format!("{}月", month.month()),
                             amount: f64::from(amount),
                             is_dummy: false,
                         })
                         .collect()
-                }),
-
-                TotalMode::Monthly => {
-                    monthly_expense(ledger, Period::year(self.selected_year), None).map(
-                        |expenses| {
-                            expenses
-                                .into_iter()
-                                .map(|(month, amount)| ExpenseData {
-                                    label: format!("{}月", month.month()),
-                                    amount: f64::from(amount),
-                                    is_dummy: false,
-                                })
-                                .collect()
-                        },
-                    )
                 }
             },
         }
@@ -197,7 +188,7 @@ impl Render for ExpenseBarChart {
             self.selected_item = items.first().map(|(item_id, _)| *item_id);
         }
 
-        let chart_data = self.chart_data(cx);
+        let mut chart_data = self.chart_data(cx);
 
         let chart_mode_selector = div()
             .flex()
@@ -278,61 +269,53 @@ impl Render for ExpenseBarChart {
             div()
         };
 
-        let chart = match chart_data {
-            Ok(data) if data.is_empty() => div()
+        let chart = if chart_data.is_empty() {
+            div()
                 .w_full()
                 .h_96()
                 .child("支出データがありません")
-                .into_any_element(),
+                .into_any_element()
+        } else {
+            let adjusted_max = Self::adjusted_max(&chart_data);
+            let tick_count = Self::tick_count(&chart_data);
 
-            Ok(mut data) => {
-                let adjusted_max = Self::adjusted_max(&data);
-                let tick_count = Self::tick_count(&data);
+            chart_data.push(ExpenseData {
+                label: String::new(),
+                amount: adjusted_max,
+                is_dummy: true,
+            });
 
-                data.push(ExpenseData {
-                    label: String::new(),
-                    amount: adjusted_max,
-                    is_dummy: true,
-                });
+            let chart_color = cx.theme().chart_1;
+            let transparent = cx.theme().transparent;
 
-                let chart_color = cx.theme().chart_1;
-                let transparent = cx.theme().transparent;
-
-                div()
-                    .w_full()
-                    .h_96()
-                    .overflow_hidden()
-                    .child(
-                        div().w(relative(1.12)).h_full().child(
-                            BarChart::new(data)
-                                .band(|data| data.label.clone())
-                                .value(|data| data.amount)
-                                .label(|data| {
-                                    if data.is_dummy {
-                                        String::new()
-                                    } else {
-                                        format!("{:.0}", data.amount)
-                                    }
-                                })
-                                .fill(move |data, _, _, _| {
-                                    if data.is_dummy {
-                                        transparent
-                                    } else {
-                                        chart_color
-                                    }
-                                })
-                                .value_axis(true)
-                                .value_tick_count(tick_count),
-                        ),
-                    )
-                    .into_any_element()
-            }
-
-            Err(error) => div()
+            div()
                 .w_full()
                 .h_96()
-                .child(format!("集計エラー: {error}"))
-                .into_any_element(),
+                .overflow_hidden()
+                .child(
+                    div().w(relative(1.12)).h_full().child(
+                        BarChart::new(chart_data)
+                            .band(|data| data.label.clone())
+                            .value(|data| data.amount)
+                            .label(|data| {
+                                if data.is_dummy {
+                                    String::new()
+                                } else {
+                                    format!("{:.0}", data.amount)
+                                }
+                            })
+                            .fill(move |data, _, _, _| {
+                                if data.is_dummy {
+                                    transparent
+                                } else {
+                                    chart_color
+                                }
+                            })
+                            .value_axis(true)
+                            .value_tick_count(tick_count),
+                    ),
+                )
+                .into_any_element()
         };
 
         let controls = match self.chart_mode {
