@@ -1,8 +1,8 @@
 //! 取引の日付・金額・品目を入力して帳簿に追加する画面。
 
 use crate::app::AppState;
+use crate::transaction_fields::ItemChoice;
 use chrono::Local;
-use codo_core::item::{Item, ItemId, Tag};
 use codo_core::ledger::LedgerError;
 use codo_core::transaction::TransactionError;
 use codo_core::transaction_input::{
@@ -11,38 +11,9 @@ use codo_core::transaction_input::{
 use gpui_kit::component::button::Button;
 use gpui_kit::component::date_picker::{DatePicker, DatePickerEvent, DatePickerState};
 use gpui_kit::component::input::{Input, InputEvent, InputState};
-use gpui_kit::component::select::{Select, SelectEvent, SelectItem, SelectState};
+use gpui_kit::component::select::{Select, SelectEvent, SelectState};
 use gpui_kit::prelude::FluentBuilder;
 use gpui_kit::*;
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct ItemChoice {
-    id: ItemId,
-    name: SharedString,
-    tag: Tag,
-}
-
-impl SelectItem for ItemChoice {
-    type Value = ItemId;
-
-    fn title(&self) -> SharedString {
-        self.name.clone()
-    }
-
-    fn value(&self) -> &ItemId {
-        &self.id
-    }
-}
-
-impl From<&Item> for ItemChoice {
-    fn from(item: &Item) -> Self {
-        Self {
-            id: item.id(),
-            name: item.name().to_string().into(),
-            tag: item.tag(),
-        }
-    }
-}
 
 /// コアのエラーを、画面利用者向けのメッセージに変換する。
 fn friendly_error(error: &FormError) -> String {
