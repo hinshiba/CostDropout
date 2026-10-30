@@ -2,6 +2,7 @@
 
 mod app;
 mod pages;
+mod transaction_fields;
 use crate::app::App;
 use gpui_kit::*;
 
