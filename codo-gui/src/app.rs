@@ -16,7 +16,7 @@ pub struct AppState {
 }
 
 /// 現在の画面のenum
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Page {
     TransactionForm,
     TransactionList,
@@ -137,8 +137,8 @@ impl Render for App {
                 }
             });
 
-        // 品目別の支出推移
-        let expense_bar_chart = SidebarMenuItem::new("支出推移（品目別）")
+        // 支出推移
+        let expense_bar_chart = SidebarMenuItem::new("支出推移（棒グラフ）")
             .active(self.page == Page::ExpenseBarChart)
             .on_click({
                 let app = app.clone();
@@ -302,6 +302,104 @@ mod tests {
             window.click("previous-month", cx);
             window.render_frame(cx);
             assert_month(window, month, false);
+        })
+        .unwrap();
+    }
+
+    #[gpui_kit::test]
+    fn sidebar_opens_expense_bar_chart_and_switches_total_modes(cx: &mut TestAppContext) {
+        let mut ledger = Ledger::with_presets();
+        let food = ledger.items().find_by_name("食費").unwrap().id();
+        let cash = ledger.items().find_by_name("現金").unwrap().id();
+
+        let transactions = [
+            // 2025年
+            (chrono::NaiveDate::from_ymd_opt(2025, 1, 10).unwrap(), 1_000),
+            (
+                chrono::NaiveDate::from_ymd_opt(2025, 12, 10).unwrap(),
+                3_000,
+            ),
+            // 2026年
+            (chrono::NaiveDate::from_ymd_opt(2026, 1, 10).unwrap(), 4_000),
+            (chrono::NaiveDate::from_ymd_opt(2026, 6, 10).unwrap(), 5_000),
+            (
+                chrono::NaiveDate::from_ymd_opt(2026, 12, 10).unwrap(),
+                6_000,
+            ),
+        ];
+
+        for (date, amount) in transactions {
+            ledger
+                .add_transaction(TransactionDraft::new(
+                    date,
+                    Money::from(amount),
+                    food,
+                    cash,
+                    String::new(),
+                ))
+                .unwrap();
+        }
+
+        cx.update(gpui_kit::init);
+
+        let (handle, app) = cx.update(|cx| {
+            cx.set_reduce_motion(true);
+
+            gpui_kit::open_window(
+                WindowOptions {
+                    window_bounds: Some(WindowBounds::Windowed(Bounds {
+                        origin: Default::default(),
+                        size: size(px(900.), px(700.)),
+                    })),
+                    ..Default::default()
+                },
+                cx,
+                |window, cx| cx.new(|cx| App::with_ledger(ledger, window, cx)),
+            )
+            .unwrap()
+        });
+
+        cx.update_window(handle, |_, window, cx| {
+            window.render_frame(cx);
+
+            // Sidebar の「支出推移」を開く。
+            window.click("0-3", cx);
+            window.render_frame(cx);
+
+            assert_eq!(app.read(cx).page, Page::ExpenseBarChart);
+
+            // 「合計」に切り替える。
+            window.click("chart-mode-total", cx);
+            window.render_frame(cx);
+
+            assert!(window.find("total-mode-yearly").visible());
+            assert!(window.find("total-mode-monthly").visible());
+
+            // 初期状態は「年別」。
+            assert!(window.find("total-mode-yearly").visible());
+
+            // 「月別」に切り替える。
+            window.click("total-mode-monthly", cx);
+            window.render_frame(cx);
+
+            // 月別では前年・翌年ボタンが表示される。
+            assert!(window.find("previous-year").visible());
+            assert!(window.find("next-year").visible());
+
+            // 翌年へ移動できる。
+            window.click("next-year", cx);
+            window.render_frame(cx);
+
+            // 前年へ戻ることができる。
+            window.click("previous-year", cx);
+            window.render_frame(cx);
+
+            // 「年別」に戻せる。
+            window.click("total-mode-yearly", cx);
+            window.render_frame(cx);
+
+            assert!(window.find("total-mode-yearly").visible());
+            assert!(window.find("total-mode-monthly").visible());
         })
         .unwrap();
     }
