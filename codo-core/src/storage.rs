@@ -200,6 +200,27 @@ impl LedgerStore for TomlStore {
     }
 }
 
+/// メモリ上の帳簿に置く保存先
+#[cfg(test)]
+#[derive(Debug, Default)]
+pub(crate) struct MemoryStore {
+    ledger: std::cell::RefCell<Option<Ledger>>,
+}
+
+#[cfg(test)]
+impl LedgerStore for MemoryStore {
+    /// 帳簿を保存する
+    fn save(&self, ledger: &Ledger) -> Result<(), StorageError> {
+        *self.ledger.borrow_mut() = Some(ledger.clone());
+        Ok(())
+    }
+
+    /// 帳簿を読み込む
+    fn load(&self) -> Result<Ledger, StorageError> {
+        Ok(self.ledger.borrow().clone().unwrap_or_default())
+    }
+}
+
 /// 帳簿の保存・読み込みで発生するエラー
 #[derive(Debug, Error)]
 pub enum StorageError {
@@ -232,7 +253,6 @@ pub enum StorageError {
 mod tests {
     use super::*;
     use chrono::NaiveDate;
-    use std::cell::RefCell;
 
     use crate::item::Tag;
     use crate::money::Money;
@@ -241,25 +261,6 @@ mod tests {
     /// テスト用の日付(2026年の指定した月日)
     fn date(month: u32, day: u32) -> NaiveDate {
         NaiveDate::from_ymd_opt(2026, month, day).unwrap()
-    }
-
-    /// メモリ上の帳簿に置く保存先
-    #[derive(Debug, Default)]
-    struct MemoryStore {
-        ledger: RefCell<Option<Ledger>>,
-    }
-
-    impl LedgerStore for MemoryStore {
-        /// 帳簿を保存する
-        fn save(&self, ledger: &Ledger) -> Result<(), StorageError> {
-            *self.ledger.borrow_mut() = Some(ledger.clone());
-            Ok(())
-        }
-
-        /// 帳簿を読み込む
-        fn load(&self) -> Result<Ledger, StorageError> {
-            Ok(self.ledger.borrow().clone().unwrap_or_default())
-        }
     }
 
     /// 品目2つと，10月に2件・11月に1件の取引を持つ帳簿を作る
