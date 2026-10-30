@@ -192,8 +192,8 @@ impl Render for BudgetDashboard {
                 .flex()
                 .flex_col()
                 .gap_2()
-                .child(div().text_lg().child("今日を含む予算はありません"))
-                .child("予算設定画面で、今日を含む期間と予算額を設定してください。")
+                .child(div().text_lg().child("予算がありません"))
+                .child("予算設定画面で、期間と予算額を設定してください。")
                 .into_any_element()
         } else {
             div()
@@ -220,7 +220,7 @@ impl Render for BudgetDashboard {
                         div()
                             .text_sm()
                             .text_color(cx.theme().muted_foreground)
-                            .child(format!("{} 時点 · 今日を含む予算の節約状況", today)),
+                            .child(format!("{} 予算の節約状況", today)),
                     )
                     .child(content),
             )
