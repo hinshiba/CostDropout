@@ -2,8 +2,8 @@
 
 use crate::app::AppState;
 use chrono::{Datelike, NaiveDate};
-use codo_core::period::{Period, YearMonth};
-use codo_core::report::{flows_in, monthly::monthly_summary};
+use codo_core::ledger::period::{Period, YearMonth};
+use codo_core::ledger::report::{flows_in, monthly::monthly_summary};
 use gpui_kit::component::button::Button;
 use gpui_kit::*;
 

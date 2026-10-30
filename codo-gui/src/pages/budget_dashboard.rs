@@ -1,7 +1,7 @@
 //! 今日を含む予算の残額と支出ペースを表示する.
 use crate::app::AppState;
 use chrono::{Local, NaiveDate};
-use codo_core::{ledger::Ledger, period::Period, report::budget::BudgetStatus};
+use codo_core::ledger::{Ledger, period::Period, report::budget::BudgetStatus};
 use gpui_kit::base::TestSupportExt;
 use gpui_kit::component::{ActiveTheme, progress::Progress};
 use gpui_kit::*;
@@ -231,7 +231,7 @@ impl Render for BudgetDashboard {
 mod tests {
     use super::{active_budgets, elapsed_days};
     use chrono::NaiveDate;
-    use codo_core::{ledger::Ledger, money::Money, period::Period};
+    use codo_core::ledger::{Ledger, money::Money, period::Period};
 
     #[test]
     fn counts_inclusive_days_and_clamps_outside_period() {
@@ -271,7 +271,7 @@ mod tests {
         use super::BudgetDashboard;
         use crate::app::AppState;
         use chrono::{Days, Local};
-        use codo_core::{
+        use codo_core::ledger::{
             item::Tag,
             transaction::{Amount, TransactionDraft},
         };
@@ -384,7 +384,7 @@ mod tests {
     #[gpui_kit::test]
     fn budget_card_renders_boundary_statuses_and_progress(cx: &mut gpui_kit::TestAppContext) {
         use super::budget_card;
-        use codo_core::{
+        use codo_core::ledger::{
             item::Tag,
             report::budget::BudgetStatus,
             transaction::{Amount, TransactionDraft},

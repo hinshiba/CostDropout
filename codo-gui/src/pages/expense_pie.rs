@@ -3,10 +3,10 @@
 use crate::app::AppState;
 use chrono::Local;
 use codo_core::ledger::Ledger;
-use codo_core::money::Money;
-use codo_core::period::{Period, YearMonth};
-use codo_core::report::Flow;
-use codo_core::report::category::by_item;
+use codo_core::ledger::money::Money;
+use codo_core::ledger::period::{Period, YearMonth};
+use codo_core::ledger::report::Flow;
+use codo_core::ledger::report::category::by_item;
 use gpui_kit::base::TestSupportExt;
 use gpui_kit::component::{ActiveTheme, button::Button, chart::PieChart};
 use gpui_kit::*;
@@ -169,11 +169,11 @@ impl Render for ExpensePie {
 mod tests {
     use super::{ExpensePie, ExpenseSlice};
     use crate::app::AppState;
-    use codo_core::item::Tag;
     use codo_core::ledger::Ledger;
-    use codo_core::money::Money;
-    use codo_core::period::YearMonth;
-    use codo_core::transaction::{Amount, TransactionDraft};
+    use codo_core::ledger::item::Tag;
+    use codo_core::ledger::money::Money;
+    use codo_core::ledger::period::YearMonth;
+    use codo_core::ledger::transaction::{Amount, TransactionDraft};
     use gpui_kit::{AppContext, TestAppContext};
 
     #[gpui_kit::test]

@@ -1,36 +1,20 @@
 //! 帳簿の保存・読み込み
 
-use chrono::NaiveDate;
-use serde::{Deserialize, Serialize};
+mod record;
+
 use std::collections::BTreeMap;
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 use thiserror::Error;
 
-use crate::budget::{Budget, BudgetError, BudgetId, BudgetList};
-use crate::item::{Item, ItemError, ItemList};
+use self::record::{
+    BudgetRecord, BudgetsFile, ItemRecord, ItemsFile, MonthFile, TransactionRecord,
+};
+use crate::ledger::budget::{Budget, BudgetError, BudgetList};
+use crate::ledger::item::{Item, ItemError, ItemList};
+use crate::ledger::period::{PeriodError, YearMonth};
+use crate::ledger::transaction::{AmountError, Transaction, TransactionError, TransactionList};
 use crate::ledger::{Ledger, LedgerError};
-use crate::money::Money;
-use crate::period::{Period, PeriodError, YearMonth};
-use crate::transaction::{Transaction, TransactionError, TransactionList};
-
-/// 1か月分の取引ファイル
-#[derive(Serialize, Deserialize)]
-struct MonthFile {
-    transactions: Vec<Transaction>,
-}
-
-/// 品目ファイル
-#[derive(Serialize, Deserialize)]
-struct ItemsFile {
-    items: Vec<Item>,
-}
-
-/// 予算ファイル
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct BudgetsFile {
-    budgets: Vec<BudgetRecord>,
-}
 
 /// 拡張子がtomlかの判断
 fn is_toml(path: &Path) -> bool {
@@ -48,42 +32,6 @@ fn month_of_file(path: &Path) -> Option<YearMonth> {
 
     // 保存時と同じ表記YYYY-MMのものだけを月ファイルとする
     (ym.to_string() == stem).then_some(ym)
-}
-
-/// TOMLに保存する予算1件分のデータ
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct BudgetRecord {
-    id: u32,
-    amount: Money,
-
-    #[serde(with = "crate::serialization::toml_date")]
-    start: NaiveDate,
-
-    #[serde(with = "crate::serialization::toml_date")]
-    end: NaiveDate,
-}
-
-/// BudgetをBudgetRecordに変換する
-impl From<&Budget> for BudgetRecord {
-    fn from(budget: &Budget) -> Self {
-        Self {
-            id: budget.id().0,
-            amount: budget.amount(),
-            start: budget.period().start(),
-            end: budget.period().end(),
-        }
-    }
-}
-
-/// BudgetRecordからBudgetを復元する
-impl TryFrom<BudgetRecord> for Budget {
-    type Error = PeriodError;
-
-    fn try_from(record: BudgetRecord) -> Result<Self, Self::Error> {
-        let period = Period::new(record.start, record.end)?;
-
-        Ok(Budget::new(BudgetId(record.id), record.amount, period))
-    }
 }
 
 /// 帳簿の保存先
@@ -116,7 +64,7 @@ impl LedgerStore for TomlStore {
         let items = if items_path.try_exists()? {
             let items_toml = std::fs::read_to_string(items_path)?;
             let items_file: ItemsFile = toml::from_str(&items_toml)?;
-            ItemList::from_items(items_file.items)?
+            ItemList::from_items(items_file.items.into_iter().map(Item::from).collect())?
         } else {
             ItemList::new()
         };
@@ -133,7 +81,9 @@ impl LedgerStore for TomlStore {
                 }
                 let month_toml = std::fs::read_to_string(&path)?;
                 let month_file: MonthFile = toml::from_str(&month_toml)?;
-                all.extend(month_file.transactions);
+                for record in month_file.transactions {
+                    all.push(Transaction::try_from(record)?);
+                }
             }
         }
         let transactions = TransactionList::from_transactions(all)?;
@@ -169,12 +119,18 @@ impl LedgerStore for TomlStore {
         let budgets_path = self.dir.join("budgets.toml");
         std::fs::write(budgets_path, budgets_toml)?;
         let items_path = self.dir.join("items.toml");
-        let items_toml = toml::to_string(ledger.items())?;
-        let mut by_month: BTreeMap<YearMonth, Vec<Transaction>> = BTreeMap::new();
+        let items_file = ItemsFile {
+            items: ledger.items().iter().map(ItemRecord::from).collect(),
+        };
+        let items_toml = toml::to_string(&items_file)?;
+        let mut by_month: BTreeMap<YearMonth, Vec<TransactionRecord>> = BTreeMap::new();
         std::fs::write(items_path, items_toml)?;
         for t in ledger.transactions().iter() {
             let month = YearMonth::from_date(t.date());
-            by_month.entry(month).or_default().push(t.clone());
+            by_month
+                .entry(month)
+                .or_default()
+                .push(TransactionRecord::from(t));
         }
 
         let transactions_dir = self.dir.join("transactions");
@@ -200,27 +156,6 @@ impl LedgerStore for TomlStore {
     }
 }
 
-/// メモリ上の帳簿に置く保存先
-#[cfg(test)]
-#[derive(Debug, Default)]
-pub(crate) struct MemoryStore {
-    ledger: std::cell::RefCell<Option<Ledger>>,
-}
-
-#[cfg(test)]
-impl LedgerStore for MemoryStore {
-    /// 帳簿を保存する
-    fn save(&self, ledger: &Ledger) -> Result<(), StorageError> {
-        *self.ledger.borrow_mut() = Some(ledger.clone());
-        Ok(())
-    }
-
-    /// 帳簿を読み込む
-    fn load(&self) -> Result<Ledger, StorageError> {
-        Ok(self.ledger.borrow().clone().unwrap_or_default())
-    }
-}
-
 /// 帳簿の保存・読み込みで発生するエラー
 #[derive(Debug, Error)]
 pub enum StorageError {
@@ -232,6 +167,9 @@ pub enum StorageError {
 
     #[error("TOMLへの変換に失敗しました: {0}")]
     SerializeToml(#[from] toml::ser::Error),
+
+    #[error("取引の金額が不正です: {0}")]
+    InvalidAmount(#[from] AmountError),
 
     #[error("予算期間が不正です: {0}")]
     InvalidPeriod(#[from] PeriodError),
@@ -254,9 +192,78 @@ mod tests {
     use super::*;
     use chrono::NaiveDate;
 
-    use crate::item::Tag;
-    use crate::money::Money;
-    use crate::transaction::{Amount, TransactionDraft, TransactionId};
+    use crate::ledger::item::Tag;
+    use crate::ledger::money::Money;
+    use crate::ledger::period::Period;
+    use crate::ledger::transaction::{Amount, TransactionDraft, TransactionId};
+
+    /// 読み込んで保存し直しても, ファイルの内容が1バイトも変わらない
+    #[test]
+    fn toml_store_keeps_file_format() {
+        let files = [
+            (
+                "items.toml",
+                r#"[[items]]
+id = 1
+name = "現金"
+tag = "asset"
+
+[[items]]
+id = 2
+name = "借入"
+tag = "liability"
+
+[[items]]
+id = 3
+name = "開始残高"
+tag = "opening_balance"
+
+[[items]]
+id = 4
+name = "給与"
+tag = "income"
+
+[[items]]
+id = 5
+name = "食費"
+tag = "expense"
+"#,
+            ),
+            (
+                "budgets.toml",
+                r#"[[budgets]]
+id = 1
+amount = 50000
+start = 2026-10-01
+end = 2026-10-31
+"#,
+            ),
+            (
+                "transactions/2026-10.toml",
+                r#"[[transactions]]
+id = "00000000-0000-0000-0000-000000000001"
+date = 2026-10-02
+amount = 1200
+item = 5
+counterpart = 1
+comment = "昼食"
+"#,
+            ),
+        ];
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir(dir.path().join("transactions")).unwrap();
+        for (path, content) in files {
+            std::fs::write(dir.path().join(path), content).unwrap();
+        }
+        let store = TomlStore::new(dir.path().to_path_buf());
+
+        store.save(&store.load().unwrap()).unwrap();
+
+        for (path, content) in files {
+            let saved = std::fs::read_to_string(dir.path().join(path)).unwrap();
+            assert_eq!(saved, content, "{path}");
+        }
+    }
 
     /// テスト用の日付(2026年の指定した月日)
     fn date(month: u32, day: u32) -> NaiveDate {
@@ -393,7 +400,10 @@ mod tests {
         for amount in ["0", "-1"] {
             let result = load_with_replaced("amount = 1200", &format!("amount = {amount}"));
             assert!(
-                matches!(result, Err(StorageError::ParseToml(_))),
+                matches!(
+                    result,
+                    Err(StorageError::InvalidAmount(AmountError::NonPositive(_)))
+                ),
                 "{amount}"
             );
         }
@@ -557,23 +567,6 @@ counterpart = 1",
         assert_eq!(month("2026-1.toml"), None);
         assert_eq!(month("2026-13.toml"), None);
         assert_eq!(month("items.toml"), None);
-    }
-
-    #[test]
-    fn memory_store_load_before_save_returns_empty_ledger() {
-        let store = MemoryStore::default();
-
-        assert_eq!(store.load().unwrap(), Ledger::new());
-    }
-
-    #[test]
-    fn memory_store_save_then_load_returns_same_ledger() {
-        let store = MemoryStore::default();
-        let (ledger, _) = sample_ledger();
-
-        store.save(&ledger).unwrap();
-
-        assert_eq!(store.load().unwrap(), ledger);
     }
 
     #[test]

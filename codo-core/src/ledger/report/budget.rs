@@ -1,8 +1,8 @@
 //! 予算の使用状況
-use crate::budget::{Budget, BudgetError, BudgetId};
 use crate::ledger::Ledger;
-use crate::money::Money;
-use crate::report::expense_total;
+use crate::ledger::budget::{Budget, BudgetError, BudgetId};
+use crate::ledger::money::Money;
+use crate::ledger::report::expense_total;
 
 /// 予算の使用状況.
 #[derive(Debug, Clone, PartialEq)]
@@ -60,8 +60,8 @@ impl BudgetStatus {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::period::{Period, YearMonth};
-    use crate::report::fixture::{Book, date};
+    use crate::ledger::period::{Period, YearMonth};
+    use crate::ledger::report::fixture::{Book, date};
 
     /// 10月の予算 `budget` 円と, 10月の支出 `expenses` をもつ帳簿.
     fn ledger(budget: i32, expenses: &[i32]) -> (Ledger, BudgetId) {

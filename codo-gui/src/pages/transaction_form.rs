@@ -5,7 +5,6 @@ use crate::transaction_fields::{FieldsChanged, FormError, TransactionFields, fri
 use gpui_kit::component::button::Button;
 use gpui_kit::prelude::FluentBuilder;
 use gpui_kit::*;
-
 /// 共有帳簿に取引を追加する画面。
 pub struct TransactionForm {
     state: Entity<AppState>,
@@ -104,9 +103,9 @@ mod tests {
     use super::TransactionForm;
     use crate::{app::AppState, pages::expense_pie::ExpensePie};
     use chrono::Local;
-    use codo_core::{
+    use codo_core::ledger::{
+        Ledger,
         item::Tag,
-        ledger::Ledger,
         money::Money,
         period::{Period, YearMonth},
         report::{Flow, category::by_item},

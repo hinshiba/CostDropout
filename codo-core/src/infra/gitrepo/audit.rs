@@ -1,4 +1,6 @@
-use crate::git::{GitError, GitRepo, git_command};
+//! コミット履歴の監査
+
+use super::{GitError, GitRepo, git_command};
 use chrono::{DateTime, FixedOffset};
 use thiserror::Error;
 

@@ -1,17 +1,15 @@
 //! 取引の金額
 
-use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::str::FromStr;
 use thiserror::Error;
 
-use crate::money::{Money, MoneyError};
+use crate::ledger::money::{Money, MoneyError};
 
 /// 取引の金額.
 ///
 /// 0を含まない正の値だけをもつ.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-#[serde(try_from = "Money", into = "Money")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Amount(Money);
 
 impl TryFrom<Money> for Amount {
@@ -121,19 +119,5 @@ mod tests {
     #[test]
     fn display_test() {
         assert_eq!(Amount::of(1234).to_string(), "¥1,234");
-    }
-
-    #[test]
-    fn deserialize_test() {
-        #[derive(Debug, Deserialize)]
-        struct Row {
-            amount: Amount,
-        }
-
-        let row: Row = toml::from_str("amount = 1").unwrap();
-        assert_eq!(row.amount, Amount::of(1));
-        for s in ["amount = 0", "amount = -1"] {
-            assert!(toml::from_str::<Row>(s).is_err(), "{s}");
-        }
     }
 }

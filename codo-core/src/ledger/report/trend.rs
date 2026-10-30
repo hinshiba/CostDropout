@@ -2,11 +2,11 @@
 
 use chrono::Datelike;
 
-use crate::item::ItemId;
 use crate::ledger::Ledger;
-use crate::money::Money;
-use crate::period::{Period, YearMonth};
-use crate::report::{Flow, expense_total, flows_in};
+use crate::ledger::item::ItemId;
+use crate::ledger::money::Money;
+use crate::ledger::period::{Period, YearMonth};
+use crate::ledger::report::{Flow, expense_total, flows_in};
 
 /// 期間と重なる月ごとの支出の合計を返す.
 ///
@@ -60,7 +60,7 @@ pub fn yearly_expense(ledger: &Ledger) -> Vec<(i32, Money)> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::report::fixture::{Book, date};
+    use crate::ledger::report::fixture::{Book, date};
     use chrono::NaiveDate;
 
     fn ym(year: i32, month: u32) -> YearMonth {

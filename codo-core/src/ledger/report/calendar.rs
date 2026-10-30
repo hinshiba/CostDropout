@@ -1,6 +1,6 @@
 //! 支出カレンダーの色の段階
 
-use crate::money::Money;
+use crate::ledger::money::Money;
 
 /// 色の段階の数
 pub const EXPENSE_LEVELS: u8 = 5;

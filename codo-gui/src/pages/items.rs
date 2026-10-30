@@ -1,8 +1,8 @@
 //! 品目管理表示画面
 
 use crate::app::AppState;
-use codo_core::item::{ItemError, ItemId, Tag};
 use codo_core::ledger::LedgerError;
+use codo_core::ledger::item::{ItemError, ItemId, Tag};
 use gpui_kit::component::Selectable;
 use gpui_kit::component::WindowExt;
 use gpui_kit::component::button::Button;

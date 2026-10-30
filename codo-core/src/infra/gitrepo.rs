@@ -1,3 +1,7 @@
+//! Gitリポジトリの操作と帳簿の変更履歴
+
+pub mod audit;
+
 use std::path::Path;
 use std::path::PathBuf;
 use std::process::Command;
@@ -52,7 +56,7 @@ impl GitRepo {
     }
 
     /// Gitリポジトリのパスを参照として返す。
-    pub(crate) fn path(&self) -> &Path {
+    fn path(&self) -> &Path {
         &self.path
     }
 
@@ -144,6 +148,20 @@ impl GitRepo {
         let hash = String::from_utf8_lossy(&output.stdout).trim().to_string();
 
         Ok(Some(hash))
+    }
+}
+
+/// 帳簿の変更履歴
+pub trait History {
+    /// すべての変更を commit する.
+    ///
+    /// 変更がなければ何もしない.
+    fn commit_all(&self, message: &str) -> Result<(), GitError>;
+}
+
+impl History for GitRepo {
+    fn commit_all(&self, message: &str) -> Result<(), GitError> {
+        GitRepo::commit_all(self, message).map(drop)
     }
 }
 

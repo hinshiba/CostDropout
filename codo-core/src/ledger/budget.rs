@@ -1,5 +1,5 @@
-use crate::money::Money;
-use crate::period::Period;
+use crate::ledger::money::Money;
+use crate::ledger::period::Period;
 use std::collections::HashSet;
 use thiserror::Error;
 
@@ -160,7 +160,7 @@ impl BudgetId {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::period::YearMonth;
+    use crate::ledger::period::YearMonth;
     use chrono::NaiveDate;
 
     #[test]
