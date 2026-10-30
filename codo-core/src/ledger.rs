@@ -1,5 +1,4 @@
-//! ledgerの整合性
-
+//! 帳簿とその操作
 use crate::budget::{BudgetError, BudgetId, BudgetList};
 use crate::item::{Item, ItemError, ItemId, ItemList, Tag};
 use crate::money::Money;
@@ -10,8 +9,11 @@ use crate::transaction::{
 };
 use thiserror::Error;
 
-/// 登録された品目と取引を保持し、
-/// 品目や取引に対する操作を提供する。
+/// 帳簿.
+///
+/// 品目一覧, 取引一覧, 予算一覧をもち, 次の要件を満たす.
+/// * 取引の品目と相手先は品目一覧に存在する
+/// * 取引の品目と相手先のタグの組み合わせは `check_tags` を満たす
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Ledger {
     items: ItemList,
@@ -19,40 +21,36 @@ pub struct Ledger {
     budgets: BudgetList,
 }
 
-/// Ledgerの操作中に発生するエラー
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum LedgerError {
+    /// 品目一覧の操作に失敗した場合.
     #[error(transparent)]
     Item(#[from] ItemError),
-
+    /// 取引一覧の操作に失敗した場合と, 取引のタグの組み合わせが不正な場合.
     #[error(transparent)]
     Transaction(#[from] TransactionError),
-
+    /// 予算一覧の操作に失敗した場合.
     #[error(transparent)]
     Budget(#[from] BudgetError),
-
+    /// 取引から使われている品目を削除しようとした場合.
     #[error("取引から参照されている品目 {0:?} は削除できません")]
     ItemUse(ItemId),
-
+    /// 取引の品目または相手先が存在しない場合.
     #[error("存在しない取引の品目 {0:?} が指定されています")]
     TransactionItemNotFound(ItemId),
 }
 
 impl Ledger {
+    /// 新しい空の帳簿を作成する.
     pub fn new() -> Self {
-        Self {
-            items: ItemList::new(),
-            transactions: TransactionList::new(),
-            budgets: BudgetList::new(),
-        }
+        Self::default()
     }
 
-    /// ItemListにプリセット品目を入れる関数
+    /// プリセット品目を登録した帳簿を作成する.
     pub fn with_presets() -> Self {
         Self {
             items: preset_items(),
-            transactions: TransactionList::new(),
-            budgets: BudgetList::new(),
+            ..Self::default()
         }
     }
 
@@ -78,14 +76,17 @@ impl Ledger {
         Ok(ledger)
     }
 
+    /// 品目一覧を返す.
     pub fn items(&self) -> &ItemList {
         &self.items
     }
 
+    /// 取引一覧を返す.
     pub fn transactions(&self) -> &TransactionList {
         &self.transactions
     }
 
+    /// 予算一覧を返す.
     pub fn budgets(&self) -> &BudgetList {
         &self.budgets
     }
@@ -107,20 +108,26 @@ impl Ledger {
         })
     }
 
-    /// 品目のadd処理を委譲
+    /// 品目を追加する.
+    ///
+    /// # Errors
+    ///
+    /// `ItemList::add` のエラー.
     pub fn add_item(&mut self, name: &str, tag: Tag) -> Result<ItemId, LedgerError> {
         Ok(self.items.add(name, tag)?)
     }
 
-    /// 品目のupdate処理を委譲
-    /// タグを変えると，この品目を参照している取引が制約を満たさなくなる場合はエラー
+    /// 品目の名前とタグを更新する.
+    ///
+    /// # Errors
+    ///
+    /// 品目が存在しない場合は `ItemError::NotFound` エラー.
+    /// この品目を使う取引のタグの組み合わせが不正になる場合は `LedgerError::Transaction` エラー.
+    /// そのほか `ItemList::update` のエラー.
     pub fn update_item(&mut self, id: ItemId, name: &str, tag: Tag) -> Result<(), LedgerError> {
-        let Some(item) = self.items.get(id) else {
-            return Err(LedgerError::Item(ItemError::NotFound(id)));
-        };
+        let item = self.items.get(id).ok_or(ItemError::NotFound(id))?;
 
         if item.tag() != tag {
-            // 更新後のタグで，この品目を参照している取引を検証する
             let tag_after = |item_id| {
                 if item_id == id {
                     Ok(tag)
@@ -132,24 +139,22 @@ impl Ledger {
                 t.check_tags(tag_after)?;
             }
         }
-        // ItemList に更新を委譲する
-        self.items.update(id, name, tag)?;
-        Ok(())
+        Ok(self.items.update(id, name, tag)?)
     }
 
-    /// 品目のremove処理を委譲
-    /// 取引から品目または相手先として参照されていればエラー
+    /// 品目を削除する.
+    ///
+    /// # Errors
+    ///
+    /// 取引の品目または相手先として使われている場合は `LedgerError::ItemUse` エラー.
+    /// 品目が存在しない場合は `ItemError::NotFound` エラー.
     pub fn remove_item(&mut self, id: ItemId) -> Result<(), LedgerError> {
         if self.transactions.uses_item(id) {
             return Err(LedgerError::ItemUse(id));
         }
-
-        // ItemList に削除を委譲する
-        self.items.remove(id)?;
-        Ok(())
+        Ok(self.items.remove(id)?)
     }
 
-    /// 取引の品目と相手先として参照する品目のタグを返す
     fn tag_of(&self, id: ItemId) -> Result<Tag, LedgerError> {
         self.items
             .get(id)
@@ -157,60 +162,74 @@ impl Ledger {
             .ok_or(LedgerError::TransactionItemNotFound(id))
     }
 
-    /// 取引のadd処理を委譲
-    /// 品目と相手先が存在しなければエラー
-    /// 品目のタグが Tag::is_transaction_selectable を満たさなければエラー
-    /// 相手先のタグが品目のタグと異なればエラー
+    /// 取引を追加する.
+    ///
+    /// # Errors
+    ///
+    /// 品目または相手先が存在しない場合は `LedgerError::TransactionItemNotFound` エラー.
+    /// タグの組み合わせが不正な場合は `LedgerError::Transaction` エラー.
     pub fn add_transaction(
         &mut self,
         draft: TransactionDraft,
     ) -> Result<TransactionId, LedgerError> {
         draft.check_tags(|id| self.tag_of(id))?;
-
         Ok(self.transactions.add(draft))
     }
 
-    /// 取引のupdate処理を委譲
-    /// 品目と相手先が存在しなければエラー
-    /// 品目のタグが Tag::is_transaction_selectable を満たさなければエラー
-    /// 相手先のタグが品目のタグと異なればエラー
+    /// 取引の内容を `draft` に置き換える.
+    ///
+    /// # Errors
+    ///
+    /// 品目または相手先が存在しない場合は `LedgerError::TransactionItemNotFound` エラー.
+    /// タグの組み合わせが不正な場合と, 取引が存在しない場合は `LedgerError::Transaction` エラー.
     pub fn update_transaction(
         &mut self,
         id: TransactionId,
         draft: TransactionDraft,
     ) -> Result<(), LedgerError> {
         draft.check_tags(|id| self.tag_of(id))?;
-        self.transactions.update(id, draft)?;
-        Ok(())
+        Ok(self.transactions.update(id, draft)?)
     }
 
-    /// 取引のremove処理を委譲
-    /// 指定した取引が存在しない場合は、そのエラーをそのまま返す。
+    /// 取引を削除する.
+    ///
+    /// # Errors
+    ///
+    /// 取引が存在しない場合は `TransactionError::NotFound` エラー.
     pub fn remove_transaction(&mut self, id: TransactionId) -> Result<(), LedgerError> {
-        self.transactions.remove(id)?;
-        Ok(())
+        Ok(self.transactions.remove(id)?)
     }
 
-    /// 予算のadd処理を委譲
+    /// 予算を追加する.
+    ///
+    /// # Errors
+    ///
+    /// `BudgetList::add` のエラー.
     pub fn add_budget(&mut self, amount: Money, period: Period) -> Result<BudgetId, LedgerError> {
         Ok(self.budgets.add(amount, period)?)
     }
 
-    /// 予算のupdate処理を委譲
+    /// 予算の金額と期間を更新する.
+    ///
+    /// # Errors
+    ///
+    /// `BudgetList::update` のエラー.
     pub fn update_budget(
         &mut self,
         id: BudgetId,
         amount: Money,
         period: Period,
     ) -> Result<(), LedgerError> {
-        self.budgets.update(id, amount, period)?;
-        Ok(())
+        Ok(self.budgets.update(id, amount, period)?)
     }
 
-    /// 予算のremove処理を委譲
+    /// 予算を削除する.
+    ///
+    /// # Errors
+    ///
+    /// `BudgetList::remove` のエラー.
     pub fn remove_budget(&mut self, id: BudgetId) -> Result<(), LedgerError> {
-        self.budgets.remove(id)?;
-        Ok(())
+        Ok(self.budgets.remove(id)?)
     }
 }
 
@@ -274,7 +293,7 @@ mod tests {
     fn from_parts_error_test() {
         let (ledger, ids) = ledger();
         for (item, counterpart, expected) in invalid_pairs(ids) {
-            let mut transactions = TransactionList::new();
+            let mut transactions = TransactionList::default();
             transactions.add(draft(item, counterpart));
             assert_eq!(
                 Ledger::from_parts(ledger.items.clone(), transactions, BudgetList::new()),

@@ -1,4 +1,4 @@
-//! 取引
+//! 取引のモデルと取引一覧
 
 use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};
@@ -13,12 +13,13 @@ mod list;
 pub use amount::{Amount, AmountError};
 pub use list::TransactionList;
 
-/// 取引 ID
+/// 取引を識別する ID.
 ///
-/// 別の月ファイルへ同時に追加されても衝突しないよう uuid を使う
+/// 別の月ファイルへ同時に追加されても衝突しないよう uuid を使う.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct TransactionId(Uuid);
 
+/// 帳簿に登録した取引.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Transaction {
     id: TransactionId,
@@ -26,45 +27,34 @@ pub struct Transaction {
     draft: TransactionDraft,
 }
 
-///取引の各値の読み込み
 impl Transaction {
-    ///取引のID
     pub fn id(&self) -> TransactionId {
         self.id
     }
 
-    ///取引の日付
     pub fn date(&self) -> NaiveDate {
         self.draft.date
     }
 
-    ///取引の金額
     pub fn amount(&self) -> Amount {
         self.draft.amount
     }
 
-    ///取引の品目
+    /// 収入, 支出, 負債のいずれかの品目を返す.
     pub fn item(&self) -> ItemId {
         self.draft.item
     }
 
-    ///取引の相手先
+    /// 相手先の品目を返す.
     pub fn counterpart(&self) -> ItemId {
         self.draft.counterpart
     }
 
-    ///取引のコメント
     pub fn comment(&self) -> &str {
         &self.draft.comment
     }
 
-    /// 品目と相手先のタグの組み合わせを検査する.
-    ///
-    /// `tag_of` で品目のタグを引く.
-    ///
-    /// # Errors
-    ///
-    /// `tag_of` のエラーと, `check_tags` のエラー.
+    /// `TransactionDraft::check_tags` と同じ.
     pub(crate) fn check_tags<E: From<TransactionError>>(
         &self,
         tag_of: impl Fn(ItemId) -> Result<Tag, E>,
@@ -78,21 +68,18 @@ impl Transaction {
     }
 }
 
-///idなしの取引
+/// ID のない取引の内容.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TransactionDraft {
     #[serde(with = "crate::serialization::toml_date")]
     date: NaiveDate,
     amount: Amount,
-    /// 収入/支出/負債の品目
     item: ItemId,
-    /// 相手先の品目
     counterpart: ItemId,
     comment: String,
 }
 
 impl TransactionDraft {
-    ///取引の下書きの作成
     pub fn new(
         date: NaiveDate,
         amount: Amount,

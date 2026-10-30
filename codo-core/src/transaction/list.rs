@@ -1,3 +1,5 @@
+//! 取引一覧
+
 use std::collections::HashSet;
 use uuid::Uuid;
 
@@ -16,11 +18,6 @@ pub struct TransactionList {
 }
 
 impl TransactionList {
-    /// 新しい空の取引一覧を作成する.
-    pub(crate) fn new() -> Self {
-        Self::default()
-    }
-
     /// `Vec<Transaction>` から取引一覧を作成する.
     ///
     /// # Errors
@@ -217,7 +214,7 @@ mod tests {
     #[test]
     fn add_test() {
         let [food, cash, _] = items();
-        let mut list = TransactionList::new();
+        let mut list = TransactionList::default();
 
         let added = list.add(draft(1, 1000, food, cash));
 
@@ -231,7 +228,7 @@ mod tests {
     #[test]
     fn add_keeps_order_test() {
         let [food, cash, _] = items();
-        let mut list = TransactionList::new();
+        let mut list = TransactionList::default();
 
         let added = [3, 1, 2, 1].map(|day| list.add(draft(day, 1000, food, cash)));
 
@@ -245,7 +242,7 @@ mod tests {
     #[test]
     fn update_test() {
         let [food, cash, fun] = items();
-        let mut list = TransactionList::new();
+        let mut list = TransactionList::default();
         let target = list.add(draft(1, 1000, food, cash));
         let other = list.add(draft(2, 1000, food, cash));
 
@@ -260,7 +257,7 @@ mod tests {
     #[test]
     fn update_error_test() {
         let [food, cash, _] = items();
-        let mut list = TransactionList::new();
+        let mut list = TransactionList::default();
         list.add(draft(1, 1000, food, cash));
         let before = list.clone();
         let missing = id(0);
@@ -275,7 +272,7 @@ mod tests {
     #[test]
     fn remove_test() {
         let [food, cash, _] = items();
-        let mut list = TransactionList::new();
+        let mut list = TransactionList::default();
         let target = list.add(draft(1, 1000, food, cash));
         let other = list.add(draft(2, 1000, food, cash));
 
@@ -287,7 +284,7 @@ mod tests {
     #[test]
     fn remove_error_test() {
         let [food, cash, _] = items();
-        let mut list = TransactionList::new();
+        let mut list = TransactionList::default();
         list.add(draft(1, 1000, food, cash));
         let before = list.clone();
         let missing = id(0);
@@ -302,7 +299,7 @@ mod tests {
     #[test]
     fn uses_item_test() {
         let [food, cash, fun] = items();
-        let mut list = TransactionList::new();
+        let mut list = TransactionList::default();
         list.add(draft(1, 1000, food, cash));
 
         for (item, expected) in [(food, true), (cash, true), (fun, false)] {
