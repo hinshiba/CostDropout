@@ -5,7 +5,7 @@
 ## 演算
 
 - `+`，`-`，`+=`，`-=` は overflow したら panic する
-- `checked_add`，`checked_sub` は overflow したら `MoneyError::Overflow` を返す
+- `checked_add`，`checked_sub`，`checked_neg` は overflow したら `MoneyError::Overflow` を返す
 - `Sum` を `Money` と `&Money` の両方に実装する
 
 overflow したときに黙って誤った額にしない．i32 の上限は約21億円で，家計簿の年間合計には十分．
