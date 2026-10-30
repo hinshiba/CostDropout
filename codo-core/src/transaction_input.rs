@@ -95,7 +95,7 @@ mod tests {
         let existing_id = ledger
             .add_transaction(TransactionDraft::new(
                 date,
-                Money(200),
+                Money::from(200),
                 item,
                 counterpart,
                 "既存".into(),
@@ -119,7 +119,7 @@ mod tests {
                 .find(|transaction| transaction.comment() == comment)
                 .unwrap();
             assert_eq!(transaction.date(), date);
-            assert_eq!(transaction.amount(), Money(100));
+            assert_eq!(transaction.amount(), Money::from(100));
             assert_eq!(transaction.item(), item);
             assert_eq!(transaction.counterpart(), counterpart);
             assert_eq!(ledger.transactions().iter().count(), previous_count + 1);
@@ -146,7 +146,7 @@ mod tests {
                 " abc ",
                 AmountError::Parse(MoneyError::Parse(" abc ".into())),
             ),
-            ("0", AmountError::NonPositive(Money(0))),
+            ("0", AmountError::NonPositive(Money::from(0))),
         ] {
             assert_eq!(
                 submit_transaction(

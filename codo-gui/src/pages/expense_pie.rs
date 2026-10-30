@@ -106,7 +106,7 @@ impl Render for ExpensePie {
                     div().w_full().h(px(320.)).child(
                         PieChart::new(slices)
                             .inner_radius(0.)
-                            .value(|slice| slice.amount.0 as f32)
+                            .value(|slice| slice.percentage as f32)
                             .color(|slice| slice.color)
                             .tooltip_name(|slice| slice.name.clone().into())
                             .tooltip_value(|slice, _, _| {
@@ -196,7 +196,7 @@ mod tests {
                     .ledger
                     .add_transaction(TransactionDraft::new(
                         month.first_day(),
-                        Money(amount),
+                        Money::from(amount),
                         item,
                         cash,
                         String::new(),
@@ -213,7 +213,7 @@ mod tests {
                 slices[0].amount,
                 slices[0].percentage
             ),
-            ("娯楽", Money(300), 75.)
+            ("娯楽", Money::from(300), 75.)
         );
         assert_eq!(
             (
@@ -221,7 +221,7 @@ mod tests {
                 slices[1].amount,
                 slices[1].percentage
             ),
-            ("食費", Money(100), 25.)
+            ("食費", Money::from(100), 25.)
         );
 
         state.update(cx, |state, cx| {
@@ -229,7 +229,7 @@ mod tests {
                 .ledger
                 .add_transaction(TransactionDraft::new(
                     month.last_day(),
-                    Money(200),
+                    Money::from(200),
                     food,
                     cash,
                     String::new(),
@@ -241,7 +241,7 @@ mod tests {
         assert!(
             updated
                 .iter()
-                .all(|slice| slice.amount == Money(300) && slice.percentage == 50.)
+                .all(|slice| slice.amount == Money::from(300) && slice.percentage == 50.)
         );
 
         page.update(cx, |page, _| page.month = page.month.next());
