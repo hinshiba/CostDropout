@@ -177,12 +177,13 @@ impl Book<TomlStore, GitRepo> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::cell::RefCell;
-
     use crate::git::git_command;
     use crate::item::{ItemError, Tag};
     use crate::ledger::LedgerError;
     use crate::storage::MemoryStore;
+    use std::cell::RefCell;
+    use std::path::Path;
+    use std::process::Command;
 
     /// commit したメッセージを記録する変更履歴
     #[derive(Debug, Default)]
@@ -194,6 +195,21 @@ mod tests {
         pull_rebased: RefCell<bool>,
         push_count: RefCell<u32>,
         pull_rebase_fails: bool,
+    }
+
+    fn run_git(dir: &Path, args: &[&str]) {
+        let output = git_command(dir).args(args).output().unwrap();
+
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+
+    fn configure_user(dir: &Path) {
+        run_git(dir, &["config", "user.name", "test"]);
+        run_git(dir, &["config", "user.email", "test@example.com"]);
     }
 
     impl History for FakeHistory {
@@ -465,5 +481,149 @@ mod tests {
         assert_eq!(*book.history.push_count.borrow(), 1);
 
         assert!(!*book.history.pull_rebased.borrow());
+    }
+
+    #[test]
+    fn sync_propagates_has_remote_error() {
+        #[derive(Default)]
+        struct BrokenHistory;
+
+        impl History for BrokenHistory {
+            fn commit_all(&self, _: &str) -> Result<(), GitError> {
+                Ok(())
+            }
+
+            fn has_remote(&self) -> Result<bool, GitError> {
+                Err(GitError::CommandFailed(
+                    "remote".to_string(),
+                    "error".to_string(),
+                ))
+            }
+
+            fn push(&self) -> Result<(), GitError> {
+                Ok(())
+            }
+
+            fn pull_rebase(&self) -> Result<(), GitError> {
+                Ok(())
+            }
+        }
+
+        let store = MemoryStore::default();
+        store.save(&Ledger::with_presets()).unwrap();
+
+        let mut book = Book::load(store, BrokenHistory).unwrap();
+
+        assert!(matches!(
+            book.sync(),
+            Err(BookError::History(GitError::CommandFailed(_, _)))
+        ));
+    }
+
+    #[test]
+    fn sync_pulls_remote_changes_into_book() {
+        let root = tempfile::tempdir().unwrap();
+
+        let remote = root.path().join("remote.git");
+        let init_dir = root.path().join("init");
+        let a_dir = root.path().join("a");
+        let b_dir = root.path().join("b");
+
+        // bare remote
+        let output = Command::new("git")
+            .args(["init", "--bare"])
+            .arg(&remote)
+            .output()
+            .unwrap();
+
+        assert!(output.status.success());
+
+        //
+        // 初期帳簿を作成して remote に push
+        //
+        let output = Command::new("git")
+            .arg("clone")
+            .arg(&remote)
+            .arg(&init_dir)
+            .output()
+            .unwrap();
+
+        assert!(output.status.success());
+
+        configure_user(&init_dir);
+
+        let repo = GitRepo::open(init_dir.clone()).unwrap();
+
+        let store = TomlStore::new(init_dir.clone());
+        store.save(&Ledger::with_presets()).unwrap();
+
+        repo.commit_all("帳簿を作成").unwrap();
+        repo.push().unwrap();
+
+        //
+        // A/B clone
+        //
+        let output = Command::new("git")
+            .arg("clone")
+            .arg(&remote)
+            .arg(&a_dir)
+            .output()
+            .unwrap();
+
+        assert!(output.status.success());
+
+        let output = Command::new("git")
+            .arg("clone")
+            .arg(&remote)
+            .arg(&b_dir)
+            .output()
+            .unwrap();
+
+        assert!(output.status.success());
+
+        configure_user(&a_dir);
+        configure_user(&b_dir);
+
+        let mut book_a = Book::load(
+            TomlStore::new(a_dir.clone()),
+            GitRepo::open(a_dir.clone()).unwrap(),
+        )
+        .unwrap();
+
+        let mut book_b = Book::load(
+            TomlStore::new(b_dir.clone()),
+            GitRepo::open(b_dir.clone()).unwrap(),
+        )
+        .unwrap();
+
+        //
+        // A が変更して同期
+        //
+        book_a
+            .ledger_mut()
+            .add_item("A専用品目", Tag::Expense)
+            .unwrap();
+
+        book_a.save("A追加").unwrap();
+
+        assert_eq!(book_a.sync().unwrap(), SyncOutcome::Pushed);
+
+        //
+        // B は変更せず同期
+        //
+        assert_eq!(book_b.sync().unwrap(), SyncOutcome::PulledAndPushed);
+
+        assert!(!book_b.is_dirty());
+        //
+        // reload() が実行されていれば
+        // A の変更が帳簿へ反映される
+        //
+        assert!(
+            book_b
+                .ledger()
+                .items()
+                .iter()
+                .any(|item| item.to_string() == "A専用品目")
+        );
     }
 }

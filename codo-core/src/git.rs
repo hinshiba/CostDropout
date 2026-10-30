@@ -458,4 +458,13 @@ mod tests {
 
         assert!(repo.has_remote().unwrap());
     }
+
+    #[test]
+    fn has_remote_returns_false_without_remote() {
+        let dir = tempdir().unwrap();
+
+        let repo = init_with_identity(dir.path());
+
+        assert!(!repo.has_remote().unwrap());
+    }
 }
