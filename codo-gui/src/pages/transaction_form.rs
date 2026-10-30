@@ -127,7 +127,8 @@ mod tests {
         let mut ledger = Ledger::new();
         let food = ledger.add_item("食費", Tag::Expense).unwrap();
         let cash = ledger.add_item("現金", Tag::Asset).unwrap();
-        let state = cx.new(|_| AppState::for_test(ledger));
+        let (state, _directory) = AppState::for_test(ledger);
+        let state = cx.new(|_| state);
         let chart = cx.new(|cx| ExpensePie::new(state.clone(), cx));
         let notified = Rc::new(Cell::new(false));
         let _subscription = cx.update(|cx| {

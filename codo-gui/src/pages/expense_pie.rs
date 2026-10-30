@@ -183,7 +183,8 @@ mod tests {
         let leisure = ledger.add_item("娯楽", Tag::Expense).unwrap();
         let cash = ledger.add_item("現金", Tag::Asset).unwrap();
         let month = YearMonth::new(2026, 12).unwrap();
-        let state = cx.new(|_| AppState::for_test(ledger));
+        let (state, _directory) = AppState::for_test(ledger);
+        let state = cx.new(|_| state);
         let page = cx.new(|cx| ExpensePie::new(state.clone(), cx));
         page.update(cx, |page, _| page.month = month);
 

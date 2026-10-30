@@ -8,20 +8,24 @@ use gpui_kit::*;
 
 use crate::app::App;
 
+/// 起動中に同時には成立しない状態を区別する.
+enum StartupState {
+    Waiting,
+    Selecting,
+    Failed(String),
+    Opened(Entity<App>),
+}
+
 /// 帳簿が開かれるまで選択画面を表示する.
 pub struct Startup {
-    app: Option<Entity<App>>,
-    error: Option<String>,
-    is_selecting: bool,
+    state: StartupState,
 }
 
 impl Startup {
     /// 引数のフォルダを開くか, 引数がなければフォルダ選択を表示する.
     pub fn new(directory: Option<PathBuf>, window: &mut Window, cx: &mut Context<Self>) -> Self {
         let mut startup = Self {
-            app: None,
-            error: None,
-            is_selecting: false,
+            state: StartupState::Waiting,
         };
         if let Some(directory) = directory {
             startup.open(directory, window, cx);
@@ -33,30 +37,29 @@ impl Startup {
 
     /// 指定したフォルダを開き, 失敗した場合は選び直せる状態にする.
     fn open(&mut self, directory: PathBuf, window: &mut Window, cx: &mut Context<Self>) {
-        match Book::open(&directory) {
+        self.state = match Book::open(&directory) {
             Ok(book) => {
                 let directory = directory.canonicalize().unwrap_or(directory);
                 let name = directory.file_name().unwrap_or(directory.as_os_str());
                 window.set_window_title(&format!("{} - CostDropout", name.to_string_lossy()));
-                self.app = Some(cx.new(|cx| App::new(book, window, cx)));
-                self.error = None;
+                StartupState::Opened(cx.new(|cx| App::new(book, window, cx)))
             }
-            Err(error) => {
-                self.error = Some(format!(
-                    "帳簿を開けませんでした: {}\n{error}",
-                    directory.display()
-                ));
-            }
-        }
+            Err(error) => StartupState::Failed(format!(
+                "帳簿を開けませんでした: {}\n{error}",
+                directory.display()
+            )),
+        };
         cx.notify();
     }
 
-    /// フォルダ選択の結果を待ち, キャンセルされた場合は選択画面に戻る.
+    /// フォルダ選択の結果を待ち, キャンセル時は選択前のエラーを保持する.
     fn select_directory(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if self.is_selecting {
-            return;
-        }
-        self.is_selecting = true;
+        let previous_error = match &self.state {
+            StartupState::Waiting => None,
+            StartupState::Failed(error) => Some(error.clone()),
+            StartupState::Selecting | StartupState::Opened(_) => return,
+        };
+        self.state = StartupState::Selecting;
         let selection = cx.prompt_for_paths(PathPromptOptions {
             files: false,
             directories: true,
@@ -67,22 +70,25 @@ impl Startup {
             let result = selection.await;
             let _ = cx.update(|window, cx| {
                 view.update(cx, |this, cx| {
-                    this.is_selecting = false;
-                    match result {
-                        Ok(Ok(Some(paths))) => {
-                            if let Some(directory) = paths.into_iter().next() {
+                    this.state = match result {
+                        Ok(Ok(paths)) => {
+                            if let Some(directory) =
+                                paths.and_then(|paths| paths.into_iter().next())
+                            {
                                 this.open(directory, window, cx);
+                                return;
                             }
+                            previous_error
+                                .map(StartupState::Failed)
+                                .unwrap_or(StartupState::Waiting)
                         }
-                        Ok(Ok(None)) => {}
                         Ok(Err(error)) => {
-                            this.error = Some(format!("フォルダ選択を開けませんでした: {error}"));
+                            StartupState::Failed(format!("フォルダ選択を開けませんでした: {error}"))
                         }
-                        Err(error) => {
-                            this.error =
-                                Some(format!("フォルダ選択の結果を取得できませんでした: {error}"));
-                        }
-                    }
+                        Err(error) => StartupState::Failed(format!(
+                            "フォルダ選択の結果を取得できませんでした: {error}"
+                        )),
+                    };
                     cx.notify();
                 })
             });
@@ -94,9 +100,11 @@ impl Startup {
 
 impl Render for Startup {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        if let Some(app) = &self.app {
-            return div().size_full().child(app.clone());
-        }
+        let error = match &self.state {
+            StartupState::Opened(app) => return div().size_full().child(app.clone()),
+            StartupState::Failed(error) => Some(error.clone()),
+            StartupState::Waiting | StartupState::Selecting => None,
+        };
         div()
             .size_full()
             .flex()
@@ -104,11 +112,11 @@ impl Render for Startup {
             .gap_4()
             .p_6()
             .child("帳簿フォルダを選んでください")
-            .children(self.error.clone())
+            .children(error)
             .child(
                 Button::new("select-book-directory")
                     .label("フォルダを選ぶ")
-                    .disabled(self.is_selecting)
+                    .disabled(matches!(self.state, StartupState::Selecting))
                     .on_click(cx.listener(|this, _, window, cx| this.select_directory(window, cx))),
             )
     }
@@ -116,7 +124,7 @@ impl Render for Startup {
 
 #[cfg(test)]
 mod tests {
-    use super::Startup;
+    use super::{Startup, StartupState};
     use codo_core::{
         book::Book,
         infra::filestore::{LedgerStore, TomlStore},
@@ -136,6 +144,13 @@ mod tests {
             })
             .unwrap()
         });
+        startup.read_with(cx, |startup, _| {
+            assert!(matches!(startup.state, StartupState::Selecting));
+        });
+        cx.update_window(handle, |_, window, cx| {
+            startup.update(cx, |startup, cx| startup.select_directory(window, cx));
+        })
+        .unwrap();
         assert!(cx.did_prompt_for_paths());
         cx.simulate_path_prompt_response(|options| {
             assert!(!options.files);
@@ -145,9 +160,7 @@ mod tests {
         });
         cx.run_until_parked();
         startup.read_with(cx, |startup, _| {
-            assert!(!startup.is_selecting);
-            assert!(startup.app.is_none());
-            assert!(startup.error.is_none());
+            assert!(matches!(startup.state, StartupState::Waiting));
         });
         cx.update_window(handle, |_, window, cx| {
             window.render_frame(cx);
@@ -181,9 +194,9 @@ mod tests {
         let error = Book::open(&missing).err().unwrap();
         let expected_error = format!("帳簿を開けませんでした: {}\n{error}", missing.display());
         startup.read_with(cx, |startup, _| {
-            assert!(startup.app.is_none());
-            assert_eq!(startup.error.as_deref(), Some(expected_error.as_str()));
-            assert!(!startup.is_selecting);
+            assert!(
+                matches!(&startup.state, StartupState::Failed(error) if error == &expected_error)
+            );
         });
         assert!(!missing.exists());
         assert!(!cx.did_prompt_for_paths());
@@ -196,9 +209,9 @@ mod tests {
         cx.simulate_path_prompt_response(|_| None);
         cx.run_until_parked();
         startup.read_with(cx, |startup, _| {
-            assert_eq!(startup.error.as_deref(), Some(expected_error.as_str()));
-            assert!(!startup.is_selecting);
-            assert!(startup.app.is_none());
+            assert!(
+                matches!(&startup.state, StartupState::Failed(error) if error == &expected_error)
+            );
         });
         cx.update_window(handle, |_, window, cx| {
             window.render_frame(cx);
@@ -209,9 +222,7 @@ mod tests {
         cx.simulate_path_prompt_response(|_| Some(vec![directory.path().to_path_buf()]));
         cx.run_until_parked();
         startup.read_with(cx, |startup, _| {
-            assert!(startup.app.is_some());
-            assert!(startup.error.is_none());
-            assert!(!startup.is_selecting);
+            assert!(matches!(startup.state, StartupState::Opened(_)));
         });
         let name = directory.path().file_name().unwrap().to_string_lossy();
         assert_eq!(
@@ -257,12 +268,18 @@ mod tests {
             })
             .unwrap()
         });
+        cx.update_window(handle, |_, window, cx| {
+            startup.update(cx, |startup, cx| startup.select_directory(window, cx));
+        })
+        .unwrap();
         assert!(!cx.did_prompt_for_paths());
         startup.read_with(cx, |startup, _| {
-            assert!(startup.app.is_some());
-            assert!(startup.error.is_none());
+            assert!(matches!(startup.state, StartupState::Opened(_)));
         });
         cx.update_window(handle, |_, window, cx| {
+            window.render_frame(cx);
+            assert!(window.find("budget-empty-state").visible());
+            window.click("0-1", cx);
             window.render_frame(cx);
             assert_eq!(
                 window.find("transaction-count").label(),
@@ -321,8 +338,7 @@ mod tests {
             .unwrap()
         });
         startup.read_with(cx, |startup, _| {
-            assert!(startup.app.is_some());
-            assert!(startup.error.is_none());
+            assert!(matches!(startup.state, StartupState::Opened(_)));
         });
         assert_eq!(
             TomlStore::new(directory.clone()).load().unwrap(),
@@ -331,6 +347,9 @@ mod tests {
         let repository = GitRepo::open(directory).unwrap();
         assert!(!repository.has_changes().unwrap());
         cx.update_window(handle, |_, window, cx| {
+            window.render_frame(cx);
+            assert!(window.find("budget-empty-state").visible());
+            window.click("0-1", cx);
             window.render_frame(cx);
             assert_eq!(
                 window.find("transaction-count").label(),

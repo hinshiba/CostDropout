@@ -294,7 +294,8 @@ mod tests {
             ))
             .unwrap();
         cx.update(gpui_kit::init);
-        let state = cx.new(|_| AppState::for_test(ledger));
+        let (state, _directory) = AppState::for_test(ledger);
+        let state = cx.new(|_| state);
         let (handle, _) = cx.update(|cx| {
             cx.set_reduce_motion(true);
             gpui_kit::open_window(

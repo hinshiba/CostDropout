@@ -17,8 +17,6 @@ use gpui_kit::*;
 /// 保存先と履歴を含む帳簿を画面間で共有する.
 pub struct AppState {
     book: Book<TomlStore, GitRepo>,
-    #[cfg(test)]
-    _directory: Option<tempfile::TempDir>,
 }
 
 impl AppState {
@@ -32,18 +30,20 @@ impl AppState {
         self.book.ledger_mut()
     }
 
-    /// テスト用の帳簿と, その保存先を保持する.
+    /// テスト用の帳簿と, テスト中に保持する保存先を作成する.
     #[cfg(test)]
-    pub(crate) fn for_test(ledger: Ledger) -> Self {
+    pub(crate) fn for_test(ledger: Ledger) -> (Self, tempfile::TempDir) {
         use codo_core::infra::filestore::LedgerStore;
         let directory = tempfile::tempdir().unwrap();
         let store = TomlStore::new(directory.path().to_path_buf());
         store.save(&ledger).unwrap();
         let history = GitRepo::init(directory.path().to_path_buf()).unwrap();
-        Self {
-            book: Book::load(store, history).unwrap(),
-            _directory: Some(directory),
-        }
+        (
+            Self {
+                book: Book::load(store, history).unwrap(),
+            },
+            directory,
+        )
     }
 }
 
@@ -83,20 +83,7 @@ impl App {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
-        Self::with_state(
-            AppState {
-                book,
-                #[cfg(test)]
-                _directory: None,
-            },
-            window,
-            cx,
-        )
-    }
-
-    #[cfg(test)]
-    fn with_ledger(ledger: Ledger, window: &mut Window, cx: &mut Context<Self>) -> Self {
-        Self::with_state(AppState::for_test(ledger), window, cx)
+        Self::with_state(AppState { book }, window, cx)
     }
 
     fn with_state(state: AppState, window: &mut Window, cx: &mut Context<Self>) -> Self {
@@ -320,7 +307,7 @@ impl Render for App {
 
 #[cfg(test)]
 mod tests {
-    use super::{App, Page};
+    use super::{App, AppState, Page};
     use chrono::Local;
     use codo_core::ledger::period::YearMonth;
     use codo_core::{
@@ -353,6 +340,7 @@ mod tests {
     #[gpui_kit::test]
     fn sidebar_opens_expense_pie(cx: &mut TestAppContext) {
         let month = YearMonth::from_date(Local::now().date_naive());
+        let (state, _directory) = AppState::for_test(ledger_for_month_navigation(month));
         cx.update(gpui_kit::init);
         let (handle, app) = cx.update(|cx| {
             cx.set_reduce_motion(true);
@@ -365,9 +353,7 @@ mod tests {
                     ..Default::default()
                 },
                 cx,
-                |window, cx| {
-                    cx.new(|cx| App::with_ledger(ledger_for_month_navigation(month), window, cx))
-                },
+                |window, cx| cx.new(|cx| App::with_state(state, window, cx)),
             )
             .unwrap()
         });
@@ -457,6 +443,7 @@ mod tests {
                 .unwrap();
         }
 
+        let (state, _directory) = AppState::for_test(ledger);
         cx.update(gpui_kit::init);
 
         let (handle, app) = cx.update(|cx| {
@@ -471,7 +458,7 @@ mod tests {
                     ..Default::default()
                 },
                 cx,
-                |window, cx| cx.new(|cx| App::with_ledger(ledger, window, cx)),
+                |window, cx| cx.new(|cx| App::with_state(state, window, cx)),
             )
             .unwrap()
         });

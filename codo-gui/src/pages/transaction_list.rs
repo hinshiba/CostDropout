@@ -305,6 +305,7 @@ mod tests {
         id: TransactionId,
         food: ItemId,
         cash: ItemId,
+        _directory: tempfile::TempDir,
     }
 
     /// 今月の取引を1件持つ取引一覧を開く.
@@ -322,7 +323,8 @@ mod tests {
                 "昼食".into(),
             ))
             .unwrap();
-        let state = cx.new(|_| AppState::for_test(ledger));
+        let (state, directory) = AppState::for_test(ledger);
+        let state = cx.new(|_| state);
         let (handle, list) = cx.update(|cx| {
             gpui_kit::open_window(WindowOptions::default(), cx, |_, cx| {
                 cx.new(|cx| TransactionList::new(state.clone(), cx))
@@ -335,6 +337,7 @@ mod tests {
             id,
             food,
             cash,
+            _directory: directory,
         };
         (fixture, handle)
     }
@@ -444,7 +447,7 @@ mod tests {
                 fields.read(cx).amount_error(),
                 Some("金額として解釈できない文字列です: abc")
             );
-            assert_eq!(fixture.state.read(cx).ledger(), before);
+            assert_eq!(fixture.state.read(cx).ledger(), &before);
         });
     }
 
@@ -485,7 +488,7 @@ mod tests {
             window.render_frame(cx);
             window.click("cancel-edit", cx);
             assert!(fixture.list.read(cx).editing.is_none());
-            assert_eq!(fixture.state.read(cx).ledger(), before);
+            assert_eq!(fixture.state.read(cx).ledger(), &before);
         });
     }
 }
