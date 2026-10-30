@@ -2,12 +2,9 @@
 
 use crate::app::AppState;
 use chrono::Local;
-use codo_core::item::{Item, ItemId, Tag};
+use codo_core::item::{Item, ItemId};
 use codo_core::ledger::LedgerError;
-use codo_core::transaction::TransactionError;
-use codo_core::transaction_input::{
-    FormError, counterpart_choices, item_choices, submit_transaction,
-};
+use codo_core::transaction::{AmountError, TransactionDraft, TransactionError};
 use gpui_kit::component::button::Button;
 use gpui_kit::component::date_picker::{DatePicker, DatePickerEvent, DatePickerState};
 use gpui_kit::component::input::{Input, InputEvent, InputState};
@@ -19,7 +16,6 @@ use gpui_kit::*;
 struct ItemChoice {
     id: ItemId,
     name: SharedString,
-    tag: Tag,
 }
 
 impl SelectItem for ItemChoice {
@@ -38,9 +34,30 @@ impl From<&Item> for ItemChoice {
     fn from(item: &Item) -> Self {
         Self {
             id: item.id(),
-            name: item.name().to_string().into(),
-            tag: item.tag(),
+            name: item.to_string().into(),
         }
+    }
+}
+
+/// 取引の追加で起こるエラー。
+#[derive(Debug)]
+enum FormError {
+    Amount(AmountError),
+    MissingDate,
+    MissingItem,
+    MissingCounterpart,
+    Ledger(LedgerError),
+}
+
+impl From<AmountError> for FormError {
+    fn from(error: AmountError) -> Self {
+        Self::Amount(error)
+    }
+}
+
+impl From<LedgerError> for FormError {
+    fn from(error: LedgerError) -> Self {
+        Self::Ledger(error)
     }
 }
 
@@ -51,20 +68,18 @@ fn friendly_error(error: &FormError) -> String {
             LedgerError::TransactionItemNotFound(_) => {
                 "選択した品目または相手先が見つかりません。選び直してください".into()
             }
-            LedgerError::InvalidItemTag(tag) => format!(
-                "{}の品目は取引の品目として選べません。収入・支出・負債から選んでください",
-                tag.label()
+            LedgerError::Transaction(TransactionError::InvalidItemTag(tag)) => format!(
+                "{tag}の品目は取引の品目として選べません。収入・支出・負債から選んでください"
             ),
-            LedgerError::SameTag(tag) => format!(
-                "品目と相手先がどちらも{}です。異なる分類の品目を選んでください",
-                tag.label()
-            ),
-            LedgerError::Transaction(TransactionError::SameItemAndCounterpart(_)) => {
-                "品目と相手先には異なる品目を選んでください".into()
+            LedgerError::Transaction(TransactionError::SameTag(tag)) => {
+                format!("品目と相手先がどちらも{tag}です。異なる分類の品目を選んでください")
             }
             _ => "取引を追加できませんでした。品目と相手先を確認してください".into(),
         },
-        error => error.to_string(),
+        FormError::Amount(error) => error.to_string(),
+        FormError::MissingDate => "日付を選択してください".into(),
+        FormError::MissingItem => "品目を選択してください".into(),
+        FormError::MissingCounterpart => "相手先を選択してください".into(),
     }
 }
 
@@ -164,17 +179,15 @@ impl TransactionForm {
     fn refresh_choices(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let controls = &mut self.controls;
         let ledger = &self.state.read(cx).ledger;
-        let items = item_choices(ledger)
+        let items = ledger
+            .item_choices()
             .map(ItemChoice::from)
             .collect::<Vec<_>>();
         let selected_item = controls.item.read(cx).selected_value().copied();
-        let selected_tag = items
-            .iter()
-            .find(|item| Some(item.id) == selected_item)
-            .map(|item| item.tag);
-        let counterparts = selected_tag
-            .map(|tag| {
-                counterpart_choices(ledger, tag)
+        let counterparts = selected_item
+            .map(|id| {
+                ledger
+                    .counterpart_choices(id)
                     .map(ItemChoice::from)
                     .collect()
             })
@@ -217,7 +230,15 @@ impl TransactionForm {
         let counterpart = controls.counterpart.read(cx).selected_value().copied();
         let comment = controls.comment.read(cx).value().to_string();
         let result = self.state.update(cx, |state, cx| {
-            submit_transaction(&mut state.ledger, date, &amount, item, counterpart, comment)?;
+            let amount = amount.parse()?;
+            let draft = TransactionDraft::new(
+                date.ok_or(FormError::MissingDate)?,
+                amount,
+                item.ok_or(FormError::MissingItem)?,
+                counterpart.ok_or(FormError::MissingCounterpart)?,
+                comment,
+            );
+            state.ledger.add_transaction(draft)?;
             cx.notify();
             Ok(())
         });
@@ -300,10 +321,11 @@ mod tests {
     use crate::{app::AppState, pages::expense_pie::ExpensePie};
     use chrono::Local;
     use codo_core::{
+        item::Tag,
         ledger::Ledger,
         money::Money,
         period::{Period, YearMonth},
-        report::category::expense_by_item,
+        report::{Flow, category::by_item},
     };
     use gpui_kit::test::TestWindowExt;
     use gpui_kit::{AppContext, TestAppContext, WindowOptions};
@@ -312,9 +334,10 @@ mod tests {
     #[gpui_kit::test]
     fn adding_transaction_notifies_expense_chart(cx: &mut TestAppContext) {
         cx.update(gpui_kit::init);
-        let state = cx.new(|_| AppState {
-            ledger: Ledger::with_presets(),
-        });
+        let mut ledger = Ledger::new();
+        let food = ledger.add_item("食費", Tag::Expense).unwrap();
+        let cash = ledger.add_item("現金", Tag::Asset).unwrap();
+        let state = cx.new(|_| AppState { ledger });
         let chart = cx.new(|cx| ExpensePie::new(state.clone(), cx));
         let notified = Rc::new(Cell::new(false));
         let _subscription = cx.update(|cx| {
@@ -330,9 +353,6 @@ mod tests {
             .unwrap()
         });
         cx.update_window(handle, |_, window, cx| {
-            let ledger = &state.read(cx).ledger;
-            let food = ledger.items().find_by_name("食費").unwrap().id();
-            let cash = ledger.items().find_by_name("現金").unwrap().id();
             form.update(cx, |form, cx| {
                 form.controls.item.update(cx, |select, cx| {
                     select.set_selected_value(&food, window, cx)
@@ -353,9 +373,10 @@ mod tests {
         cx.run_until_parked();
         assert!(notified.get());
         cx.read(|cx| {
-            let expenses = expense_by_item(
+            let expenses = by_item(
                 &state.read(cx).ledger,
                 Period::month(YearMonth::from_date(Local::now().date_naive())),
+                Flow::Expense,
             );
             assert_eq!(expenses.len(), 1);
             assert_eq!(expenses[0].amount(), Money::from(1200));

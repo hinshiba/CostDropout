@@ -1,7 +1,7 @@
 //! 今日を含む予算の残額と支出ペースを表示する.
 use crate::app::AppState;
 use chrono::{Local, NaiveDate};
-use codo_core::{budget::BudgetStatus, ledger::Ledger, period::Period};
+use codo_core::{ledger::Ledger, period::Period, report::budget::BudgetStatus};
 use gpui_kit::base::TestSupportExt;
 use gpui_kit::component::{ActiveTheme, progress::Progress};
 use gpui_kit::*;
@@ -271,20 +271,23 @@ mod tests {
         use super::BudgetDashboard;
         use crate::app::AppState;
         use chrono::{Days, Local};
-        use codo_core::transaction::TransactionDraft;
+        use codo_core::{
+            item::Tag,
+            transaction::{Amount, TransactionDraft},
+        };
         use gpui_kit::test::TestWindowExt;
         use gpui_kit::{AppContext, Bounds, WindowBounds, WindowOptions, px, size};
 
         let today = Local::now().date_naive();
         let period = Period::new(today - Days::new(9), today + Days::new(21)).unwrap();
-        let mut ledger = Ledger::with_presets();
+        let mut ledger = Ledger::new();
         let budget_id = ledger.add_budget(Money::from(10000), period).unwrap();
-        let food = ledger.items().find_by_name("食費").unwrap().id();
-        let cash = ledger.items().find_by_name("現金").unwrap().id();
+        let food = ledger.add_item("食費", Tag::Expense).unwrap();
+        let cash = ledger.add_item("現金", Tag::Asset).unwrap();
         ledger
             .add_transaction(TransactionDraft::new(
                 today,
-                Money::from(2000),
+                Amount::try_from(Money::from(2000)).unwrap(),
                 food,
                 cash,
                 String::new(),
@@ -381,7 +384,11 @@ mod tests {
     #[gpui_kit::test]
     fn budget_card_renders_boundary_statuses_and_progress(cx: &mut gpui_kit::TestAppContext) {
         use super::budget_card;
-        use codo_core::{budget::BudgetStatus, transaction::TransactionDraft};
+        use codo_core::{
+            item::Tag,
+            report::budget::BudgetStatus,
+            transaction::{Amount, TransactionDraft},
+        };
         use gpui_kit::test::TestWindowExt;
         use gpui_kit::{
             AppContext, Bounds, Context, IntoElement, ParentElement, Render, Styled, Window,
@@ -409,15 +416,15 @@ mod tests {
         .unwrap();
         let single_day = Period::new(today, today).unwrap();
         let status_for = |amount: i32, spent: i32, period: Period| {
-            let mut ledger = Ledger::with_presets();
+            let mut ledger = Ledger::new();
             let id = ledger.add_budget(Money::from(amount), period).unwrap();
             if 0 < spent {
-                let food = ledger.items().find_by_name("食費").unwrap().id();
-                let cash = ledger.items().find_by_name("現金").unwrap().id();
+                let food = ledger.add_item("食費", Tag::Expense).unwrap();
+                let cash = ledger.add_item("現金", Tag::Asset).unwrap();
                 ledger
                     .add_transaction(TransactionDraft::new(
                         today,
-                        Money::from(spent),
+                        Amount::try_from(Money::from(spent)).unwrap(),
                         food,
                         cash,
                         String::new(),

@@ -2,7 +2,7 @@
 
 use crate::app::AppState;
 use chrono::Local;
-use codo_core::period::YearMonth;
+use codo_core::period::{Period, YearMonth};
 use codo_core::transaction::TransactionId;
 use gpui_kit::component::button::Button;
 use gpui_kit::component::table::{Table, TableBody, TableCell, TableHead, TableHeader, TableRow};
@@ -52,14 +52,16 @@ impl Render for TransactionList {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let ledger = &self.state.read(cx).ledger;
         let rows = ledger
-            .monthly_transactions(self.month)
+            .transactions()
+            .iter_in(Period::month(self.month))
+            .rev()
             .map(|transaction| {
                 let id = transaction.id();
                 let item_name = |id| {
                     ledger
                         .items()
-                        .get_item(id)
-                        .map(|item| item.name().to_string())
+                        .get(id)
+                        .map(|item| item.to_string())
                         .unwrap_or_else(|| "削除された品目".to_string())
                 };
                 TableRow::new()

@@ -1,64 +1,56 @@
-//! 品目
+//! 品目のモデルと品目一覧
 
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
+use std::fmt;
 use thiserror::Error;
 
-/// 品目 ID(連番)
+/// 品目を識別する連番.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct ItemId(u32);
 
-impl ItemId {
-    pub const fn new(id: u32) -> Self {
-        Self(id)
-    }
-
-    pub const fn id(&self) -> u32 {
-        self.0
-    }
-}
-/// 分類タグ
+/// 品目の分類.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Tag {
-    /// 資産
+    /// 資産.
     Asset,
-    /// 負債
+    /// 負債.
     Liability,
-    /// 初期残高(純資産)
+    /// 初期残高 (純資産).
     OpeningBalance,
-    /// 収入(収益)
+    /// 収入 (収益).
     Income,
-    /// 支出(費用)
+    /// 支出 (費用).
     Expense,
 }
 
 impl Tag {
-    pub const ALL_TAGS: [Tag; 5] = [
+    /// すべてのタグを表示順に並べたもの.
+    pub const ALL: [Tag; 5] = [
         Tag::Asset,
         Tag::Liability,
         Tag::OpeningBalance,
         Tag::Income,
         Tag::Expense,
     ];
+}
 
-    /// タグの表示名
-    /// Tag::Income.label()のように使用
-    pub fn label(&self) -> &'static str {
-        match self {
+impl fmt::Display for Tag {
+    /// タグの表示名を出力する.
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let label = match self {
             Tag::Asset => "資産",
             Tag::Liability => "負債",
             Tag::OpeningBalance => "初期残高",
             Tag::Income => "収入",
             Tag::Expense => "支出",
-        }
-    }
-
-    /// 取引の品目として選択できるか
-    pub fn is_transaction_selectable(&self) -> bool {
-        matches!(self, Tag::Income | Tag::Expense | Tag::Liability)
+        };
+        f.write_str(label)
     }
 }
 
+/// 品目.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Item {
     id: ItemId,
@@ -71,150 +63,182 @@ impl Item {
         self.id
     }
 
-    pub fn name(&self) -> &str {
-        &self.name
-    }
-
-    pub fn tag(&self) -> Tag {
+    pub(crate) fn tag(&self) -> Tag {
         self.tag
-    }
-
-    pub fn new(id: ItemId, name: String, tag: Tag) -> Self {
-        Self { id, name, tag }
     }
 }
 
-/// 品目の一覧
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+impl fmt::Display for Item {
+    /// 品目名を出力する.
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.name)
+    }
+}
+
+/// 品目一覧.
+///
+/// 次の要件を満たす.
+/// * ID の昇順に並ぶ
+/// * 名前は前後に空白がなく空でない
+/// * 互いに異なる ID と名前をもつ
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
 pub struct ItemList {
     items: Vec<Item>,
 }
 
 impl ItemList {
-    /// 新しい空の品目リストを作成する
-    pub fn new() -> Self {
+    /// 新しい空の品目一覧を作成する.
+    pub(crate) fn new() -> Self {
         Self { items: Vec::new() }
     }
 
-    /// 登録順に品目を走査するイテレーターを返す。
+    /// `Vec<Item>` から品目一覧を作成する.
+    ///
+    /// 名前の前後の空白は取り除く.
+    ///
+    /// # Errors
+    ///
+    /// 空白を取り除いた名前が空の場合は `ItemError::EmptyName` エラー.
+    /// 空白を取り除いた名前が重複する場合は `ItemError::DuplicateName` エラー.
+    /// ID が重複する場合は `ItemError::DuplicateId` エラー.
+    pub(crate) fn from_items(mut items: Vec<Item>) -> Result<Self, ItemError> {
+        for item in &mut items {
+            item.name = item.name.trim().to_string();
+        }
+
+        let mut names = HashSet::new();
+        for item in &items {
+            if item.name.is_empty() {
+                return Err(ItemError::EmptyName);
+            }
+            if !names.insert(item.name.as_str()) {
+                return Err(ItemError::DuplicateName(item.name.clone()));
+            }
+        }
+
+        items.sort_by_key(|item| item.id);
+        if let Some(pair) = items.windows(2).find(|pair| pair[0].id == pair[1].id) {
+            return Err(ItemError::DuplicateId(pair[0].id));
+        }
+        Ok(Self { items })
+    }
+
+    /// 品目を走査するイテレーターを返す.
     pub fn iter(&self) -> impl Iterator<Item = &Item> {
         self.items.iter()
     }
 
-    /// アプリ再起動時にファイルを復元する
-    ///
-    /// エラー検証はしない．品目はID順に並べ替える
-    pub fn from_items(mut items: Vec<Item>) -> Self {
-        items.sort_by_key(|item| item.id());
-        Self { items }
+    /// タグが `tag` である品目を走査するイテレーターを返す.
+    pub fn iter_with_tag(&self, tag: Tag) -> impl Iterator<Item = &Item> {
+        self.items.iter().filter(move |item| item.tag == tag)
     }
 
-    /// 同じIDの品目があれば返す
-    pub fn get_item(&self, id: ItemId) -> Option<&Item> {
+    /// ID が `id` である品目を返す.
+    pub fn get(&self, id: ItemId) -> Option<&Item> {
         self.items.iter().find(|item| item.id == id)
     }
 
-    /// 同じ名前の品目があれば返す
-    pub fn find_by_name(&self, name: &str) -> Option<&Item> {
-        let trim_name = name.trim();
-        self.items.iter().find(|item| item.name == trim_name)
-    }
-
-    /// 品目を追加する
+    /// 品目を追加し, 最大の ID に1を足した ID を割り当てる.
     ///
-    /// # Returns
+    /// 名前の前後の空白は取り除く.
     ///
-    /// nameが空の場合と，名前が被る場合はエラーを返す
-    pub fn add(&mut self, name: &str, tag: Tag) -> Result<ItemId, ItemError> {
-        let trim_name = name.trim();
+    /// # Errors
+    ///
+    /// 空白を取り除いた名前が空の場合は `ItemError::EmptyName` エラー.
+    /// 他の品目と名前が同じ場合は `ItemError::DuplicateName` エラー.
+    /// 割り当てる ID が `u32` の範囲を超える場合は `ItemError::Overflow` エラー.
+    pub(crate) fn add(&mut self, name: &str, tag: Tag) -> Result<ItemId, ItemError> {
+        let name = self.validate_name(name, None)?;
+        let max_id = self.items.iter().map(|item| item.id.0).max().unwrap_or(0);
+        let id = ItemId(max_id.checked_add(1).ok_or(ItemError::Overflow)?);
 
-        if trim_name.is_empty() {
-            return Err(ItemError::EmptyName);
-        }
-
-        // 特別に，重複だと気づかせるためにtrim_nameを使う
-        if self.find_by_name(trim_name).is_some() {
-            return Err(ItemError::DuplicateName(trim_name.to_string()));
-        }
-
-        // 既存の品目がある場合は、新しくIdを作り，ない場合はItemId(0)となる
-        let max_id = self
-            .items
-            .iter()
-            .map(|item| item.id)
-            .max()
-            .unwrap_or(ItemId(0))
-            .0;
-
-        if max_id == u32::MAX {
-            return Err(ItemError::Overflow);
-        }
-        let new_id = max_id + 1;
         self.items.push(Item {
-            id: ItemId(new_id),
-            name: trim_name.to_string(),
+            id,
+            name: name.to_string(),
             tag,
         });
-        Ok(ItemId(new_id))
+        Ok(id)
     }
 
-    /// 品目を更新する
-    /// nameが空の場合と，名前が被る場合はエラーを返す
-    /// nameが変更なければそのまま返す
-    pub fn update(&mut self, id: ItemId, name: &str, tag: Tag) -> Result<(), ItemError> {
-        let trim_name = name.trim();
+    /// 品目の名前とタグを更新する.
+    ///
+    /// 名前の前後の空白は取り除く.
+    ///
+    /// # Errors
+    ///
+    /// 空白を取り除いた名前が空の場合は `ItemError::EmptyName` エラー.
+    /// 他の品目と名前が同じ場合は `ItemError::DuplicateName` エラー.
+    /// 品目が存在しない場合は `ItemError::NotFound` エラー.
+    pub(crate) fn update(&mut self, id: ItemId, name: &str, tag: Tag) -> Result<(), ItemError> {
+        let name = self.validate_name(name, Some(id))?;
+        let index = self.index_of(id)?;
 
-        if trim_name.is_empty() {
-            return Err(ItemError::EmptyName);
-        }
-
-        // まず更新対象が存在するか確認
-        if self.get_item(id).is_none() {
-            return Err(ItemError::NotFound(id));
-        }
-
-        if self
-            .find_by_name(trim_name)
-            .is_some_and(|item| item.id != id)
-        {
-            return Err(ItemError::DuplicateName(trim_name.to_string()));
-        }
-
-        // 更新対象を探す
-        let Some(item) = self.items.iter_mut().find(|item| item.id == id) else {
-            return Err(ItemError::NotFound(id));
-        };
-        // 名前もタグも同じなら更新不要
-        if item.name == trim_name && item.tag == tag {
-            return Ok(());
-        }
-
-        // 更新
-        item.name = trim_name.to_string();
+        let item = &mut self.items[index];
+        item.name = name.to_string();
         item.tag = tag;
-
         Ok(())
     }
 
-    /// 指定されたIDの品目を削除する
-    pub fn remove(&mut self, id: ItemId) -> Result<(), ItemError> {
-        if let Some(delete_pos) = self.items.iter().position(|item| item.id == id) {
-            self.items.remove(delete_pos);
-            Ok(())
-        } else {
-            Err(ItemError::NotFound(id))
+    /// 品目を削除する.
+    ///
+    /// # Errors
+    ///
+    /// 品目が存在しない場合は `ItemError::NotFound` エラー.
+    pub(crate) fn remove(&mut self, id: ItemId) -> Result<(), ItemError> {
+        let index = self.index_of(id)?;
+        self.items.remove(index);
+        Ok(())
+    }
+
+    fn index_of(&self, id: ItemId) -> Result<usize, ItemError> {
+        self.items
+            .iter()
+            .position(|item| item.id == id)
+            .ok_or(ItemError::NotFound(id))
+    }
+
+    /// 前後の空白を取り除いた名前を返す.
+    ///
+    /// `id` の品目は重複の判定から除く.
+    ///
+    /// # Errors
+    ///
+    /// 空白を取り除いた名前が空の場合は `ItemError::EmptyName` エラー.
+    /// 他の品目と名前が同じ場合は `ItemError::DuplicateName` エラー.
+    fn validate_name<'a>(&self, name: &'a str, id: Option<ItemId>) -> Result<&'a str, ItemError> {
+        let name = name.trim();
+
+        if name.is_empty() {
+            return Err(ItemError::EmptyName);
         }
+
+        // 重複だと気づかせるために, 特別に空白を取り除いた名前を入れる
+        if self
+            .items
+            .iter()
+            .any(|item| item.name == name && Some(item.id) != id)
+        {
+            return Err(ItemError::DuplicateName(name.to_string()));
+        }
+        Ok(name)
     }
 }
 
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum ItemError {
+    /// 品目名が空の場合.
     #[error("品目名が空です")]
     EmptyName,
+    /// 品目名が他の品目と同じ場合.
     #[error("品目名 {0} は既に使われています")]
     DuplicateName(String),
+    /// 品目 ID が他の品目と同じ場合.
+    #[error("品目 {0:?} が重複しています")]
+    DuplicateId(ItemId),
+    /// 品目が存在しない場合.
     #[error("品目 {0:?} が見つかりません")]
     NotFound(ItemId),
+    /// 割り当てる ID が `u32` の範囲を超える場合.
     #[error("品目IDがオーバーフローしました")]
     Overflow,
 }
@@ -223,204 +247,161 @@ pub enum ItemError {
 mod tests {
     use super::*;
 
-    // ---------------------
-    // from_items のテスト
-    // ---------------------
-
-    #[test]
-    fn from_items_sorts_by_id() {
-        let food = Item::new(ItemId(1), "食費".to_string(), Tag::Expense);
-        let cash = Item::new(ItemId(2), "現金".to_string(), Tag::Asset);
-
-        let reversed = ItemList::from_items(vec![cash.clone(), food.clone()]);
-        let sorted = ItemList::from_items(vec![food, cash]);
-
-        assert_eq!(reversed, sorted);
+    fn item(id: u32, name: &str, tag: Tag) -> Item {
+        Item {
+            id: ItemId(id),
+            name: name.to_string(),
+            tag,
+        }
     }
 
-    // ---------------------
-    // get_item のテスト
-    // ---------------------
+    /// 食費 (1), 娯楽 (2), 現金 (3) の一覧.
+    fn list() -> ItemList {
+        ItemList::from_items(vec![
+            item(1, "食費", Tag::Expense),
+            item(2, "娯楽", Tag::Expense),
+            item(3, "現金", Tag::Asset),
+        ])
+        .unwrap()
+    }
 
     #[test]
-    fn get_item_returns_item_when_id_exists() {
-        let mut list = ItemList::new();
+    fn from_items_test() {
+        let food = item(1, "食費", Tag::Expense);
+        let cash = item(2, "現金", Tag::Asset);
 
-        list.add("日用品", Tag::Asset).unwrap();
-        list.add("食費", Tag::Expense).unwrap();
-        list.add("給与", Tag::Income).unwrap();
+        let list = ItemList::from_items(vec![
+            item(2, "現金", Tag::Asset),
+            item(1, "　 食費 \t", Tag::Expense),
+        ])
+        .unwrap();
 
-        let item = list.get_item(ItemId(1));
-
+        assert_eq!(list.iter().collect::<Vec<_>>(), vec![&food, &cash]);
         assert_eq!(
-            item,
-            Some(&Item {
-                id: ItemId(1),
-                name: "日用品".to_string(),
-                tag: Tag::Asset,
-            })
+            list.iter_with_tag(Tag::Asset).collect::<Vec<_>>(),
+            vec![&cash]
         );
     }
 
     #[test]
-    fn get_item_returns_none_when_id_does_not_exist() {
-        let list = ItemList::new();
-
-        assert_eq!(list.get_item(ItemId(999)), None);
-    }
-
-    // ---------------------
-    // find_by_name のテスト
-    // ---------------------
-
-    #[test]
-    fn find_by_name_trims_input_name() {
-        let mut list = ItemList::new();
-
-        list.add("日用品", Tag::Asset).unwrap();
-        list.add("食費", Tag::Expense).unwrap();
-        list.add("給与", Tag::Income).unwrap();
-
-        let item = list.find_by_name("  日用品  ");
-
-        assert_eq!(item.unwrap().name, "日用品");
-    }
-
-    // ---------
-    // add_item
-    // ---------
-
-    #[test]
-    fn add_item_adds_item_with_id_one() {
-        let mut list = ItemList::new();
-
-        let result = list.add("　　食費　　", Tag::Asset);
-
-        assert_eq!(result, Ok(ItemId(1)));
-
-        let item = list.get_item(ItemId(1)).unwrap();
-
-        assert_eq!(item.name, "食費");
-        assert_eq!(item.tag, Tag::Asset);
+    fn from_items_error_test() {
+        for (items, expected) in [
+            (vec![item(1, "　 \t", Tag::Expense)], ItemError::EmptyName),
+            (
+                vec![item(1, "食費", Tag::Expense), item(2, " 食費 ", Tag::Asset)],
+                ItemError::DuplicateName("食費".to_string()),
+            ),
+            (
+                vec![item(1, "食費", Tag::Expense), item(1, "現金", Tag::Asset)],
+                ItemError::DuplicateId(ItemId(1)),
+            ),
+        ] {
+            assert_eq!(ItemList::from_items(items), Err(expected));
+        }
     }
 
     #[test]
-    fn add_item_uses_max_id_plus_one_after_deletion() {
+    fn add_test() {
         let mut list = ItemList::new();
 
-        list.add("日用品", Tag::Asset).unwrap();
-        list.add("娯楽", Tag::Expense).unwrap();
-        list.add("食費", Tag::Income).unwrap();
+        for (name, tag, expected) in [
+            ("食費", Tag::Expense, item(1, "食費", Tag::Expense)),
+            ("　 給与 \t", Tag::Income, item(2, "給与", Tag::Income)),
+            ("現 金", Tag::Asset, item(3, "現 金", Tag::Asset)),
+        ] {
+            let id = list.add(name, tag).unwrap();
+            assert_eq!(list.get(id), Some(&expected), "{name}");
+        }
+    }
+
+    #[test]
+    fn add_after_remove_test() {
+        let mut list = list();
+
+        list.remove(ItemId(2)).unwrap();
+        assert_eq!(list.add("住宅", Tag::Expense), Ok(ItemId(4)));
+    }
+
+    #[test]
+    fn add_max_id_test() {
+        let mut list =
+            ItemList::from_items(vec![item(u32::MAX - 1, "食費", Tag::Expense)]).unwrap();
+
+        assert_eq!(list.add("現金", Tag::Asset), Ok(ItemId(u32::MAX)));
+
+        let before = list.clone();
+        assert_eq!(list.add("娯楽", Tag::Expense), Err(ItemError::Overflow));
+        assert_eq!(list, before);
+    }
+
+    #[test]
+    fn add_error_test() {
+        let mut list = list();
+        let before = list.clone();
+
+        for (name, expected) in [
+            ("", ItemError::EmptyName),
+            ("　 \t", ItemError::EmptyName),
+            ("食費", ItemError::DuplicateName("食費".to_string())),
+            (" 現金 ", ItemError::DuplicateName("現金".to_string())),
+        ] {
+            assert_eq!(list.add(name, Tag::Income), Err(expected), "{name}");
+            assert_eq!(list, before, "{name}");
+        }
+    }
+
+    #[test]
+    fn update_test() {
+        for (name, tag, expected) in [
+            ("  外食  ", Tag::Expense, item(1, "外食", Tag::Expense)),
+            // 自分自身の名前とは重複しない
+            ("食費", Tag::Income, item(1, "食費", Tag::Income)),
+        ] {
+            let mut list = list();
+
+            list.update(ItemId(1), name, tag).unwrap();
+
+            assert_eq!(list.get(ItemId(1)), Some(&expected), "{name}");
+            assert_eq!(list.iter().count(), 3, "{name}");
+        }
+    }
+
+    #[test]
+    fn update_error_test() {
+        let mut list = list();
+        let before = list.clone();
+
+        for (id, name, expected) in [
+            (ItemId(1), "", ItemError::EmptyName),
+            (ItemId(1), "　 \t", ItemError::EmptyName),
+            (
+                ItemId(1),
+                " 娯楽 ",
+                ItemError::DuplicateName("娯楽".to_string()),
+            ),
+            (ItemId(4), "住宅", ItemError::NotFound(ItemId(4))),
+        ] {
+            assert_eq!(list.update(id, name, Tag::Income), Err(expected), "{name}");
+            assert_eq!(list, before, "{name}");
+        }
+    }
+
+    #[test]
+    fn remove_test() {
+        let mut list = list();
 
         list.remove(ItemId(2)).unwrap();
 
-        let result = list.add("住宅", Tag::Asset);
-
-        assert_eq!(result, Ok(ItemId(4)));
+        let ids = list.iter().map(Item::id).collect::<Vec<_>>();
+        assert_eq!(ids, vec![ItemId(1), ItemId(3)]);
     }
 
     #[test]
-    fn add_item_returns_empty_name_error_when_only_spaces() {
-        let mut list = ItemList::new();
+    fn remove_error_test() {
+        let mut list = list();
+        let before = list.clone();
 
-        let result = list.add("   ", Tag::Asset);
-
-        assert_eq!(result, Err(ItemError::EmptyName));
-    }
-
-    #[test]
-    fn add_item_returns_duplicate_name_error() {
-        let mut list = ItemList::new();
-
-        list.add("食費", Tag::Asset).unwrap();
-
-        let result = list.add("食費", Tag::Expense);
-
-        assert_eq!(result, Err(ItemError::DuplicateName("食費".to_string())));
-    }
-
-    // -----------
-    // update_item
-    // -----------
-
-    #[test]
-    fn update_item_trims_name() {
-        let mut list = ItemList::new();
-
-        list.add("食費", Tag::Asset).unwrap();
-
-        list.update(ItemId(1), "  娯楽  ", Tag::Expense).unwrap();
-
-        assert_eq!(list.get_item(ItemId(1)).unwrap().name, "娯楽");
-    }
-
-    #[test]
-    fn update_item_allows_same_name_for_same_item() {
-        let mut list = ItemList::new();
-
-        list.add("食費", Tag::Asset).unwrap();
-
-        let result = list.update(ItemId(1), "食費", Tag::Asset);
-
-        assert_eq!(result, Ok(()));
-    }
-
-    #[test]
-    fn update_item_returns_empty_name_error_when_only_spaces() {
-        let mut list = ItemList::new();
-
-        list.add("食費", Tag::Asset).unwrap();
-
-        let result = list.update(ItemId(1), "   ", Tag::Asset);
-
-        assert_eq!(result, Err(ItemError::EmptyName));
-    }
-
-    #[test]
-    fn update_item_returns_duplicate_name_error() {
-        let mut list = ItemList::new();
-
-        list.add("食費", Tag::Asset).unwrap();
-        list.add("娯楽", Tag::Expense).unwrap();
-
-        let result = list.update(ItemId(2), "食費", Tag::Expense);
-
-        assert_eq!(result, Err(ItemError::DuplicateName("食費".to_string())));
-    }
-
-    #[test]
-    fn update_item_returns_not_found_error() {
-        let mut list = ItemList::new();
-
-        let result = list.update(ItemId(999), "食費", Tag::Asset);
-
-        assert_eq!(result, Err(ItemError::NotFound(ItemId(999))));
-    }
-
-    // -----------
-    // remove_item
-    // -----------
-
-    #[test]
-    fn remove_item_removes_item() {
-        let mut list = ItemList::new();
-
-        list.add("食費", Tag::Asset).unwrap();
-        list.add("娯楽", Tag::Expense).unwrap();
-        let result = list.remove(ItemId(1));
-
-        assert_eq!(result, Ok(()));
-        let remaining_ids = list.iter().map(Item::id).collect::<Vec<_>>();
-        assert_eq!(remaining_ids, vec![ItemId(2)]);
-        assert_eq!(list.get_item(ItemId(2)).unwrap().name, "娯楽");
-    }
-
-    #[test]
-    fn remove_item_returns_not_found_error() {
-        let mut list = ItemList::new();
-
-        let result = list.remove(ItemId(999));
-
-        assert_eq!(result, Err(ItemError::NotFound(ItemId(999))));
+        assert_eq!(list.remove(ItemId(4)), Err(ItemError::NotFound(ItemId(4))));
+        assert_eq!(list, before);
     }
 }

@@ -29,7 +29,8 @@ fn is_repository(path: &Path) -> Result<bool, GitError> {
         return Ok(false);
     }
 
-    Ok(output.stdout.is_empty())
+    // ルートでは空行を出力する
+    Ok(output.stdout.trim_ascii().is_empty())
 }
 
 /// Gitリポジトリを操作するためのラッパー。
@@ -115,10 +116,8 @@ impl GitRepo {
         }
 
         // コミットする
-        let output = Command::new("git")
-            .args(["-C"])
-            .arg(&self.path)
-            .args(["commit", "-m", message])
+        let output = git_command(&self.path)
+            .args(["commit", "--allow-empty-message", "-m", message])
             .output()
             .map_err(GitError::Command)?;
 
@@ -164,13 +163,11 @@ mod tests {
     use std::fs;
     use tempfile::tempdir;
 
-    #[test]
-    fn commit_all_creates_commit_and_returns_hash() {
-        let dir = tempdir().unwrap();
+    /// commit する利用者を設定したリポジトリを作る
+    fn init_with_identity(dir: &Path) -> GitRepo {
+        let repo = GitRepo::init(dir.to_path_buf()).unwrap();
 
-        let repo = GitRepo::init(dir.path().to_path_buf()).unwrap();
-
-        let output = git_command(dir.path())
+        let output = git_command(dir)
             .args(["config", "user.name", "test"])
             .output()
             .unwrap();
@@ -181,7 +178,7 @@ mod tests {
             String::from_utf8_lossy(&output.stderr)
         );
 
-        let output = git_command(dir.path())
+        let output = git_command(dir)
             .args(["config", "user.email", "test@example.com"])
             .output()
             .unwrap();
@@ -192,6 +189,14 @@ mod tests {
             String::from_utf8_lossy(&output.stderr)
         );
 
+        repo
+    }
+
+    #[test]
+    fn commit_all_creates_commit_and_returns_hash() {
+        let dir = tempdir().unwrap();
+        let repo = init_with_identity(dir.path());
+
         fs::write(dir.path().join("test.txt"), "hello").unwrap();
 
         let result = repo.commit_all("test commit").unwrap();
@@ -201,6 +206,17 @@ mod tests {
         let hash = result.unwrap();
 
         assert!(!hash.is_empty());
+    }
+
+    #[test]
+    fn commit_all_accepts_empty_message() {
+        let dir = tempdir().unwrap();
+        let repo = init_with_identity(dir.path());
+
+        fs::write(dir.path().join("test.txt"), "hello").unwrap();
+
+        assert!(repo.commit_all("").unwrap().is_some());
+        assert!(!repo.has_changes().unwrap());
     }
 
     #[test]

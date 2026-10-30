@@ -1,111 +1,88 @@
-//! 取引
+//! 取引のモデルと取引一覧
 
 use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
 
-use crate::item::ItemId;
-use crate::money::Money;
+use crate::item::{ItemId, Tag};
 
-/// 取引 ID
+mod amount;
+mod list;
+
+pub use amount::{Amount, AmountError};
+pub use list::TransactionList;
+
+/// 取引を識別する ID.
 ///
-/// 別の月ファイルへ同時に追加されても衝突しないよう uuid を使う
+/// 別の月ファイルへ同時に追加されても衝突しないよう uuid を使う.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct TransactionId(Uuid);
 
-/// 日付をTOMLの日付型で読み書きする
-mod toml_date {
-    use chrono::NaiveDate;
-    use serde::{Deserialize, Deserializer, Serialize, Serializer};
-    use toml::value::Datetime;
-
-    pub fn serialize<S: Serializer>(date: &NaiveDate, serializer: S) -> Result<S::Ok, S::Error> {
-        let datetime = date
-            .to_string()
-            .parse::<Datetime>()
-            .map_err(serde::ser::Error::custom)?;
-        datetime.serialize(serializer)
-    }
-
-    pub fn deserialize<'de, D: Deserializer<'de>>(deserializer: D) -> Result<NaiveDate, D::Error> {
-        Datetime::deserialize(deserializer)?
-            .to_string()
-            .parse::<NaiveDate>()
-            .map_err(serde::de::Error::custom)
-    }
-}
-
+/// 帳簿に登録した取引.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Transaction {
     id: TransactionId,
-    #[serde(with = "toml_date")]
-    date: NaiveDate,
-    /// 正の値のみ
-    amount: Money,
-    /// 収入/支出/負債の品目
-    item: ItemId,
-    /// 相手先の品目
-    counterpart: ItemId,
-    comment: String,
+    #[serde(flatten)]
+    draft: TransactionDraft,
 }
 
-///取引の各値の読み込み
 impl Transaction {
-    ///取引のID
     pub fn id(&self) -> TransactionId {
         self.id
     }
 
-    ///取引の日付
     pub fn date(&self) -> NaiveDate {
-        self.date
+        self.draft.date
     }
 
-    ///取引の金額
-    pub fn amount(&self) -> Money {
-        self.amount
+    pub fn amount(&self) -> Amount {
+        self.draft.amount
     }
 
-    ///取引の品目
+    /// 収入, 支出, 負債のいずれかの品目を返す.
     pub fn item(&self) -> ItemId {
-        self.item
+        self.draft.item
     }
 
-    ///取引の相手先
+    /// 相手先の品目を返す.
     pub fn counterpart(&self) -> ItemId {
-        self.counterpart
+        self.draft.counterpart
     }
 
-    ///取引のコメント
     pub fn comment(&self) -> &str {
-        &self.comment
+        &self.draft.comment
+    }
+
+    /// `TransactionDraft::check_tags` と同じ.
+    pub(crate) fn check_tags<E: From<TransactionError>>(
+        &self,
+        tag_of: impl Fn(ItemId) -> Result<Tag, E>,
+    ) -> Result<(), E> {
+        self.draft.check_tags(tag_of)
+    }
+
+    /// 品目または相手先として `item` を使うかを判定する.
+    pub(crate) fn uses(&self, item: ItemId) -> bool {
+        self.draft.item == item || self.draft.counterpart == item
     }
 }
 
-///idなしの取引
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// ID のない取引の内容.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TransactionDraft {
+    #[serde(with = "crate::serialization::toml_date")]
     date: NaiveDate,
-    amount: Money,
+    amount: Amount,
     item: ItemId,
     counterpart: ItemId,
     comment: String,
 }
 
 impl TransactionDraft {
-    pub fn item(&self) -> ItemId {
-        self.item
-    }
-
-    pub fn counterpart(&self) -> ItemId {
-        self.counterpart
-    }
-
-    ///取引の下書きの作成
     pub fn new(
         date: NaiveDate,
-        amount: Money,
+        amount: Amount,
         item: ItemId,
         counterpart: ItemId,
         comment: String,
@@ -119,368 +96,128 @@ impl TransactionDraft {
         }
     }
 
-    ///金額と品目のチェック
-    pub(crate) fn validate(&self) -> Result<(), TransactionError> {
-        //金額が正でなければエラー
-        if !self.amount.is_positive() {
-            return Err(TransactionError::NonPositiveAmount(self.amount));
-        }
-        //品目が相手先と同じだとエラー
-        if self.item == self.counterpart {
-            return Err(TransactionError::SameItemAndCounterpart(self.item));
-        }
-        Ok(())
+    /// 品目と相手先のタグの組み合わせを検査する.
+    ///
+    /// `tag_of` で `ItemId` から `Tag` を解決する.
+    ///
+    /// # Errors
+    ///
+    /// `tag_of` のエラー.
+    /// `codo_core::transaction::check_tags` のエラー.
+    pub(crate) fn check_tags<E: From<TransactionError>>(
+        &self,
+        tag_of: impl Fn(ItemId) -> Result<Tag, E>,
+    ) -> Result<(), E> {
+        // 内部の関数に移譲する
+        Ok(check_tags(tag_of(self.item)?, tag_of(self.counterpart)?)?)
     }
 }
 
-/// 取引の一覧
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct TransactionList {
-    transactions: Vec<Transaction>,
+/// 取引の品目として選べるタグかを検査する.
+///
+/// 収入, 支出, 負債だけが選べる.
+///
+/// # Errors
+///
+/// 選べない場合は `TransactionError::InvalidItemTag` エラー.
+pub(crate) fn check_item_tag(tag: Tag) -> Result<(), TransactionError> {
+    if !matches!(tag, Tag::Income | Tag::Expense | Tag::Liability) {
+        return Err(TransactionError::InvalidItemTag(tag));
+    }
+    Ok(())
 }
 
-impl TransactionList {
-    ///空の取引一覧を作る
-    pub fn new() -> Self {
-        Self::default()
+/// 取引の品目と相手先のタグの組み合わせを検査する.
+///
+/// # Errors
+///
+/// 品目のタグが取引の品目として選べない場合は `TransactionError::InvalidItemTag` エラー.
+/// 相手先のタグが品目のタグと同じ場合は `TransactionError::SameTag` エラー.
+pub(crate) fn check_tags(item: Tag, counterpart: Tag) -> Result<(), TransactionError> {
+    check_item_tag(item)?;
+    if item == counterpart {
+        return Err(TransactionError::SameTag(item));
     }
-
-    ///ファイルの復元
-    pub fn from_transactions(transactions: Vec<Transaction>) -> Self {
-        let mut list = Self { transactions };
-        list.sort();
-        list
-    }
-
-    ///取引の登録
-    pub fn add(&mut self, draft: TransactionDraft) -> Result<TransactionId, TransactionError> {
-        //金額，品目のチェック
-        draft.validate()?;
-        let new_id = TransactionId(Uuid::new_v4());
-        let transaction = Transaction {
-            id: new_id,
-            date: draft.date,
-            amount: draft.amount,
-            item: draft.item,
-            counterpart: draft.counterpart,
-            comment: draft.comment,
-        };
-        self.transactions.push(transaction);
-        self.sort();
-        Ok(new_id)
-    }
-
-    ///特定の品目を使っている取引があるかの確認
-    pub fn uses_item(&self, item: ItemId) -> bool {
-        for t in &self.transactions {
-            if t.item == item || t.counterpart == item {
-                return true;
-            }
-        }
-        false
-    }
-
-    ///IDで取引を探す
-    pub fn get(&self, id: TransactionId) -> Option<&Transaction> {
-        self.transactions.iter().find(|t| t.id == id)
-    }
-
-    ///取引の削除
-    pub fn remove(&mut self, id: TransactionId) -> Result<Transaction, TransactionError> {
-        let i = self.index_of(id)?;
-        Ok(self.transactions.remove(i))
-    }
-
-    ///取引の訂正
-    pub fn update(
-        &mut self,
-        id: TransactionId,
-        draft: TransactionDraft,
-    ) -> Result<(), TransactionError> {
-        //金額,品目のチェック
-        draft.validate()?;
-
-        //探して書き換える
-        let i = self.index_of(id)?;
-        self.transactions[i].date = draft.date;
-        self.transactions[i].amount = draft.amount;
-        self.transactions[i].item = draft.item;
-        self.transactions[i].counterpart = draft.counterpart;
-        self.transactions[i].comment = draft.comment;
-        self.sort();
-        Ok(())
-    }
-
-    ///日付順に取引を取り出す
-    pub fn iter(&self) -> impl DoubleEndedIterator<Item = &Transaction> {
-        self.transactions.iter()
-    }
-
-    ///日付順・ID順に並び替える
-    fn sort(&mut self) {
-        self.transactions.sort_by_key(|t| (t.date, t.id))
-    }
-
-    ///対象が何番目にあるかを探す
-    fn index_of(&self, id: TransactionId) -> Result<usize, TransactionError> {
-        for i in 0..self.transactions.len() {
-            if self.transactions[i].id == id {
-                return Ok(i);
-            }
-        }
-        Err(TransactionError::NotFound(id))
-    }
+    Ok(())
 }
 
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum TransactionError {
-    #[error("金額は正の値でなければなりません: {0:?}")]
-    NonPositiveAmount(Money),
-    #[error("品目と相手先が同じです: {0:?}")]
-    SameItemAndCounterpart(ItemId),
+    /// 品目のタグが取引の品目として選べない場合.
+    #[error("取引の品目のタグ {0} が収入・支出・負債ではありません")]
+    InvalidItemTag(Tag),
+    /// 相手先のタグが品目のタグと同じ場合.
+    #[error("相手先のタグ {0} が品目のタグと同じです")]
+    SameTag(Tag),
+    /// 取引が存在しない場合.
     #[error("取引 {0:?} が見つかりません")]
     NotFound(TransactionId),
+    /// 取引 ID が他の取引と同じ場合.
+    #[error("取引 {0:?} が重複しています")]
+    DuplicateId(TransactionId),
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::item::{ItemList, Tag};
 
-    /// テスト用の日付(2026年10月の指定した日)
-    fn date(day: u32) -> NaiveDate {
-        NaiveDate::from_ymd_opt(2026, 10, day).unwrap()
-    }
-
-    /// テスト用の draft を作る(コメントは "テスト" で固定)
-    fn draft(day: u32, amount: i32, item: ItemId, counterpart: ItemId) -> TransactionDraft {
-        TransactionDraft {
-            date: date(day),
-            amount: Money::from(amount),
-            item,
-            counterpart,
-            comment: String::from("テスト"),
+    #[test]
+    fn check_tags_test() {
+        for (item, counterpart) in [
+            (Tag::Expense, Tag::Asset),
+            (Tag::Expense, Tag::Liability),
+            (Tag::Income, Tag::Asset),
+            (Tag::Liability, Tag::Asset),
+            (Tag::Liability, Tag::OpeningBalance),
+        ] {
+            assert_eq!(
+                check_tags(item, counterpart),
+                Ok(()),
+                "{item:?} {counterpart:?}"
+            );
         }
     }
 
-    ///テスト用の品目を3つ登録して、その ID を返す
-    fn items() -> (ItemId, ItemId, ItemId) {
-        let mut list = ItemList::new();
-        let a = list.add("食費", Tag::Expense).unwrap();
-        let b = list.add("現金", Tag::Asset).unwrap();
-        let c = list.add("娯楽", Tag::Expense).unwrap();
-        (a, b, c)
-    }
-
     #[test]
-    fn add_then_get() {
-        let (a, b, _) = items();
-        let mut list = TransactionList::new();
-
-        let id = list.add(draft(1, 1000, a, b)).unwrap();
-
-        let t = list.get(id).unwrap();
-        assert_eq!(t.id, id);
-        assert_eq!(t.date, date(1));
-        assert_eq!(t.amount, Money::from(1000));
-        assert_eq!(t.item, a);
-        assert_eq!(t.counterpart, b);
-        assert_eq!(t.comment, "テスト");
-    }
-
-    #[test]
-    fn add_accepts_one_yen() {
-        let (a, b, _) = items();
-        let mut list = TransactionList::new();
-
-        let id = list.add(draft(1, 1, a, b)).unwrap();
-
-        let t = list.get(id).unwrap();
-        assert_eq!(t.amount, Money::from(1));
-    }
-
-    #[test]
-    fn add_rejects_zero_amount() {
-        let (a, b, _) = items();
-        let mut list = TransactionList::new();
-        let result = list.add(draft(1, 0, a, b));
-        assert_eq!(
-            result,
-            Err(TransactionError::NonPositiveAmount(Money::from(0)))
-        );
-    }
-
-    #[test]
-    fn add_rejects_minus_one_yen() {
-        let (a, b, _) = items();
-        let mut list = TransactionList::new();
-        let result = list.add(draft(1, -1, a, b));
-        assert_eq!(
-            result,
-            Err(TransactionError::NonPositiveAmount(Money::from(-1)))
-        );
-    }
-
-    #[test]
-    fn add_rejects_same_item_and_counterpart() {
-        let (a, _, _) = items();
-        let mut list = TransactionList::new();
-        let result = list.add(draft(1, 1000, a, a));
-        assert_eq!(result, Err(TransactionError::SameItemAndCounterpart(a)));
-    }
-
-    #[test]
-    fn remove_deletes() {
-        let (a, b, _) = items();
-        let mut list = TransactionList::new();
-        let id = list.add(draft(1, 1000, b, a)).unwrap();
-        let removed = list.remove(id).unwrap();
-        assert_eq!(removed.id, id);
-        assert_eq!(list.get(id), None);
-    }
-
-    #[test]
-    fn remove_not_found() {
-        let mut list = TransactionList::new();
-        let missing = TransactionId(Uuid::new_v4());
-
-        let result = list.remove(missing);
-
-        assert_eq!(result, Err(TransactionError::NotFound(missing)));
-    }
-
-    #[test]
-    fn add_rejects_negative_amount() {
-        let (a, b, _) = items();
-        let mut list = TransactionList::new();
-
-        let result = list.add(draft(1, -500, a, b));
-
-        assert_eq!(
-            result,
-            Err(TransactionError::NonPositiveAmount(Money::from(-500)))
-        );
-    }
-
-    #[test]
-    fn update_changes() {
-        let (a, b, c) = items();
-        let mut list = TransactionList::new();
-        let id = list.add(draft(1, 1000, a, b)).unwrap();
-
-        let result = list.update(id, draft(5, 2000, c, a));
-
-        assert_eq!(result, Ok(()));
-        let t = list.get(id).unwrap();
-        assert_eq!(t.id, id);
-        assert_eq!(t.date, date(5));
-        assert_eq!(t.amount, Money::from(2000));
-        assert_eq!(t.item, c);
-        assert_eq!(t.counterpart, a);
-    }
-
-    #[test]
-    fn update_not_found() {
-        let (a, b, _) = items();
-        let mut list = TransactionList::new();
-        let missing = TransactionId(Uuid::new_v4());
-
-        let result = list.update(missing, draft(1, 1000, a, b));
-
-        assert_eq!(result, Err(TransactionError::NotFound(missing)));
-    }
-
-    #[test]
-    fn update_rejects_zero_amount() {
-        let (a, b, _) = items();
-        let mut list = TransactionList::new();
-        let id = list.add(draft(1, 1000, a, b)).unwrap();
-
-        let result = list.update(id, draft(1, 0, a, b));
-
-        assert_eq!(
-            result,
-            Err(TransactionError::NonPositiveAmount(Money::from(0)))
-        );
-        // 失敗したときは元の取引のまま
-        assert_eq!(list.get(id).unwrap().amount, Money::from(1000));
-    }
-
-    #[test]
-    fn update_rejects_same_item_and_counterpart() {
-        let (a, b, c) = items();
-        let mut list = TransactionList::new();
-        let id = list.add(draft(1, 1000, a, b)).unwrap();
-        let copy = list.get(id).unwrap().clone();
-        let result = list.update(id, draft(1, 1000, c, c));
-
-        assert_eq!(result, Err(TransactionError::SameItemAndCounterpart(c)));
-        assert_eq!(list.get(id), Some(&copy));
-    }
-
-    #[test]
-    fn uses_item_checks_item_and_counterpart() {
-        let (a, b, c) = items();
-        let mut list = TransactionList::new();
-        list.add(draft(1, 1000, a, b)).unwrap();
-
-        // 品目として使っている
-        assert!(list.uses_item(a));
-        // 相手先として使っている
-        assert!(list.uses_item(b));
-        // 使っていない
-        assert!(!list.uses_item(c));
-    }
-
-    #[test]
-    fn iter_sorted_by_date() {
-        let (a, b, _) = items();
-        let mut list = TransactionList::new();
-        list.add(draft(3, 1000, a, b)).unwrap();
-        list.add(draft(1, 1000, a, b)).unwrap();
-        list.add(draft(2, 1000, a, b)).unwrap();
-
-        let mut dates = Vec::new();
-        for t in list.iter() {
-            dates.push(t.date);
+    fn check_tags_error_test() {
+        for (item, counterpart, expected) in [
+            (
+                Tag::Asset,
+                Tag::Income,
+                TransactionError::InvalidItemTag(Tag::Asset),
+            ),
+            (
+                Tag::OpeningBalance,
+                Tag::Asset,
+                TransactionError::InvalidItemTag(Tag::OpeningBalance),
+            ),
+            // 品目として選べないことを先に判定する
+            (
+                Tag::Asset,
+                Tag::Asset,
+                TransactionError::InvalidItemTag(Tag::Asset),
+            ),
+            (
+                Tag::Income,
+                Tag::Income,
+                TransactionError::SameTag(Tag::Income),
+            ),
+            (
+                Tag::Expense,
+                Tag::Expense,
+                TransactionError::SameTag(Tag::Expense),
+            ),
+            (
+                Tag::Liability,
+                Tag::Liability,
+                TransactionError::SameTag(Tag::Liability),
+            ),
+        ] {
+            assert_eq!(
+                check_tags(item, counterpart),
+                Err(expected),
+                "{item:?} {counterpart:?}"
+            );
         }
-
-        assert_eq!(dates, vec![date(1), date(2), date(3)]);
-    }
-
-    #[test]
-    fn iter_same_date_sorted_by_id() {
-        let (a, b, _) = items();
-        let mut list = TransactionList::new();
-        let id1 = list.add(draft(1, 1000, a, b)).unwrap();
-        let id2 = list.add(draft(1, 2000, a, b)).unwrap();
-        let id3 = list.add(draft(1, 3000, a, b)).unwrap();
-
-        let mut ids = Vec::new();
-        for t in list.iter() {
-            ids.push(t.id);
-        }
-
-        // ID はランダムなので、期待する順番は自分で並べ替えて作る
-        let mut expected = vec![id1, id2, id3];
-        expected.sort();
-        assert_eq!(ids, expected);
-    }
-
-    #[test]
-    fn update_keeps_date_order() {
-        let (a, b, _) = items();
-        let mut list = TransactionList::new();
-        let id = list.add(draft(1, 1000, a, b)).unwrap();
-        list.add(draft(2, 1000, a, b)).unwrap();
-
-        // 10/1 の取引を 10/3 に訂正すると、一番後ろに移る
-        list.update(id, draft(3, 1000, a, b)).unwrap();
-
-        let mut dates = Vec::new();
-        for t in list.iter() {
-            dates.push(t.date);
-        }
-        assert_eq!(dates, vec![date(2), date(3)]);
     }
 }
