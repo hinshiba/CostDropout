@@ -45,6 +45,43 @@ pub enum FormError {
     Ledger(#[from] LedgerError),
 }
 
+/// 入力を検証し, 取引の下書きを作る.
+///
+/// # Errors
+///
+/// 金額が読めない場合や, 日付・品目・相手先が選ばれていない場合はエラー.
+fn parse_draft(
+    date: Option<NaiveDate>,
+    amount: &str,
+    item: Option<ItemId>,
+    counterpart: Option<ItemId>,
+    comment: String,
+) -> Result<TransactionDraft, FormError> {
+    let amount = amount.parse::<Money>().map_err(AmountError::Parse)?;
+    let date = date.ok_or(FormError::MissingDate)?;
+    let item = item.ok_or(FormError::MissingItem)?;
+    let counterpart = counterpart.ok_or(FormError::MissingCounterpart)?;
+    Ok(TransactionDraft::new(
+        date,
+        amount,
+        item,
+        counterpart,
+        comment,
+    ))
+}
+
+/// 帳簿のエラーを, 取引入力のエラーに変換する.
+///
+/// 金額が正でないエラーは, 金額欄に出せるように `FormError::Amount` にする.
+fn form_error(error: LedgerError) -> FormError {
+    match error {
+        LedgerError::Transaction(TransactionError::NonPositiveAmount(amount)) => {
+            FormError::Amount(AmountError::NonPositive(amount))
+        }
+        error => FormError::Ledger(error),
+    }
+}
+
 /// 入力を検証し、成功した場合だけ帳簿に取引を追加する。
 ///
 /// 金額は0円を含まない正の値のみ受け付ける。
@@ -56,25 +93,11 @@ pub fn submit_transaction(
     counterpart: Option<ItemId>,
     comment: String,
 ) -> Result<(), FormError> {
-    let amount = amount.parse::<Money>().map_err(AmountError::Parse)?;
-    let date = date.ok_or(FormError::MissingDate)?;
-    let item = item.ok_or(FormError::MissingItem)?;
-    let counterpart = counterpart.ok_or(FormError::MissingCounterpart)?;
+    let draft = parse_draft(date, amount, item, counterpart, comment)?;
     ledger
-        .add_transaction(TransactionDraft::new(
-            date,
-            amount,
-            item,
-            counterpart,
-            comment,
-        ))
+        .add_transaction(draft)
         .map(|_| ())
-        .map_err(|error| match error {
-            LedgerError::Transaction(TransactionError::NonPositiveAmount(amount)) => {
-                FormError::Amount(AmountError::NonPositive(amount))
-            }
-            error => FormError::Ledger(error),
-        })
+        .map_err(form_error)
 }
 
 #[cfg(test)]
