@@ -169,3 +169,68 @@ pub enum TransactionError {
     #[error("取引 {0:?} が重複しています")]
     DuplicateId(TransactionId),
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn check_tags_test() {
+        for (item, counterpart) in [
+            (Tag::Expense, Tag::Asset),
+            (Tag::Expense, Tag::Liability),
+            (Tag::Income, Tag::Asset),
+            (Tag::Liability, Tag::Asset),
+            (Tag::Liability, Tag::OpeningBalance),
+        ] {
+            assert_eq!(
+                check_tags(item, counterpart),
+                Ok(()),
+                "{item:?} {counterpart:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn check_tags_error_test() {
+        for (item, counterpart, expected) in [
+            (
+                Tag::Asset,
+                Tag::Income,
+                TransactionError::InvalidItemTag(Tag::Asset),
+            ),
+            (
+                Tag::OpeningBalance,
+                Tag::Asset,
+                TransactionError::InvalidItemTag(Tag::OpeningBalance),
+            ),
+            // 品目として選べないことを先に判定する
+            (
+                Tag::Asset,
+                Tag::Asset,
+                TransactionError::InvalidItemTag(Tag::Asset),
+            ),
+            (
+                Tag::Income,
+                Tag::Income,
+                TransactionError::SameTag(Tag::Income),
+            ),
+            (
+                Tag::Expense,
+                Tag::Expense,
+                TransactionError::SameTag(Tag::Expense),
+            ),
+            (
+                Tag::Liability,
+                Tag::Liability,
+                TransactionError::SameTag(Tag::Liability),
+            ),
+        ] {
+            assert_eq!(
+                check_tags(item, counterpart),
+                Err(expected),
+                "{item:?} {counterpart:?}"
+            );
+        }
+    }
+}

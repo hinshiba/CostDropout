@@ -5,7 +5,9 @@ use crate::item::{Item, ItemError, ItemId, ItemList, Tag};
 use crate::money::Money;
 use crate::period::Period;
 use crate::preset::preset_items;
-use crate::transaction::{TransactionDraft, TransactionError, TransactionId, TransactionList};
+use crate::transaction::{
+    TransactionDraft, TransactionError, TransactionId, TransactionList, check_item_tag, check_tags,
+};
 use thiserror::Error;
 
 /// 登録された品目と取引を保持し、
@@ -86,6 +88,23 @@ impl Ledger {
 
     pub fn budgets(&self) -> &BudgetList {
         &self.budgets
+    }
+
+    /// 取引の品目として選べる品目を返す.
+    pub fn item_choices(&self) -> impl Iterator<Item = &Item> {
+        self.items
+            .iter()
+            .filter(|item| check_item_tag(item.tag()).is_ok())
+    }
+
+    /// 品目が `item` である取引の相手先として選べる品目を返す.
+    ///
+    /// `item` が存在しないか, 取引の品目として選べない場合は空.
+    pub fn counterpart_choices(&self, item: ItemId) -> impl Iterator<Item = &Item> {
+        let tag = self.items.get(item).map(Item::tag);
+        self.items.iter().filter(move |candidate| {
+            tag.is_some_and(|tag| check_tags(tag, candidate.tag()).is_ok())
+        })
     }
 
     /// 品目のadd処理を委譲
@@ -199,11 +218,13 @@ impl Ledger {
 mod tests {
     use super::*;
     use crate::money::Money;
+    use crate::period::YearMonth;
     use crate::transaction::Amount;
+    use chrono::NaiveDate;
 
     fn draft(item: ItemId, counterpart: ItemId) -> TransactionDraft {
         TransactionDraft::new(
-            chrono::NaiveDate::from_ymd_opt(2026, 10, 12).unwrap(),
+            NaiveDate::from_ymd_opt(2026, 10, 12).unwrap(),
             Amount::of(1000),
             item,
             counterpart,
@@ -211,251 +232,249 @@ mod tests {
         )
     }
 
-    fn ledger_with_items() -> (Ledger, ItemId, ItemId) {
+    /// 給与 (収入), 現金 (資産), 食費 (支出), 娯楽 (支出), 登録してから削除した品目.
+    fn ledger() -> (Ledger, [ItemId; 5]) {
         let mut ledger = Ledger::new();
-
-        let income_id: ItemId = ledger.add_item("収入", Tag::Income).unwrap();
-        let asset_id = ledger.add_item("現金", Tag::Asset).unwrap();
-
-        (ledger, income_id, asset_id)
+        let removed = ledger.add_item("削除する品目", Tag::Expense).unwrap();
+        let [salary, cash, food, fun] = [
+            ("給与", Tag::Income),
+            ("現金", Tag::Asset),
+            ("食費", Tag::Expense),
+            ("娯楽", Tag::Expense),
+        ]
+        .map(|(name, tag)| ledger.add_item(name, tag).unwrap());
+        ledger.remove_item(removed).unwrap();
+        (ledger, [salary, cash, food, fun, removed])
     }
 
-    // item関連のテスト
-
-    /// 取引にある場合は削除できない，
-    /// 取引がない場合は削除が成功する
-    #[test]
-    fn remove_item_fails_when_item_is_used_by_transaction() {
-        let (mut ledger, income_id, asset_id) = ledger_with_items();
-
-        let transaction_id = ledger.add_transaction(draft(income_id, asset_id)).unwrap();
-        let before = ledger.transactions().get(transaction_id).unwrap().clone();
-
-        assert_eq!(
-            ledger.remove_item(income_id),
-            Err(LedgerError::ItemUse(income_id))
-        );
-
-        assert_eq!(
-            ledger.remove_item(asset_id),
-            Err(LedgerError::ItemUse(asset_id))
-        );
-
-        // 削除に失敗したため、元の取引は変わっていないか検証
-        assert_eq!(ledger.transactions().get(transaction_id).unwrap(), &before);
-
-        ledger.remove_transaction(transaction_id).unwrap();
-
-        // Transactionから参照されなくなったので、Itemを削除できる
-        assert!(ledger.remove_item(income_id).is_ok());
-        assert!(ledger.remove_item(asset_id).is_ok());
+    /// 品目と相手先の組み合わせが不正な取引と, そのエラー.
+    fn invalid_pairs(ids: [ItemId; 5]) -> [(ItemId, ItemId, LedgerError); 5] {
+        let [salary, cash, food, fun, removed] = ids;
+        [
+            (removed, cash, LedgerError::TransactionItemNotFound(removed)),
+            (food, removed, LedgerError::TransactionItemNotFound(removed)),
+            (
+                cash,
+                salary,
+                TransactionError::InvalidItemTag(Tag::Asset).into(),
+            ),
+            (food, fun, TransactionError::SameTag(Tag::Expense).into()),
+            (food, food, TransactionError::SameTag(Tag::Expense).into()),
+        ]
     }
 
-    #[test]
-    fn update_item_fails_when_item_tag_becomes_invalid() {
-        let (mut ledger, income_id, asset_id) = ledger_with_items();
-
-        let transaction_id = ledger.add_transaction(draft(income_id, asset_id)).unwrap();
-        let before = ledger.transactions().get(transaction_id).unwrap().clone();
-
-        assert_eq!(
-            ledger.update_item(income_id, "収入", Tag::Asset),
-            Err(LedgerError::Transaction(TransactionError::InvalidItemTag(
-                Tag::Asset
-            )))
-        );
-
-        // 更新に失敗したため、元の取引は変わっていない
-        assert_eq!(ledger.transactions().get(transaction_id).unwrap(), &before);
-    }
-
-    #[test]
-    fn update_item_fails_when_counterpart_tag_becomes_same() {
-        let (mut ledger, income_id, asset_id) = ledger_with_items();
-
-        ledger.add_transaction(draft(income_id, asset_id)).unwrap();
-
-        assert_eq!(
-            ledger.update_item(asset_id, "現金", Tag::Income),
-            Err(LedgerError::Transaction(TransactionError::SameTag(
-                Tag::Income
-            )))
-        );
-
-        // 更新に失敗したときは，現金のタグはAssetのまま
-        assert_eq!(ledger.items.get(asset_id).unwrap().tag(), Tag::Asset);
-    }
-
-    // transaction関連のテスト
-    #[test]
-    fn add_transaction_fails_when_item_or_counterpart_does_not_exist() {
+    /// すべてのタグの品目を1つずつ表示順に登録した帳簿.
+    fn all_tags() -> (Ledger, [ItemId; 5]) {
         let mut ledger = Ledger::new();
+        let ids = Tag::ALL.map(|tag| ledger.add_item(&tag.to_string(), tag).unwrap());
+        (ledger, ids)
+    }
 
-        let income_id = ledger.add_item("収入", Tag::Income).unwrap();
-        let missing_id = ledger.add_item("削除する品目", Tag::Asset).unwrap();
+    #[test]
+    fn from_parts_error_test() {
+        let (ledger, ids) = ledger();
+        for (item, counterpart, expected) in invalid_pairs(ids) {
+            let mut transactions = TransactionList::new();
+            transactions.add(draft(item, counterpart));
+            assert_eq!(
+                Ledger::from_parts(ledger.items.clone(), transactions, BudgetList::new()),
+                Err(expected),
+                "{item:?} {counterpart:?}"
+            );
+        }
+    }
 
-        ledger.remove_item(missing_id).unwrap();
+    #[test]
+    fn item_choices_test() {
+        let (ledger, ids) = all_tags();
 
+        let choices = ledger.item_choices().map(Item::id).collect::<Vec<_>>();
+        assert_eq!(choices, vec![ids[1], ids[3], ids[4]]);
+    }
+
+    #[test]
+    fn counterpart_choices_test() {
+        let (mut ledger, ids) = all_tags();
+        let removed = ledger.add_item("削除する品目", Tag::Expense).unwrap();
+        ledger.remove_item(removed).unwrap();
+
+        for (item, expected) in [
+            (ids[0], vec![]),
+            (ids[1], vec![ids[0], ids[2], ids[3], ids[4]]),
+            (ids[2], vec![]),
+            (ids[3], vec![ids[0], ids[1], ids[2], ids[4]]),
+            (ids[4], vec![ids[0], ids[1], ids[2], ids[3]]),
+            (removed, vec![]),
+        ] {
+            let choices = ledger.counterpart_choices(item).map(Item::id);
+            assert_eq!(choices.collect::<Vec<_>>(), expected, "{item:?}");
+        }
+    }
+
+    #[test]
+    fn choices_reflect_item_changes_test() {
+        let (mut ledger, ids) = all_tags();
+
+        ledger.update_item(ids[4], "変更後", Tag::Asset).unwrap();
+        ledger.remove_item(ids[1]).unwrap();
+
+        let choices = ledger.item_choices().map(Item::id).collect::<Vec<_>>();
+        assert_eq!(choices, vec![ids[3]]);
+        let counterparts = ledger.counterpart_choices(ids[3]).map(Item::id);
         assert_eq!(
-            ledger.add_transaction(draft(missing_id, income_id)),
-            Err(LedgerError::TransactionItemNotFound(missing_id))
-        );
-
-        assert_eq!(
-            ledger.add_transaction(draft(income_id, missing_id)),
-            Err(LedgerError::TransactionItemNotFound(missing_id))
+            counterparts.collect::<Vec<_>>(),
+            vec![ids[0], ids[2], ids[4]]
         );
     }
 
     #[test]
-    fn add_transaction_fails_when_item_tag_is_not_selectable() {
-        let mut ledger = Ledger::new();
+    fn update_item_test() {
+        let (mut ledger, [salary, cash, food, fun, _]) = ledger();
+        ledger.add_transaction(draft(salary, cash)).unwrap();
 
-        let asset_id = ledger.add_item("現金", Tag::Asset).unwrap();
-        let income_id = ledger.add_item("収入", Tag::Income).unwrap();
+        // 取引の組み合わせを壊さないタグへの変更
+        ledger.update_item(cash, "カード", Tag::Liability).unwrap();
+        // 取引に使われていない品目のタグの変更
+        ledger.update_item(fun, "娯楽", Tag::Asset).unwrap();
 
-        assert_eq!(
-            ledger.add_transaction(draft(asset_id, income_id)),
-            Err(LedgerError::Transaction(TransactionError::InvalidItemTag(
-                Tag::Asset
-            )))
-        );
+        let tags = [cash, fun].map(|id| ledger.items.get(id).unwrap().tag());
+        assert_eq!(tags, [Tag::Liability, Tag::Asset]);
+        assert_eq!(ledger.items.get(cash).unwrap().to_string(), "カード");
+        assert!(ledger.add_transaction(draft(food, cash)).is_ok());
     }
 
     #[test]
-    fn add_transaction_fails_when_item_and_counterpart_have_same_tag() {
-        let mut ledger = Ledger::new();
+    fn update_item_error_test() {
+        let (mut ledger, [salary, cash, _, _, removed]) = ledger();
+        ledger.add_transaction(draft(salary, cash)).unwrap();
+        let before = ledger.clone();
 
-        let income1 = ledger.add_item("収入1", Tag::Income).unwrap();
-        let income2 = ledger.add_item("収入2", Tag::Income).unwrap();
-
-        assert_eq!(
-            ledger.add_transaction(draft(income1, income2)),
-            Err(LedgerError::Transaction(TransactionError::SameTag(
-                Tag::Income
-            )))
-        );
-    }
-
-    // update_transaction 関連のテスト
-
-    #[test]
-    fn update_transaction_fails_when_item_or_counterpart_does_not_exist() {
-        let (mut ledger, income_id, asset_id) = ledger_with_items();
-
-        let transaction_id = ledger.add_transaction(draft(income_id, asset_id)).unwrap();
-        let before = ledger.transactions().get(transaction_id).unwrap().clone();
-
-        // 品目を登録してから削除し、存在しないIDを用意する
-        let missing_id = ledger.add_item("削除する品目", Tag::Asset).unwrap();
-        ledger.remove_item(missing_id).unwrap();
-
-        // 取引の品目が存在しない場合
-        assert_eq!(
-            ledger.update_transaction(transaction_id, draft(missing_id, asset_id)),
-            Err(LedgerError::TransactionItemNotFound(missing_id))
-        );
-
-        // 取引の相手先が存在しない場合
-        assert_eq!(
-            ledger.update_transaction(transaction_id, draft(income_id, missing_id),),
-            Err(LedgerError::TransactionItemNotFound(missing_id))
-        );
-
-        // 更新に失敗したため、元の取引は変わっていない
-        assert_eq!(ledger.transactions().get(transaction_id).unwrap(), &before);
+        for (id, tag, expected) in [
+            (
+                salary,
+                Tag::Asset,
+                TransactionError::InvalidItemTag(Tag::Asset).into(),
+            ),
+            (
+                cash,
+                Tag::Income,
+                TransactionError::SameTag(Tag::Income).into(),
+            ),
+            (removed, Tag::Income, ItemError::NotFound(removed).into()),
+        ] {
+            assert_eq!(
+                ledger.update_item(id, "変更後", tag),
+                Err(expected),
+                "{id:?}"
+            );
+            assert_eq!(ledger, before, "{id:?}");
+        }
     }
 
     #[test]
-    fn update_transaction_fails_when_item_tag_is_not_selectable() {
-        let (mut ledger, income_id, asset_id) = ledger_with_items();
+    fn remove_item_error_test() {
+        let (mut ledger, [salary, cash, _, _, removed]) = ledger();
+        let transaction = ledger.add_transaction(draft(salary, cash)).unwrap();
+        let before = ledger.clone();
 
-        let transaction_id = ledger.add_transaction(draft(income_id, asset_id)).unwrap();
-        let before = ledger.transactions().get(transaction_id).unwrap().clone();
+        for (id, expected) in [
+            // 品目と相手先のどちらとして使われていても削除できない
+            (salary, LedgerError::ItemUse(salary)),
+            (cash, LedgerError::ItemUse(cash)),
+            (removed, ItemError::NotFound(removed).into()),
+        ] {
+            assert_eq!(ledger.remove_item(id), Err(expected), "{id:?}");
+            assert_eq!(ledger, before, "{id:?}");
+        }
 
-        assert_eq!(
-            ledger.update_transaction(transaction_id, draft(asset_id, income_id)),
-            Err(LedgerError::Transaction(TransactionError::InvalidItemTag(
-                Tag::Asset
-            )))
-        );
-
-        // 更新に失敗したため、元の取引は変わっていない
-        assert_eq!(ledger.transactions().get(transaction_id).unwrap(), &before);
+        // 取引から使われなくなれば削除できる
+        ledger.remove_transaction(transaction).unwrap();
+        assert_eq!(ledger.remove_item(salary), Ok(()));
+        assert_eq!(ledger.remove_item(cash), Ok(()));
     }
 
     #[test]
-    fn update_transaction_fails_when_item_and_counterpart_have_same_tag() {
-        let (mut ledger, income_id, asset_id) = ledger_with_items();
+    fn add_transaction_test() {
+        let (mut ledger, [salary, cash, food, _, _]) = ledger();
 
-        let transaction_id = ledger.add_transaction(draft(income_id, asset_id)).unwrap();
-        let before = ledger.transactions().get(transaction_id).unwrap().clone();
+        for (item, counterpart) in [(salary, cash), (food, cash), (food, salary)] {
+            let id = ledger.add_transaction(draft(item, counterpart)).unwrap();
 
-        let income2 = ledger.add_item("収入2", Tag::Income).unwrap();
-
-        assert_eq!(
-            ledger.update_transaction(transaction_id, draft(income_id, income2)),
-            Err(LedgerError::Transaction(TransactionError::SameTag(
-                Tag::Income
-            )))
-        );
-
-        // 更新に失敗したため、元の取引は変わっていない
-        assert_eq!(ledger.transactions().get(transaction_id).unwrap(), &before);
+            let transaction = ledger.transactions().get(id).unwrap();
+            assert_eq!(
+                (transaction.item(), transaction.counterpart()),
+                (item, counterpart)
+            );
+        }
+        assert_eq!(ledger.transactions().iter().count(), 3);
     }
 
     #[test]
-    fn update_transaction_fails_when_transaction_does_not_exist() {
-        let (mut ledger, income_id, asset_id) = ledger_with_items();
+    fn add_transaction_error_test() {
+        let (mut ledger, ids) = ledger();
+        let before = ledger.clone();
 
-        // 取引を登録した後に削除し、存在しない TransactionId を用意する
-        let missing_id = ledger.add_transaction(draft(income_id, asset_id)).unwrap();
-
-        ledger.remove_transaction(missing_id).unwrap();
-
-        assert_eq!(
-            ledger.update_transaction(missing_id, draft(income_id, asset_id)),
-            Err(LedgerError::Transaction(TransactionError::NotFound(
-                missing_id
-            )))
-        );
-    }
-
-    /// update_transactionが成功した場合
-    #[test]
-    fn update_transaction_succeeds_when_new_item_and_counterpart_tags_are_valid() {
-        let (mut ledger, income_id, asset_id) = ledger_with_items();
-
-        let transaction_id = ledger.add_transaction(draft(income_id, asset_id)).unwrap();
-        let expense_id = ledger.add_item("支出", Tag::Expense).unwrap();
-
-        assert!(
-            ledger
-                .update_transaction(transaction_id, draft(expense_id, asset_id))
-                .is_ok()
-        );
-        let after = ledger.transactions().get(transaction_id).unwrap();
-
-        assert_eq!(after.item(), expense_id);
-        assert_eq!(after.counterpart(), asset_id);
+        for (item, counterpart, expected) in invalid_pairs(ids) {
+            assert_eq!(
+                ledger.add_transaction(draft(item, counterpart)),
+                Err(expected),
+                "{item:?} {counterpart:?}"
+            );
+            assert_eq!(ledger, before, "{item:?} {counterpart:?}");
+        }
     }
 
     #[test]
-    fn remove_transaction_fails_when_transaction_does_not_exist() {
-        let (mut ledger, income_id, asset_id) = ledger_with_items();
+    fn update_transaction_test() {
+        let (mut ledger, [salary, cash, food, _, _]) = ledger();
+        let id = ledger.add_transaction(draft(salary, cash)).unwrap();
 
-        let transaction_id = ledger.add_transaction(draft(income_id, asset_id)).unwrap();
+        ledger.update_transaction(id, draft(food, cash)).unwrap();
 
-        // 一度削除する
-        assert!(ledger.remove_transaction(transaction_id).is_ok());
-
-        // すでに削除されているので、もう一度削除するとエラーになる
+        let transaction = ledger.transactions().get(id).unwrap();
         assert_eq!(
-            ledger.remove_transaction(transaction_id),
-            Err(LedgerError::Transaction(TransactionError::NotFound(
-                transaction_id
-            )))
+            (transaction.item(), transaction.counterpart()),
+            (food, cash)
         );
+        assert_eq!(ledger.transactions().iter().count(), 1);
+    }
+
+    #[test]
+    fn update_transaction_error_test() {
+        let (mut ledger, ids) = ledger();
+        let [salary, cash, ..] = ids;
+        let id = ledger.add_transaction(draft(salary, cash)).unwrap();
+        let missing = ledger.add_transaction(draft(salary, cash)).unwrap();
+        ledger.remove_transaction(missing).unwrap();
+        let before = ledger.clone();
+
+        for (item, counterpart, expected) in invalid_pairs(ids) {
+            assert_eq!(
+                ledger.update_transaction(id, draft(item, counterpart)),
+                Err(expected),
+                "{item:?} {counterpart:?}"
+            );
+            assert_eq!(ledger, before, "{item:?} {counterpart:?}");
+        }
+        assert_eq!(
+            ledger.update_transaction(missing, draft(salary, cash)),
+            Err(TransactionError::NotFound(missing).into())
+        );
+        assert_eq!(ledger, before);
+    }
+
+    #[test]
+    fn remove_transaction_error_test() {
+        let (mut ledger, [salary, cash, ..]) = ledger();
+        let id = ledger.add_transaction(draft(salary, cash)).unwrap();
+        ledger.remove_transaction(id).unwrap();
+        let before = ledger.clone();
+
+        assert_eq!(
+            ledger.remove_transaction(id),
+            Err(TransactionError::NotFound(id).into())
+        );
+        assert_eq!(ledger, before);
     }
 
     /// budget関連のテスト
@@ -480,9 +499,9 @@ mod tests {
     fn update_budget_delegates_to_budget_list() {
         let mut ledger = Ledger::new();
 
-        let old_period = Period::month(crate::period::YearMonth::new(2026, 10).unwrap());
+        let old_period = Period::month(YearMonth::new(2026, 10).unwrap());
 
-        let new_period = Period::month(crate::period::YearMonth::new(2026, 11).unwrap());
+        let new_period = Period::month(YearMonth::new(2026, 11).unwrap());
 
         let budget_id = ledger.add_budget(Money::from(5000), old_period).unwrap();
 

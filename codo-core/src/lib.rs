@@ -12,4 +12,3 @@ pub mod report;
 mod serialization;
 pub mod storage;
 pub mod transaction;
-pub mod transaction_input;
