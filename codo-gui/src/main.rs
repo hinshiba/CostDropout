@@ -1,6 +1,7 @@
 //! 家計簿アプリケーションの起動.
 
 mod app;
+mod book_panel;
 mod pages;
 mod startup;
 mod transaction_fields;

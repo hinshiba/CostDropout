@@ -1,5 +1,6 @@
 //! 画面切り替えと共有画面の作成
 
+use crate::book_panel::BookPanel;
 use crate::pages::{
     budget::BudgetPage, budget_dashboard::BudgetDashboard, expense_bar_chart::ExpenseBarChart,
     expense_calendar::ExpenseCalendar, expense_pie::ExpensePie, items::Items,
@@ -7,11 +8,17 @@ use crate::pages::{
     transaction_list::TransactionList,
 };
 use chrono::Local;
-use codo_core::{book::Book, infra::filestore::TomlStore, infra::gitrepo::GitRepo, ledger::Ledger};
+use codo_core::{
+    book::{Book, BookError, SyncJob},
+    infra::filestore::TomlStore,
+    infra::gitrepo::GitRepo,
+    ledger::Ledger,
+};
 use gpui_kit::component::button::Button;
 use gpui_kit::component::date_picker::DatePickerState;
 use gpui_kit::component::input::InputState;
 use gpui_kit::component::sidebar::{Sidebar, SidebarMenu, SidebarMenuItem};
+use gpui_kit::prelude::FluentBuilder;
 use gpui_kit::*;
 
 /// 保存先と履歴を含む帳簿を画面間で共有する.
@@ -28,6 +35,26 @@ impl AppState {
     /// 開いている帳簿を編集する.
     pub fn ledger_mut(&mut self) -> &mut Ledger {
         self.book.ledger_mut()
+    }
+
+    /// 最後に保存した帳簿と内容が異なるか.
+    pub fn is_dirty(&self) -> bool {
+        self.book.is_dirty()
+    }
+
+    /// 帳簿を保存して commit する.
+    pub fn save(&mut self, message: &str) -> Result<(), BookError> {
+        self.book.save(message)
+    }
+
+    /// バックグラウンドで実行する同期処理を作る.
+    pub fn sync_job(&self) -> Result<SyncJob<TomlStore, GitRepo>, BookError> {
+        self.book.sync_job()
+    }
+
+    /// 保存先から帳簿を読み直す.
+    pub fn reload(&mut self) -> Result<(), BookError> {
+        self.book.reload()
     }
 
     /// テスト用の帳簿と, テスト中に保持する保存先を作成する.
@@ -63,6 +90,7 @@ pub enum Page {
 
 /// 画面の管理
 pub struct App {
+    book_panel: Entity<BookPanel>,
     budget_dashboard: Entity<BudgetDashboard>,
     transaction_form: Entity<TransactionForm>,
     transaction_list: Entity<TransactionList>,
@@ -119,8 +147,10 @@ impl App {
             BudgetPage::new(state.clone(), amount, start_date, end_date)
         });
         let expense_calendar = cx.new(|_| ExpenseCalendar::new(state.clone()));
+        let book_panel = cx.new(|cx| BookPanel::new(state.clone(), window, cx));
 
         Self {
+            book_panel,
             budget_dashboard,
             transaction_form,
             transaction_list,
@@ -139,6 +169,12 @@ impl App {
     fn show_page(&mut self, page: Page, cx: &mut Context<Self>) {
         self.page = page;
         cx.notify();
+    }
+
+    /// テスト用. 保存と同期の操作を返す.
+    #[cfg(test)]
+    pub(crate) fn book_panel(&self) -> Entity<BookPanel> {
+        self.book_panel.clone()
     }
 
     /// サイドバーの開閉を操作
@@ -285,7 +321,10 @@ impl Render for App {
                             .child(monthly_report)
                             .child(budget)
                             .child(expense_calendar),
-                    ),
+                    )
+                    .when(self.sidebar_open, |sidebar| {
+                        sidebar.footer(self.book_panel.clone())
+                    }),
             )
             // メイン画面
             .child(div().flex_1().h_full().min_w_0().child(
