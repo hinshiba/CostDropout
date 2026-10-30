@@ -6,7 +6,7 @@ use thiserror::Error;
 use crate::item::{Item, ItemId, Tag};
 use crate::ledger::{Ledger, LedgerError};
 use crate::money::{Money, MoneyError};
-use crate::transaction::{TransactionDraft, TransactionError};
+use crate::transaction::{TransactionDraft, TransactionError, TransactionId};
 
 /// 取引の品目として選べる収入・支出・負債の品目を返す。
 pub fn item_choices(ledger: &Ledger) -> impl Iterator<Item = &Item> {
@@ -98,6 +98,27 @@ pub fn submit_transaction(
         .add_transaction(draft)
         .map(|_| ())
         .map_err(form_error)
+}
+
+/// 入力を検証し, 成功した場合だけ帳簿の取引を訂正する.
+///
+/// 金額は0円を含まない正の値のみ受け付ける.
+///
+/// # Errors
+///
+/// 入力が正しくない場合や, 訂正する取引が見つからない場合はエラー.
+/// エラーのときは帳簿を変更しない.
+pub fn submit_transaction_update(
+    ledger: &mut Ledger,
+    id: TransactionId,
+    date: Option<NaiveDate>,
+    amount: &str,
+    item: Option<ItemId>,
+    counterpart: Option<ItemId>,
+    comment: String,
+) -> Result<(), FormError> {
+    let draft = parse_draft(date, amount, item, counterpart, comment)?;
+    ledger.update_transaction(id, draft).map_err(form_error)
 }
 
 #[cfg(test)]
