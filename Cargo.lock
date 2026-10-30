@@ -1037,6 +1037,7 @@ dependencies = [
  "chrono",
  "codo-core",
  "gpui-kit",
+ "tempfile",
 ]
 
 [[package]]

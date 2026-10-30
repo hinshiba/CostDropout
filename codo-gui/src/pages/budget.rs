@@ -71,7 +71,7 @@ impl BudgetPage {
         };
 
         let result = self.state.update(cx, |state, cx| {
-            state.ledger.add_budget(amount.into(), period)?;
+            state.ledger_mut().add_budget(amount.into(), period)?;
 
             cx.notify();
 
@@ -95,7 +95,7 @@ impl BudgetPage {
 
 impl Render for BudgetPage {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let budgets = self.state.read(cx).ledger.budgets();
+        let budgets = self.state.read(cx).ledger().budgets();
         //UI部分
         div().size_full().p_6().child(
             div()

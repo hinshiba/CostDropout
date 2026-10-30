@@ -41,7 +41,7 @@ impl TransactionForm {
     fn add_transaction(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let draft = self.fields.read(cx).draft(cx);
         let result = self.state.update(cx, |state, cx| {
-            state.ledger.add_transaction(draft?)?;
+            state.ledger_mut().add_transaction(draft?)?;
             cx.notify();
             Ok(())
         });
@@ -63,7 +63,8 @@ impl TransactionForm {
 
 impl Render for TransactionForm {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let count = self.state.read(cx).ledger.transactions().iter().count();
+        let count = self.state.read(cx).ledger().transactions().iter().count();
+        let count_label: SharedString = format!("登録済みの取引: {count}件").into();
         let form_error = match &self.status {
             Some(Err(FormError::Amount(_))) => None,
             Some(Err(error)) => Some(friendly_error(error)),
@@ -83,7 +84,13 @@ impl Render for TransactionForm {
                     .flex_col()
                     .gap_4()
                     .child(div().text_xl().child("取引入力"))
-                    .child(format!("登録済みの取引: {count}件"))
+                    .child(
+                        div()
+                            .id("transaction-count")
+                            .test_support()
+                            .aria_label(count_label.clone())
+                            .child(count_label),
+                    )
                     .child(self.fields.clone())
                     .when_some(form_error, |this, message| {
                         this.child(div().text_color(rgb(0xc62828)).child(message))
@@ -120,7 +127,7 @@ mod tests {
         let mut ledger = Ledger::new();
         let food = ledger.add_item("食費", Tag::Expense).unwrap();
         let cash = ledger.add_item("現金", Tag::Asset).unwrap();
-        let state = cx.new(|_| AppState { ledger });
+        let state = cx.new(|_| AppState::for_test(ledger));
         let chart = cx.new(|cx| ExpensePie::new(state.clone(), cx));
         let notified = Rc::new(Cell::new(false));
         let _subscription = cx.update(|cx| {
@@ -156,7 +163,7 @@ mod tests {
         assert!(notified.get());
         cx.read(|cx| {
             let expenses = by_item(
-                &state.read(cx).ledger,
+                state.read(cx).ledger(),
                 Period::month(YearMonth::from_date(Local::now().date_naive())),
                 Flow::Expense,
             );

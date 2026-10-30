@@ -180,7 +180,7 @@ fn budget_card(status: &BudgetStatus, today: NaiveDate, cx: &App) -> impl IntoEl
 impl Render for BudgetDashboard {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let today = Local::now().date_naive();
-        let statuses = active_budgets(&self.state.read(cx).ledger, today);
+        let statuses = active_budgets(self.state.read(cx).ledger(), today);
         let content = if statuses.is_empty() {
             div()
                 .id("budget-empty-state")
@@ -294,7 +294,7 @@ mod tests {
             ))
             .unwrap();
         cx.update(gpui_kit::init);
-        let state = cx.new(|_| AppState { ledger });
+        let state = cx.new(|_| AppState::for_test(ledger));
         let (handle, _) = cx.update(|cx| {
             cx.set_reduce_motion(true);
             gpui_kit::open_window(
@@ -323,7 +323,7 @@ mod tests {
             ] {
                 state.update(cx, |state, cx| {
                     state
-                        .ledger
+                        .ledger_mut()
                         .update_budget(budget_id, Money::from(amount), period)
                         .unwrap();
                     cx.notify();
@@ -334,7 +334,7 @@ mod tests {
                 assert_eq!(window.find("budget-percentage-1").label(), Some(percentage));
             }
             state.update(cx, |state, cx| {
-                state.ledger.remove_budget(budget_id).unwrap();
+                state.ledger_mut().remove_budget(budget_id).unwrap();
                 cx.notify();
             });
             window.render_frame(cx);

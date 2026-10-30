@@ -43,7 +43,7 @@ impl Render for ExpenseCalendar {
         let month_label = format!("{}年{}月", self.yearmonth.year(), self.yearmonth.month());
 
         // 月の集計
-        let summary = monthly_summary(&self.state.read(cx).ledger, self.yearmonth);
+        let summary = monthly_summary(self.state.read(cx).ledger(), self.yearmonth);
 
         // 月の一番多い日の支出
         let max_expense = summary

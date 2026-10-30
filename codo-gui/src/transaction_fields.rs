@@ -143,7 +143,7 @@ impl TransactionFields {
     /// 品目管理での編集・削除を反映し, 無効になった選択を解除する.
     fn refresh_choices(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let controls = &mut self.controls;
-        let ledger = &self.state.read(cx).ledger;
+        let ledger = self.state.read(cx).ledger();
         let items = ledger
             .item_choices()
             .map(ItemChoice::from)
