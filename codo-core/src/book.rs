@@ -1,42 +1,10 @@
 //! 保存すると commit される帳簿
-use crate::ledger::Ledger;
 use std::path::Path;
 use thiserror::Error;
 
-/// 帳簿の変更履歴
-pub trait History {
-    /// すべての変更を commit する.
-    ///
-    /// 変更がなければ何もしない.
-    fn commit_all(&self, message: &str) -> Result<(), GitError>;
-
-    fn has_remote(&self) -> Result<bool, GitError>;
-
-    fn push(&self) -> Result<(), GitError>;
-
-    fn pull_rebase(&self) -> Result<(), GitError>;
-}
-
-impl History for GitRepo {
-    fn commit_all(&self, message: &str) -> Result<(), GitError> {
-        GitRepo::commit_all(self, message).map(drop)
-    }
-
-    fn has_remote(&self) -> Result<bool, GitError> {
-        GitRepo::has_remote(self)
-    }
-
-    fn push(&self) -> Result<(), GitError> {
-        GitRepo::push(self)
-    }
-
-    fn pull_rebase(&self) -> Result<(), GitError> {
-        GitRepo::pull_rebase(self)
-    }
-}
-
 use crate::infra::filestore::{LedgerStore, StorageError, TomlStore};
-use crate::infra::gitrepo::{GitError, GitRepo};
+use crate::infra::gitrepo::{GitError, GitRepo, History};
+use crate::ledger::Ledger;
 
 /// 保存先と変更履歴をもつ帳簿.
 ///
@@ -60,12 +28,63 @@ pub enum BookError {
 
     #[error("未保存の変更があります")]
     UnsavedChanges,
+
+    #[error("取り込むと帳簿が不正になります: {0}")]
+    InvalidMerge(#[source] StorageError),
 }
 
+/// 同期の結果
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SyncOutcome {
+    /// 同期先がないので何もしなかった
+    NoRemote,
+    /// push した. push するものがなかった場合を含む
     Pushed,
+    /// 同期先を取り込んでから push した
     PulledAndPushed,
+}
+
+/// 帳簿に触れずに同期する処理.
+///
+/// バックグラウンドで実行できるよう, 保存先と履歴の複製だけを持つ.
+#[must_use]
+pub struct SyncJob<S, H> {
+    store: S,
+    history: H,
+}
+
+impl<S: LedgerStore, H: History> SyncJob<S, H> {
+    /// push し, 拒否されたら取り込んでからもう一度 push する.
+    ///
+    /// 終わったら成否に関わらず `Book::reload` を呼ぶこと.
+    ///
+    /// # Errors
+    ///
+    /// 取り込んだ結果を読み込めなければ, 取り込む前に戻して `BookError::InvalidMerge` エラー.
+    /// そのほか `History` のエラー.
+    pub fn run(self) -> Result<SyncOutcome, BookError> {
+        if !self.history.has_remote()? {
+            return Ok(SyncOutcome::NoRemote);
+        }
+
+        match self.history.push() {
+            Ok(()) => return Ok(SyncOutcome::Pushed),
+            Err(GitError::PushRejected) => {}
+            Err(error) => return Err(error.into()),
+        }
+
+        let head = self.history.head()?;
+        self.history.pull_rebase()?;
+
+        // 別々のファイルの変更は git の競合にならないが, 帳簿としては不正になり得る
+        if let Err(error) = self.store.load() {
+            self.history.reset_hard(&head)?;
+            return Err(BookError::InvalidMerge(error));
+        }
+
+        self.history.push()?;
+        Ok(SyncOutcome::PulledAndPushed)
+    }
 }
 
 impl<S: LedgerStore, H: History> Book<S, H> {
@@ -99,8 +118,14 @@ impl<S: LedgerStore, H: History> Book<S, H> {
         self.ledger != self.saved
     }
 
-    //保存した最新の帳簿を読み込んで反映する．
-    fn reload(&mut self) -> Result<(), BookError> {
+    /// 保存先から帳簿を読み直す. 未保存の変更は失われる.
+    ///
+    /// 失敗した場合は帳簿を変えない.
+    ///
+    /// # Errors
+    ///
+    /// `LedgerStore::load` のエラー.
+    pub fn reload(&mut self) -> Result<(), BookError> {
         self.ledger = self.store.load()?;
         self.saved = self.ledger.clone();
         Ok(())
@@ -119,31 +144,23 @@ impl<S: LedgerStore, H: History> Book<S, H> {
         self.saved = self.ledger.clone();
         Ok(())
     }
+}
 
-    pub fn sync(&mut self) -> Result<SyncOutcome, BookError> {
+impl<S: LedgerStore + Clone, H: History + Clone> Book<S, H> {
+    /// 同期する処理を作る.
+    ///
+    /// # Errors
+    ///
+    /// 未保存の変更があれば `BookError::UnsavedChanges` エラー.
+    pub fn sync_job(&self) -> Result<SyncJob<S, H>, BookError> {
         if self.is_dirty() {
             return Err(BookError::UnsavedChanges);
         }
 
-        if !self.history.has_remote()? {
-            return Ok(SyncOutcome::Pushed);
-        }
-
-        match self.history.push() {
-            Ok(()) => return Ok(SyncOutcome::Pushed),
-
-            Err(GitError::PushRejected) => {}
-
-            Err(error) => return Err(error.into()),
-        }
-
-        self.history.pull_rebase()?;
-
-        self.reload()?;
-
-        self.history.push()?;
-
-        Ok(SyncOutcome::PulledAndPushed)
+        Ok(SyncJob {
+            store: self.store.clone(),
+            history: self.history.clone(),
+        })
     }
 }
 
@@ -179,17 +196,21 @@ impl Book<TomlStore, GitRepo> {
 mod tests {
     use super::*;
     use crate::ledger::LedgerError;
-    use std::cell::RefCell;
-    use std::path::Path;
+    use std::cell::{Cell, RefCell};
+    use std::path::{Path, PathBuf};
     use std::process::Command;
+    use std::rc::Rc;
 
-    use crate::infra::gitrepo::git_command;
-    use crate::ledger::item::{ItemError, Tag};
+    use crate::infra::gitrepo::{CommitId, git_command};
+    use crate::ledger::item::{ItemError, ItemId, Tag};
+    use crate::ledger::money::Money;
+    use crate::ledger::transaction::TransactionDraft;
 
-    /// メモリ上の帳簿に置く保存先
-    #[derive(Debug, Default)]
+    /// メモリ上の帳簿に置く保存先. 複製は同じ帳簿を共有する
+    #[derive(Debug, Default, Clone)]
     struct MemoryStore {
-        ledger: RefCell<Option<Ledger>>,
+        ledger: Rc<RefCell<Option<Ledger>>>,
+        is_load_broken: Rc<Cell<bool>>,
     }
 
     impl LedgerStore for MemoryStore {
@@ -199,6 +220,9 @@ mod tests {
         }
 
         fn load(&self) -> Result<Ledger, StorageError> {
+            if self.is_load_broken.get() {
+                return Err(std::io::Error::other("壊れている").into());
+            }
             Ok(self.ledger.borrow().clone().unwrap_or_default())
         }
     }
@@ -220,16 +244,18 @@ mod tests {
         assert_eq!(store.load().unwrap(), ledger);
     }
 
-    /// commit したメッセージを記録する変更履歴
-    #[derive(Debug, Default)]
+    /// 呼び出しを記録する変更履歴. 複製は同じ記録を共有する
+    #[derive(Debug, Default, Clone)]
     struct FakeHistory {
-        messages: RefCell<Vec<String>>,
+        messages: Rc<RefCell<Vec<String>>>,
         is_broken: bool,
         has_remote: bool,
-        push_rejected: bool,
-        pull_rebased: RefCell<bool>,
-        push_count: RefCell<u32>,
-        pull_rebase_fails: bool,
+        is_has_remote_broken: bool,
+        is_push_rejected: bool,
+        is_pulled: Rc<Cell<bool>>,
+        push_count: Rc<Cell<u32>>,
+        is_pull_conflicted: bool,
+        reset_to: Rc<RefCell<Option<CommitId>>>,
     }
 
     fn run_git(dir: &Path, args: &[&str]) {
@@ -260,26 +286,37 @@ mod tests {
         }
 
         fn has_remote(&self) -> Result<bool, GitError> {
+            if self.is_has_remote_broken {
+                return Err(GitError::CommandFailed(
+                    "remote".to_string(),
+                    "壊れている".to_string(),
+                ));
+            }
             Ok(self.has_remote)
         }
 
         fn push(&self) -> Result<(), GitError> {
-            let mut count = self.push_count.borrow_mut();
-
-            *count += 1;
-
-            if *count == 1 && self.push_rejected {
+            self.push_count.set(self.push_count.get() + 1);
+            if self.push_count.get() == 1 && self.is_push_rejected {
                 return Err(GitError::PushRejected);
             }
-
             Ok(())
         }
 
         fn pull_rebase(&self) -> Result<(), GitError> {
-            *self.pull_rebased.borrow_mut() = true;
-            if self.pull_rebase_fails {
+            self.is_pulled.set(true);
+            if self.is_pull_conflicted {
                 return Err(GitError::Conflict);
             }
+            Ok(())
+        }
+
+        fn head(&self) -> Result<CommitId, GitError> {
+            Ok(CommitId("取り込む前".to_string()))
+        }
+
+        fn reset_hard(&self, commit: &CommitId) -> Result<(), GitError> {
+            *self.reset_to.borrow_mut() = Some(commit.clone());
             Ok(())
         }
     }
@@ -450,56 +487,63 @@ mod tests {
         assert!(!dir.path().join(".git").exists());
     }
 
+    /// GUI と同じ順に同期する
+    fn sync<S, H>(book: &mut Book<S, H>) -> Result<SyncOutcome, BookError>
+    where
+        S: LedgerStore + Clone,
+        H: History + Clone,
+    {
+        let result = book.sync_job()?.run();
+        book.reload()?;
+        result
+    }
+
     #[test]
-    fn sync_returns_error_when_dirty() {
+    fn sync_job_returns_error_when_dirty() {
         let mut book = book(FakeHistory::default());
 
         book.ledger_mut().add_item("書籍", Tag::Expense).unwrap();
 
-        assert!(matches!(book.sync(), Err(BookError::UnsavedChanges)));
+        assert!(matches!(book.sync_job(), Err(BookError::UnsavedChanges)));
+        assert!(book.is_dirty());
     }
 
     #[test]
-    fn sync_succeeds_without_remote() {
+    fn sync_does_nothing_without_remote() {
         let mut book = book(FakeHistory::default());
 
-        let result = book.sync();
-
-        assert!(matches!(result, Ok(SyncOutcome::Pushed)));
+        assert_eq!(sync(&mut book).unwrap(), SyncOutcome::NoRemote);
+        assert_eq!(book.history.push_count.get(), 0);
     }
 
     #[test]
     fn sync_pulls_then_pushes_when_rejected() {
         let mut book = book(FakeHistory {
             has_remote: true,
-            push_rejected: true,
+            is_push_rejected: true,
             ..FakeHistory::default()
         });
 
-        let result = book.sync();
-
-        assert!(matches!(result, Ok(SyncOutcome::PulledAndPushed)));
-        //pull_rebaseが呼ばれた
-        assert!(*book.history.pull_rebased.borrow());
-        //pushが２回呼ばれた
-        assert_eq!(*book.history.push_count.borrow(), 2);
+        assert_eq!(sync(&mut book).unwrap(), SyncOutcome::PulledAndPushed);
+        assert!(book.history.is_pulled.get());
+        assert_eq!(book.history.push_count.get(), 2);
+        assert_eq!(*book.history.reset_to.borrow(), None);
     }
 
     #[test]
     fn sync_returns_conflict_when_pull_rebase_fails() {
         let mut book = book(FakeHistory {
             has_remote: true,
-            push_rejected: true,
-            pull_rebase_fails: true,
+            is_push_rejected: true,
+            is_pull_conflicted: true,
             ..FakeHistory::default()
         });
 
-        let result = book.sync();
-
         assert!(matches!(
-            result,
+            sync(&mut book),
             Err(BookError::History(GitError::Conflict))
         ));
+        assert_eq!(book.history.push_count.get(), 1);
     }
 
     #[test]
@@ -509,157 +553,200 @@ mod tests {
             ..FakeHistory::default()
         });
 
-        let result = book.sync();
-
-        assert!(matches!(result, Ok(SyncOutcome::Pushed)));
-
-        assert_eq!(*book.history.push_count.borrow(), 1);
-
-        assert!(!*book.history.pull_rebased.borrow());
+        assert_eq!(sync(&mut book).unwrap(), SyncOutcome::Pushed);
+        assert_eq!(book.history.push_count.get(), 1);
+        assert!(!book.history.is_pulled.get());
     }
 
     #[test]
     fn sync_propagates_has_remote_error() {
-        #[derive(Default)]
-        struct BrokenHistory;
-
-        impl History for BrokenHistory {
-            fn commit_all(&self, _: &str) -> Result<(), GitError> {
-                Ok(())
-            }
-
-            fn has_remote(&self) -> Result<bool, GitError> {
-                Err(GitError::CommandFailed(
-                    "remote".to_string(),
-                    "error".to_string(),
-                ))
-            }
-
-            fn push(&self) -> Result<(), GitError> {
-                Ok(())
-            }
-
-            fn pull_rebase(&self) -> Result<(), GitError> {
-                Ok(())
-            }
-        }
-
-        let store = MemoryStore::default();
-        store.save(&Ledger::with_presets()).unwrap();
-
-        let mut book = Book::load(store, BrokenHistory).unwrap();
+        let mut book = book(FakeHistory {
+            is_has_remote_broken: true,
+            ..FakeHistory::default()
+        });
 
         assert!(matches!(
-            book.sync(),
-            Err(BookError::History(GitError::CommandFailed(_, _)))
+            sync(&mut book),
+            Err(BookError::History(GitError::CommandFailed(command, _))) if command == "remote"
         ));
     }
 
     #[test]
-    fn sync_pulls_remote_changes_into_book() {
-        let root = tempfile::tempdir().unwrap();
+    fn job_rolls_back_and_does_not_push_when_merged_ledger_is_invalid() {
+        let history = FakeHistory {
+            has_remote: true,
+            is_push_rejected: true,
+            ..FakeHistory::default()
+        };
+        let store = MemoryStore::default();
+        store.is_load_broken.set(true);
+        let job = SyncJob {
+            store,
+            history: history.clone(),
+        };
 
-        let remote = root.path().join("remote.git");
-        let init_dir = root.path().join("init");
-        let a_dir = root.path().join("a");
-        let b_dir = root.path().join("b");
+        assert!(matches!(
+            job.run(),
+            Err(BookError::InvalidMerge(StorageError::Io(e))) if e.to_string() == "壊れている"
+        ));
+        assert_eq!(
+            *history.reset_to.borrow(),
+            Some(CommitId("取り込む前".to_string()))
+        );
+        assert_eq!(history.push_count.get(), 1);
+    }
 
-        // bare remote
+    #[test]
+    fn reload_replaces_ledger_and_marks_clean() {
+        let mut book = book(FakeHistory::default());
+        book.ledger_mut().add_item("書籍", Tag::Expense).unwrap();
+        let mut stored = Ledger::with_presets();
+        stored.add_item("雑誌", Tag::Expense).unwrap();
+        book.store.save(&stored).unwrap();
+
+        book.reload().unwrap();
+
+        assert_eq!(book.ledger(), &stored);
+        assert!(!book.is_dirty());
+    }
+
+    #[test]
+    fn reload_keeps_ledger_when_load_fails() {
+        let mut book = book(FakeHistory::default());
+        book.ledger_mut().add_item("書籍", Tag::Expense).unwrap();
+        let edited = book.ledger().clone();
+        book.store.is_load_broken.set(true);
+
+        assert!(matches!(
+            book.reload(),
+            Err(BookError::Storage(StorageError::Io(_)))
+        ));
+        assert_eq!(book.ledger(), &edited);
+        assert!(book.is_dirty());
+    }
+
+    fn git_clone(remote: &Path, dir: &Path) {
+        let output = Command::new("git")
+            .arg("clone")
+            .arg(remote)
+            .arg(dir)
+            .output()
+            .unwrap();
+        assert!(output.status.success());
+        configure_user(dir);
+    }
+
+    /// `ledger` を push した bare リポジトリと, その2つの clone を作る
+    fn shared_clones(root: &Path, ledger: &Ledger) -> (PathBuf, PathBuf, PathBuf) {
+        let remote = root.join("remote.git");
         let output = Command::new("git")
             .args(["init", "--bare"])
             .arg(&remote)
             .output()
             .unwrap();
-
         assert!(output.status.success());
 
-        //
-        // 初期帳簿を作成して remote に push
-        //
-        let output = Command::new("git")
-            .arg("clone")
-            .arg(&remote)
-            .arg(&init_dir)
-            .output()
-            .unwrap();
-
-        assert!(output.status.success());
-
-        configure_user(&init_dir);
-
-        let repo = GitRepo::open(init_dir.clone()).unwrap();
-
-        let store = TomlStore::new(init_dir.clone());
-        store.save(&Ledger::with_presets()).unwrap();
-
+        let init_dir = root.join("init");
+        git_clone(&remote, &init_dir);
+        TomlStore::new(init_dir.clone()).save(ledger).unwrap();
+        let repo = GitRepo::open(init_dir).unwrap();
         repo.commit_all("帳簿を作成").unwrap();
         repo.push().unwrap();
 
-        //
-        // A/B clone
-        //
-        let output = Command::new("git")
-            .arg("clone")
-            .arg(&remote)
-            .arg(&a_dir)
-            .output()
-            .unwrap();
+        let a_dir = root.join("a");
+        let b_dir = root.join("b");
+        git_clone(&remote, &a_dir);
+        git_clone(&remote, &b_dir);
+        (remote, a_dir, b_dir)
+    }
 
-        assert!(output.status.success());
-
-        let output = Command::new("git")
-            .arg("clone")
-            .arg(&remote)
-            .arg(&b_dir)
-            .output()
-            .unwrap();
-
-        assert!(output.status.success());
-
-        configure_user(&a_dir);
-        configure_user(&b_dir);
-
-        let mut book_a = Book::load(
-            TomlStore::new(a_dir.clone()),
-            GitRepo::open(a_dir.clone()).unwrap(),
+    fn open_clone(dir: &Path) -> Book<TomlStore, GitRepo> {
+        Book::load(
+            TomlStore::new(dir.to_path_buf()),
+            GitRepo::open(dir.to_path_buf()).unwrap(),
         )
-        .unwrap();
+        .unwrap()
+    }
 
-        let mut book_b = Book::load(
-            TomlStore::new(b_dir.clone()),
-            GitRepo::open(b_dir.clone()).unwrap(),
-        )
-        .unwrap();
+    #[test]
+    fn sync_does_nothing_for_repository_without_origin() {
+        let dir = tempfile::tempdir().unwrap();
+        TomlStore::new(dir.path().to_path_buf())
+            .save(&Ledger::new())
+            .unwrap();
+        GitRepo::init(dir.path().to_path_buf()).unwrap();
+        let mut book = Book::open(dir.path()).unwrap();
 
-        //
-        // A が変更して同期
-        //
+        assert_eq!(sync(&mut book).unwrap(), SyncOutcome::NoRemote);
+    }
+
+    #[test]
+    fn sync_pulls_remote_changes_into_book() {
+        let root = tempfile::tempdir().unwrap();
+        let (_remote, a_dir, b_dir) = shared_clones(root.path(), &Ledger::with_presets());
+        let mut book_a = open_clone(&a_dir);
+        let mut book_b = open_clone(&b_dir);
+
         book_a
             .ledger_mut()
             .add_item("A専用品目", Tag::Expense)
             .unwrap();
-
         book_a.save("A追加").unwrap();
+        assert_eq!(sync(&mut book_a).unwrap(), SyncOutcome::Pushed);
 
-        assert_eq!(book_a.sync().unwrap(), SyncOutcome::Pushed);
-
-        //
-        // B は変更せず同期
-        //
-        assert_eq!(book_b.sync().unwrap(), SyncOutcome::PulledAndPushed);
+        // B は変更していなくても push が拒否され, A の変更を取り込む
+        assert_eq!(sync(&mut book_b).unwrap(), SyncOutcome::PulledAndPushed);
 
         assert!(!book_b.is_dirty());
-        //
-        // reload() が実行されていれば
-        // A の変更が帳簿へ反映される
-        //
-        assert!(
-            book_b
-                .ledger()
-                .items()
-                .iter()
-                .any(|item| item.to_string() == "A専用品目")
-        );
+        assert_eq!(book_b.ledger(), book_a.ledger());
+    }
+
+    #[test]
+    fn sync_rejects_merge_that_breaks_ledger() {
+        let root = tempfile::tempdir().unwrap();
+        let mut ledger = Ledger::new();
+        let unused = ledger.add_item("未使用", Tag::Expense).unwrap();
+        let cash = ledger.add_item("現金", Tag::Asset).unwrap();
+        let (remote, a_dir, b_dir) = shared_clones(root.path(), &ledger);
+        let mut book_a = open_clone(&a_dir);
+        let mut book_b = open_clone(&b_dir);
+
+        // 別々のファイルの変更なので git の競合にはならない
+        book_a.ledger_mut().remove_item(unused).unwrap();
+        book_a.save("品目を削除").unwrap();
+        sync(&mut book_a).unwrap();
+        add_transaction(&mut book_b, unused, cash);
+        book_b.save("取引を追加").unwrap();
+        let edited = book_b.ledger().clone();
+        let head = book_b.history.head().unwrap();
+
+        assert!(matches!(
+            sync(&mut book_b),
+            Err(BookError::InvalidMerge(StorageError::InvalidLedger(
+                LedgerError::TransactionItemNotFound(id)
+            ))) if id == unused
+        ));
+
+        assert_eq!(book_b.history.head().unwrap(), head);
+        assert!(!book_b.history.has_changes().unwrap());
+        assert_eq!(book_b.ledger(), &edited);
+
+        // 同期先には不正な帳簿が届いていない
+        let c_dir = root.path().join("c");
+        git_clone(&remote, &c_dir);
+        assert_eq!(open_clone(&c_dir).ledger(), book_a.ledger());
+    }
+
+    fn add_transaction(book: &mut Book<TomlStore, GitRepo>, item: ItemId, counterpart: ItemId) {
+        book.ledger_mut()
+            .add_transaction(TransactionDraft::new(
+                chrono::NaiveDate::from_ymd_opt(2026, 10, 2).unwrap(),
+                Money::from(1200),
+                item,
+                counterpart,
+                String::new(),
+            ))
+            .unwrap();
     }
 
     #[test]
