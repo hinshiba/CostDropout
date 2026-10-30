@@ -175,6 +175,40 @@ mod tests {
     }
 
     #[gpui_kit::test]
+    fn adding_transfer_between_assets(cx: &mut TestAppContext) {
+        cx.update(gpui_kit::init);
+        let mut ledger = Ledger::new();
+        let cash = ledger.add_item("現金", Tag::Asset).unwrap();
+        let bank = ledger.add_item("銀行口座", Tag::Asset).unwrap();
+        let state = cx.new(|_| AppState { ledger });
+        let (handle, form) = cx.update(|cx| {
+            gpui_kit::open_window(WindowOptions::default(), cx, |window, cx| {
+                cx.new(|cx| TransactionForm::new(state.clone(), window, cx))
+            })
+            .unwrap()
+        });
+        cx.update_window(handle, |_, window, cx| {
+            let fields = form.read(cx).fields.clone();
+            fields.update(cx, |fields, cx| {
+                fields.fill_for_test(cash, bank, "1,000", window, cx);
+            });
+            window.render_frame(cx);
+            window.click("add-transaction", cx);
+            assert!(matches!(form.read(cx).status, Some(Ok(()))));
+        })
+        .unwrap();
+        cx.read(|cx| {
+            let ledger = &state.read(cx).ledger;
+            let transaction = ledger.transactions().iter().next().unwrap();
+            assert_eq!(
+                (transaction.item(), transaction.counterpart()),
+                (cash, bank)
+            );
+            assert_eq!(ledger.counterpart_amount(transaction), Money::from(-1000));
+        });
+    }
+
+    #[gpui_kit::test]
     fn adding_transaction_accepts_negative_and_zero_amount(cx: &mut TestAppContext) {
         cx.update(gpui_kit::init);
         let mut ledger = Ledger::new();
@@ -201,13 +235,15 @@ mod tests {
         })
         .unwrap();
         cx.read(|cx| {
-            let amounts = state
+            let mut amounts = state
                 .read(cx)
                 .ledger()
                 .transactions()
                 .iter()
                 .map(|transaction| transaction.amount())
                 .collect::<Vec<_>>();
+            // 同じ日の取引は uuid の順に並ぶので, 金額の順に揃えて比べる
+            amounts.sort();
             assert_eq!(amounts, [Money::from(-1200), Money::from(0)]);
         });
     }

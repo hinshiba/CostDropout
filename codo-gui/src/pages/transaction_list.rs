@@ -170,6 +170,11 @@ impl Render for TransactionList {
                             .text_right()
                             .child(transaction.amount().to_string()),
                     )
+                    .child(
+                        TableCell::new()
+                            .text_right()
+                            .child(ledger.counterpart_amount(transaction).to_string()),
+                    )
                     .child(TableCell::new().child(transaction.comment().to_string()))
                     .child(
                         TableCell::new().child(
@@ -233,13 +238,21 @@ impl Render for TransactionList {
                 )
         });
         let table = Table::new()
-            .min_w(px(720.))
+            .min_w(px(840.))
             .child(
                 TableHeader::new().child(
                     TableRow::new().children(
-                        ["日付", "品目名", "相手先名", "金額", "コメント", "操作"]
-                            .into_iter()
-                            .map(|label| TableHead::new().child(label)),
+                        [
+                            "日付",
+                            "品目名",
+                            "相手先名",
+                            "金額",
+                            "相手先の増減",
+                            "コメント",
+                            "操作",
+                        ]
+                        .into_iter()
+                        .map(|label| TableHead::new().child(label)),
                     ),
                 ),
             )

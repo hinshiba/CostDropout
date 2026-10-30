@@ -156,6 +156,9 @@ impl Items {
             LedgerError::ItemUse(_) => {
                 "この品目を使っている取引があるため削除できません。先に取引で使う品目を変更してください".to_string()
             }
+            LedgerError::ItemTagInUse(_) => {
+                "この品目を使っている取引があるためタグを変更できません。先に取引で使う品目を変更してください".to_string()
+            }
             error => error.to_string(),
         }
     }

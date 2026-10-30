@@ -144,7 +144,8 @@ impl TransactionFields {
         let controls = &mut self.controls;
         let ledger = self.state.read(cx).ledger();
         let items = ledger
-            .item_choices()
+            .items()
+            .iter()
             .map(ItemChoice::from)
             .collect::<Vec<_>>();
         let selected_item = controls.item.read(cx).selected_value().copied();
@@ -357,11 +358,14 @@ pub fn friendly_error(error: &FormError) -> String {
             LedgerError::TransactionItemNotFound(_) => {
                 "選択した品目または相手先が見つかりません。選び直してください".into()
             }
-            LedgerError::Transaction(TransactionError::InvalidItemTag(tag)) => format!(
-                "{tag}の品目は取引の品目として選べません。収入・支出・負債から選んでください"
-            ),
-            LedgerError::Transaction(TransactionError::SameTag(tag)) => {
-                format!("品目と相手先がどちらも{tag}です。異なる分類の品目を選んでください")
+            LedgerError::Transaction(TransactionError::InvalidPair(item, counterpart)) => {
+                format!("{item}の品目の相手先に{counterpart}の品目は選べません。選び直してください")
+            }
+            LedgerError::Transaction(TransactionError::SameItem(_)) => {
+                "品目と相手先に同じ品目は選べません。選び直してください".into()
+            }
+            LedgerError::Transaction(TransactionError::CounterpartOverflow(amount)) => {
+                format!("金額 {amount} は相手先の増減として表せません。金額を確認してください")
             }
             LedgerError::Transaction(TransactionError::NotFound(_)) => {
                 "訂正する取引が見つかりません。一覧を確認してください".into()
