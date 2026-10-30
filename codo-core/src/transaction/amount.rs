@@ -119,6 +119,11 @@ mod tests {
     }
 
     #[test]
+    fn display_test() {
+        assert_eq!(Amount::of(1234).to_string(), "¥1,234");
+    }
+
+    #[test]
     fn deserialize_test() {
         #[derive(Debug, Deserialize)]
         struct Row {
