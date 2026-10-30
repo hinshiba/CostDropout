@@ -1,4 +1,5 @@
 pub mod expense_bar_chart;
+pub mod expense_calendar;
 pub mod expense_pie;
 pub mod items;
 pub mod monthly_report;
