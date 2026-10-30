@@ -284,6 +284,10 @@ mod tests {
         .unwrap();
 
         assert_eq!(list.iter().collect::<Vec<_>>(), vec![&food, &cash]);
+        assert_eq!(
+            list.iter_with_tag(Tag::Asset).collect::<Vec<_>>(),
+            vec![&cash]
+        );
     }
 
     #[test]

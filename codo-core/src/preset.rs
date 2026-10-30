@@ -34,10 +34,14 @@ pub fn preset_items() -> ItemList {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ledger::Ledger;
 
-    /// `PRESETS` の名前が空だったり重複したりしていればパニックする.
+    /// `PRESETS` のすべてが登録される.
+    ///
+    /// 名前が空だったり重複したりしていればパニックする.
     #[test]
     fn preset_items_test() {
-        preset_items();
+        let ledger = Ledger::with_presets();
+        assert_eq!(ledger.items().iter().count(), PRESETS.len());
     }
 }
