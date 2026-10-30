@@ -204,7 +204,7 @@ impl Render for App {
 #[cfg(test)]
 mod tests {
     use super::{App, Page};
-    use chrono::{Datelike, Local};
+    use chrono::Local;
     use codo_core::period::YearMonth;
     use codo_core::{ledger::Ledger, money::Money, transaction::TransactionDraft};
     use gpui_kit::test::TestWindowExt;
