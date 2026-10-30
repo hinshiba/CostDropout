@@ -1,8 +1,8 @@
 //! 画面切り替えと共有画面の作成
 
 use crate::pages::{
-    expense_bar_chart::ExpenseBarChart, expense_pie::ExpensePie, items::Items,
-    monthly_report::MonthlyReport, transaction_form::TransactionForm,
+    budget_dashboard::BudgetDashboard, expense_bar_chart::ExpenseBarChart, expense_pie::ExpensePie,
+    items::Items, monthly_report::MonthlyReport, transaction_form::TransactionForm,
     transaction_list::TransactionList,
 };
 use codo_core::ledger::Ledger;
@@ -18,6 +18,7 @@ pub struct AppState {
 /// 現在の画面のenum
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Page {
+    BudgetDashboard,
     TransactionForm,
     TransactionList,
     ExpensePie,
@@ -28,6 +29,7 @@ pub enum Page {
 
 /// 画面の管理
 pub struct App {
+    budget_dashboard: Entity<BudgetDashboard>,
     transaction_form: Entity<TransactionForm>,
     transaction_list: Entity<TransactionList>,
     expense_pie: Entity<ExpensePie>,
@@ -45,6 +47,7 @@ impl App {
 
     fn with_ledger(ledger: Ledger, window: &mut Window, cx: &mut Context<Self>) -> Self {
         let state = cx.new(|_| AppState { ledger });
+        let budget_dashboard = cx.new(|cx| BudgetDashboard::new(state.clone(), cx));
         let transaction_form = cx.new(|cx| TransactionForm::new(state.clone(), window, cx));
 
         let transaction_list = cx.new(|cx| TransactionList::new(state.clone(), cx));
@@ -57,12 +60,13 @@ impl App {
         let monthly_report = cx.new(|_| MonthlyReport::new(state.clone()));
 
         Self {
+            budget_dashboard,
             transaction_form,
             transaction_list,
             expense_pie,
             items,
             monthly_report,
-            page: Page::TransactionForm,
+            page: Page::BudgetDashboard,
             expense_bar_chart,
             sidebar_open: true,
         }
@@ -86,6 +90,12 @@ impl Render for App {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         // 自分自身のEntityを取得する
         let app = cx.entity();
+
+        let budget_dashboard = SidebarMenuItem::new("予算ダッシュボード")
+            .active(self.page == Page::BudgetDashboard)
+            .on_click(cx.listener(|app, _, _, cx| {
+                app.show_page(Page::BudgetDashboard, cx);
+            }));
 
         // 取引入力
         let transaction_form = SidebarMenuItem::new("取引入力")
@@ -178,6 +188,7 @@ impl Render for App {
                         SidebarMenu::new()
                             .gap_4()
                             .py_4()
+                            .child(budget_dashboard)
                             .child(transaction_form)
                             .child(transaction_list)
                             .child(items)
@@ -190,6 +201,7 @@ impl Render for App {
             .child(div().flex_1().h_full().child(
                 // 画面選択
                 div().size_full().child(match self.page {
+                    Page::BudgetDashboard => div().size_full().child(self.budget_dashboard.clone()),
                     Page::TransactionForm => div().child(self.transaction_form.clone()),
                     Page::TransactionList => div().child(self.transaction_list.clone()),
                     Page::ExpensePie => div().size_full().child(self.expense_pie.clone()),
@@ -251,9 +263,11 @@ mod tests {
         });
         cx.update_window(handle, |_, window, cx| {
             window.render_frame(cx);
+            assert!(app.read(cx).page == Page::BudgetDashboard);
+            assert!(window.find("budget-empty-state").visible());
             // Sidebar が割り当てる「グループ番号-項目番号」の ID でクリックする。
             assert!(window.find("0-2").visible());
-            window.click("0-4", cx);
+            window.click("0-5", cx);
             assert!(app.read(cx).page == Page::ExpensePie);
             window.render_frame(cx);
             assert!(window.find("previous-month").visible());
@@ -282,6 +296,10 @@ mod tests {
             window.click("previous-month", cx);
             window.render_frame(cx);
             assert_month(window, month, false);
+            window.click("0-0", cx);
+            window.render_frame(cx);
+            assert!(app.read(cx).page == Page::BudgetDashboard);
+            assert!(window.find("budget-empty-state").visible());
         })
         .unwrap();
     }
