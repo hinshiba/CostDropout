@@ -63,8 +63,6 @@ impl Items {
             .as_ref()
             .map(|input| input.read(cx).value().to_string())
             .unwrap_or_default();
-
-        let name = name.trim().to_string();
         let tag = self.new_item_tag;
 
         let result = self.state.update(cx, |state, cx| {
@@ -167,7 +165,7 @@ impl Items {
         let edit_name = name.clone();
         let delete_name = name.clone();
 
-        let edit_button = Button::new(format!("edit-{}", id.id()))
+        let edit_button = Button::new(format!("edit-{id:?}"))
             .label("編集")
             .bg(rgb(0xe8f5e9))
             .text_color(rgb(0x1b5e20))
@@ -175,7 +173,7 @@ impl Items {
                 this.start_editing(id, &edit_name, tag, window, cx);
             }));
 
-        let delete_button = Button::new(format!("delete-{}", id.id()))
+        let delete_button = Button::new(format!("delete-{id:?}"))
             .label("削除")
             .bg(rgb(0xffebee))
             .text_color(rgb(0xb71c1c))
@@ -221,15 +219,14 @@ impl Render for Items {
 
         let item_groups = {
             let state = self.state.read(cx);
-            Tag::ALL_TAGS
+            Tag::ALL
                 .into_iter()
                 .map(|tag| {
                     let items = state
                         .ledger
                         .items()
-                        .iter()
-                        .filter(|item| item.tag() == tag)
-                        .map(|item| (item.id(), item.name().to_string(), item.tag()))
+                        .iter_with_tag(tag)
+                        .map(|item| (item.id(), item.to_string()))
                         .collect::<Vec<_>>();
 
                     (tag, items)
@@ -245,7 +242,7 @@ impl Render for Items {
         for (tag, items) in item_groups {
             let item_rows = items
                 .into_iter()
-                .map(|(id, name, item_tag)| Self::render_item_row(id, name, item_tag, cx))
+                .map(|(id, name)| Self::render_item_row(id, name, tag, cx))
                 .collect::<Vec<_>>();
 
             let section_heading = div()
@@ -255,7 +252,7 @@ impl Render for Items {
                 .bg(rgb(0xe8f5e9))
                 .text_color(rgb(0x1b5e20))
                 .text_xl()
-                .child(tag.label());
+                .child(tag.to_string());
 
             let section = div()
                 .flex()
@@ -297,7 +294,7 @@ impl Render for Items {
             .child(add_button);
 
         let error_message = self.error_message.clone();
-        let tag_buttons = Tag::ALL_TAGS.into_iter().map(|tag| {
+        let tag_buttons = Tag::ALL.into_iter().map(|tag| {
             let is_selected = self.new_item_tag == tag;
             let button_background = if is_selected {
                 rgb(0x2e7d32)
@@ -310,8 +307,8 @@ impl Render for Items {
                 rgb(0x000000)
             };
 
-            Button::new(format!("tag-{}", tag.label()))
-                .label(tag.label())
+            Button::new(format!("tag-{tag:?}"))
+                .label(tag.to_string())
                 .selected(is_selected)
                 .bg(button_background)
                 .text_color(button_text_color)

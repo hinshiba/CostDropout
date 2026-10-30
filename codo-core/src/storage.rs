@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 use thiserror::Error;
 
 use crate::budget::{Budget, BudgetError, BudgetId, BudgetList};
-use crate::item::{Item, ItemList};
+use crate::item::{Item, ItemError, ItemList};
 use crate::ledger::Ledger;
 use crate::money::Money;
 use crate::period::{Period, PeriodError, YearMonth};
@@ -116,7 +116,7 @@ impl LedgerStore for TomlStore {
         let items = if items_path.try_exists()? {
             let items_toml = std::fs::read_to_string(items_path)?;
             let items_file: ItemsFile = toml::from_str(&items_toml)?;
-            ItemList::from_items(items_file.items)
+            ItemList::from_items(items_file.items)?
         } else {
             ItemList::new()
         };
@@ -217,6 +217,9 @@ pub enum StorageError {
 
     #[error("予算データが不正です: {0}")]
     InvalidBudget(#[from] BudgetError),
+
+    #[error("品目データが不正です: {0}")]
+    InvalidItems(#[from] ItemError),
 }
 
 /// 日付変換用のモジュール

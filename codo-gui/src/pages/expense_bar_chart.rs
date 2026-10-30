@@ -54,9 +54,8 @@ impl ExpenseBarChart {
             .read(cx)
             .ledger
             .items()
-            .iter()
-            .filter(|item| item.tag() == Tag::Expense)
-            .map(|item| (item.id(), item.name().to_string()))
+            .iter_with_tag(Tag::Expense)
+            .map(|item| (item.id(), item.to_string()))
             .collect()
     }
 
