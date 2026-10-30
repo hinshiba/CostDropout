@@ -238,7 +238,7 @@ mod tests {
     fn draft(item: ItemId, counterpart: ItemId) -> TransactionDraft {
         TransactionDraft::new(
             chrono::NaiveDate::from_ymd_opt(2026, 10, 12).unwrap(),
-            Money(1000),
+            Money::from(1000),
             item,
             counterpart,
             String::new(),
@@ -519,15 +519,15 @@ mod tests {
 
         let new_period = Period::month(crate::period::YearMonth::new(2026, 11).unwrap());
 
-        let budget_id = ledger.add_budget(Money(5000), old_period).unwrap();
+        let budget_id = ledger.add_budget(Money::from(5000), old_period).unwrap();
 
         ledger
-            .update_budget(budget_id, Money(7000), new_period)
+            .update_budget(budget_id, Money::from(7000), new_period)
             .unwrap();
 
         let updated = ledger.budgets().get(budget_id).unwrap();
 
-        assert_eq!(updated.amount(), Money(7000));
+        assert_eq!(updated.amount(), Money::from(7000));
         assert_eq!(updated.period(), new_period);
     }
 }
@@ -560,7 +560,7 @@ mod monthly_transaction_tests {
                 ledger
                     .add_transaction(TransactionDraft::new(
                         NaiveDate::from_ymd_opt(year, month, day).unwrap(),
-                        Money(1234),
+                        Money::from(1234),
                         item,
                         counterpart,
                         String::new(),
@@ -617,7 +617,7 @@ mod monthly_transaction_tests {
             ledger
                 .add_transaction(TransactionDraft::new(
                     NaiveDate::from_ymd_opt(2024, month, day).unwrap(),
-                    Money(1),
+                    Money::from(1),
                     item,
                     counterpart,
                     String::new(),

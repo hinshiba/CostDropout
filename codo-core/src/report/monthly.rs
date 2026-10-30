@@ -67,20 +67,19 @@ impl MonthlySummary {
 ///
 /// 取引がない日も0として含める
 pub fn monthly_summary(ledger: &Ledger, ym: YearMonth) -> MonthlySummary {
+    let period = Period::month(ym);
+
     // 1日から末日までの収入と支出が0の日を並べる
-    let mut days: Vec<DailySummary> = ym
-        .first_day()
-        .iter_days()
-        .take(ym.days_in_month() as usize)
+    let mut days: Vec<DailySummary> = period
+        .days()
         .map(|date| DailySummary {
             date,
-            income: Money(0),
-            expense: Money(0),
+            income: Money::from(0),
+            expense: Money::from(0),
         })
         .collect();
 
     // 月内の取引の金額を，その日に足す
-    let period = Period::month(ym);
     for (tx, flow) in flows_in(ledger, period) {
         let index = tx.date().day0() as usize;
         match flow {
@@ -127,7 +126,7 @@ mod tests {
         let cash = ledger.add_item("現金", Tag::Asset).unwrap();
         let card = ledger.add_item("クレジットカード", Tag::Liability).unwrap();
         let mut add = |date, amount, item| {
-            let draft = TransactionDraft::new(date, Money(amount), item, cash, String::new());
+            let draft = TransactionDraft::new(date, Money::from(amount), item, cash, String::new());
             ledger.add_transaction(draft).unwrap();
         };
 
@@ -171,15 +170,15 @@ mod tests {
         let summary = monthly_summary(&sample_ledger(), ym(2026, 10));
         let day = |d: usize| summary.days()[d - 1];
 
-        assert_eq!(day(1).expense(), Money(1500));
-        assert_eq!(day(1).income(), Money(0));
-        assert_eq!(day(15).income(), Money(5000));
-        assert_eq!(day(20).income(), Money(0));
-        assert_eq!(day(20).expense(), Money(0));
-        assert_eq!(day(31).expense(), Money(700));
+        assert_eq!(day(1).expense(), Money::from(1500));
+        assert_eq!(day(1).income(), Money::from(0));
+        assert_eq!(day(15).income(), Money::from(5000));
+        assert_eq!(day(20).income(), Money::from(0));
+        assert_eq!(day(20).expense(), Money::from(0));
+        assert_eq!(day(31).expense(), Money::from(700));
         // 取引の無い日は 0
-        assert_eq!(day(2).income(), Money(0));
-        assert_eq!(day(2).expense(), Money(0));
+        assert_eq!(day(2).income(), Money::from(0));
+        assert_eq!(day(2).expense(), Money::from(0));
     }
 
     #[test]
@@ -189,8 +188,8 @@ mod tests {
         let income: Money = summary.days().iter().map(|day| day.income()).sum();
         let expense: Money = summary.days().iter().map(|day| day.expense()).sum();
 
-        assert_eq!(summary.income(), Money(5000));
-        assert_eq!(summary.expense(), Money(2200));
+        assert_eq!(summary.income(), Money::from(5000));
+        assert_eq!(summary.expense(), Money::from(2200));
         assert_eq!(income, summary.income());
         assert_eq!(expense, summary.expense());
     }
@@ -199,12 +198,12 @@ mod tests {
     fn monthly_summary_of_month_without_transactions_is_all_zero() {
         let summary = monthly_summary(&sample_ledger(), ym(2026, 12));
 
-        assert_eq!(summary.income(), Money(0));
-        assert_eq!(summary.expense(), Money(0));
+        assert_eq!(summary.income(), Money::from(0));
+        assert_eq!(summary.expense(), Money::from(0));
         assert_eq!(summary.days().len(), 31);
         for day in summary.days() {
-            assert_eq!(day.income(), Money(0));
-            assert_eq!(day.expense(), Money(0));
+            assert_eq!(day.income(), Money::from(0));
+            assert_eq!(day.expense(), Money::from(0));
         }
     }
 }

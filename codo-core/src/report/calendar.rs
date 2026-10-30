@@ -13,11 +13,9 @@ pub fn expense_level(expense: Money, max: Money) -> u8 {
         return 0;
     }
 
-    let expense = expense.0 as i64;
-    let max = max.0 as i64;
-    let levels = EXPENSE_LEVELS as i64;
-
-    ((expense * levels + max - 1) / max).min(levels) as u8
+    let ratio = expense.ratio(max).expect("maxは正なので割合は必ず求まる");
+    let level = (ratio * f64::from(EXPENSE_LEVELS)).ceil();
+    (level as u8).min(EXPENSE_LEVELS)
 }
 
 #[cfg(test)]
@@ -26,50 +24,53 @@ mod tests {
 
     #[test]
     fn expense_level_is_zero_when_no_expense() {
-        assert_eq!(expense_level(Money(0), Money(1000)), 0);
+        assert_eq!(expense_level(Money::from(0), Money::from(1000)), 0);
     }
 
     #[test]
     fn expense_level_is_zero_when_max_is_zero() {
         // 取引の無い月でも 0 で割らない
-        assert_eq!(expense_level(Money(0), Money(0)), 0);
+        assert_eq!(expense_level(Money::from(0), Money::from(0)), 0);
         // 最大が 0 なら，支出があっても 0 で割らない
-        assert_eq!(expense_level(Money(100), Money(0)), 0);
+        assert_eq!(expense_level(Money::from(100), Money::from(0)), 0);
     }
 
     #[test]
     fn expense_level_is_zero_when_expense_is_negative() {
         // 返金などで支出がマイナスの日は色を付けない
-        assert_eq!(expense_level(Money(-1000), Money(1000)), 0);
+        assert_eq!(expense_level(Money::from(-1000), Money::from(1000)), 0);
     }
 
     #[test]
     fn expense_level_is_highest_at_max() {
-        assert_eq!(expense_level(Money(1000), Money(1000)), EXPENSE_LEVELS);
+        assert_eq!(
+            expense_level(Money::from(1000), Money::from(1000)),
+            EXPENSE_LEVELS
+        );
     }
 
     #[test]
     fn expense_level_is_one_for_smallest_expense() {
         // 少しでも使った日は色を付ける
-        assert_eq!(expense_level(Money(1), Money(1000)), 1);
+        assert_eq!(expense_level(Money::from(1), Money::from(1000)), 1);
     }
 
     #[test]
     fn expense_level_rounds_up_at_boundaries() {
         // 最大 1000 を5等分すると 200 ごとの段階になる
-        assert_eq!(expense_level(Money(200), Money(1000)), 1);
-        assert_eq!(expense_level(Money(201), Money(1000)), 2);
-        assert_eq!(expense_level(Money(400), Money(1000)), 2);
-        assert_eq!(expense_level(Money(401), Money(1000)), 3);
-        assert_eq!(expense_level(Money(800), Money(1000)), 4);
-        assert_eq!(expense_level(Money(801), Money(1000)), 5);
+        assert_eq!(expense_level(Money::from(200), Money::from(1000)), 1);
+        assert_eq!(expense_level(Money::from(201), Money::from(1000)), 2);
+        assert_eq!(expense_level(Money::from(400), Money::from(1000)), 2);
+        assert_eq!(expense_level(Money::from(401), Money::from(1000)), 3);
+        assert_eq!(expense_level(Money::from(800), Money::from(1000)), 4);
+        assert_eq!(expense_level(Money::from(801), Money::from(1000)), 5);
     }
 
     #[test]
     fn expense_level_does_not_overflow_with_large_amounts() {
         // i32 のまま 5 倍するとあふれる金額
         assert_eq!(
-            expense_level(Money(i32::MAX), Money(i32::MAX)),
+            expense_level(Money::from(i32::MAX), Money::from(i32::MAX)),
             EXPENSE_LEVELS
         );
     }

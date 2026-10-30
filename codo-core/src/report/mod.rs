@@ -39,7 +39,7 @@ pub fn total(ledger: &Ledger, period: Period, target_flow: Flow) -> Money {
     flows_in(ledger, period)
         .filter(|(_, flow)| *flow == target_flow)
         .map(|(tx, _)| tx.amount())
-        .fold(Money(0), |acc, amount| acc + amount)
+        .fold(Money::from(0), |acc, amount| acc + amount)
 }
 
 pub fn income_total(ledger: &Ledger, period: Period) -> Money {
@@ -73,7 +73,7 @@ mod tests {
         transactions
             .add(TransactionDraft::new(
                 NaiveDate::from_ymd_opt(2026, 10, 1).unwrap(),
-                Money(1000),
+                Money::from(1000),
                 expense_id,
                 asset_id,
                 String::new(),
@@ -84,7 +84,7 @@ mod tests {
         transactions
             .add(TransactionDraft::new(
                 NaiveDate::from_ymd_opt(2026, 10, 2).unwrap(),
-                Money(5000),
+                Money::from(5000),
                 income_id,
                 asset_id,
                 String::new(),
@@ -95,7 +95,7 @@ mod tests {
         transactions
             .add(TransactionDraft::new(
                 NaiveDate::from_ymd_opt(2026, 10, 3).unwrap(),
-                Money(3000),
+                Money::from(3000),
                 liability_id,
                 asset_id,
                 String::new(),
@@ -113,7 +113,7 @@ mod tests {
             NaiveDate::from_ymd_opt(2026, 11, 1).unwrap(),
         )
         .unwrap();
-        assert_eq!(expense_total(&ledger, period), Money(1000),);
-        assert_eq!(income_total(&ledger, period), Money(5000),);
+        assert_eq!(expense_total(&ledger, period), Money::from(1000),);
+        assert_eq!(income_total(&ledger, period), Money::from(5000),);
     }
 }

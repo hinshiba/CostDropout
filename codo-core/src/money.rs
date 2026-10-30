@@ -1,4 +1,4 @@
-//! お金
+//! 金額のモデルと表示
 
 use serde::{Deserialize, Serialize};
 use std::fmt;
@@ -7,38 +7,59 @@ use std::ops::{Add, AddAssign, Sub, SubAssign};
 use std::str::FromStr;
 use thiserror::Error;
 
-/// 金額(円)
+/// 金額を表現する.
 #[derive(
     Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
 )]
-pub struct Money(pub i32);
+pub struct Money(i32);
 
-/// 金額を加算します
-///
-/// 加算結果が`i32`の範囲を超える場合はパニックします
+impl From<i32> for Money {
+    fn from(value: i32) -> Self {
+        Money(value)
+    }
+}
+
+// FIXME: gpui-kitのチャートが値にf32かf64しか受け付けないため公開している.
+// チャートがMoneyを描けるようになったら削除する.
+impl From<Money> for f64 {
+    /// 金額を損失なく `f64` に変換する.
+    fn from(value: Money) -> Self {
+        f64::from(value.0)
+    }
+}
+
 impl Add for Money {
     type Output = Money;
 
+    /// 金額を加算する.
+    ///
+    /// # Panics
+    ///
+    /// 加算結果が `i32` の範囲を超える場合はパニック.
     fn add(self, rhs: Money) -> Money {
         self.checked_add(rhs).expect("overflowしました")
     }
 }
 
-/// 金額を減算します
-///
-/// 減算結果が`i32`の範囲を超える場合はパニックします
 impl Sub for Money {
     type Output = Money;
 
+    /// 金額を減算する.
+    ///
+    /// # Panics
+    ///
+    /// 減算結果が `i32` の範囲を超える場合はパニック.
     fn sub(self, rhs: Money) -> Money {
         self.checked_sub(rhs).expect("overflowしました")
     }
 }
 
 impl Money {
-    /// 金額を加算します。
+    /// 金額を加算する.
     ///
-    /// オーバーフローした場合は`MoneyError::Overflow`を返します。
+    /// # Errors
+    ///
+    /// 加算結果が `i32` の範囲を超える場合は `MoneyError::Overflow` エラー.
     pub fn checked_add(self, rhs: Money) -> Result<Money, MoneyError> {
         match self.0.checked_add(rhs.0) {
             Some(value) => Ok(Money(value)),
@@ -46,9 +67,11 @@ impl Money {
         }
     }
 
-    /// 金額を減算します。
+    /// 金額を減算する.
     ///
-    /// オーバーフローした場合は`MoneyError::Overflow`を返します。
+    /// # Errors
+    ///
+    /// 減算結果が `i32` の範囲を超える場合は `MoneyError::Overflow` エラー.
     pub fn checked_sub(self, rhs: Money) -> Result<Money, MoneyError> {
         match self.0.checked_sub(rhs.0) {
             Some(value) => Ok(Money(value)),
@@ -56,285 +79,257 @@ impl Money {
         }
     }
 
-    /// 金額が0より大きいかを判定します
+    /// `base` に対する比率を返す.
     ///
-    /// 0は正の値に含まれません。
+    /// `base` が0の場合は `None`.
+    pub fn ratio(self, base: Money) -> Option<f64> {
+        if base.0 == 0 {
+            return None;
+        }
+        Some(f64::from(self.0) / f64::from(base.0))
+    }
+
+    /// 金額が0より大きいかを判定する.
+    ///
+    /// 0は正の値に含まれない.
     pub fn is_positive(&self) -> bool {
         0 < self.0
     }
 
-    /// 金額が0より小さいかを判定します。
+    /// 金額が0より小さいかを判定する.
+    ///
+    /// 0は負の値に含まれない.
     pub fn is_negative(&self) -> bool {
         self.0 < 0
     }
 }
 
-/// Moneyに別のMoneyを加算します。
-///
-/// 加算結果が`i32`の範囲を超える場合はパニックします
 impl AddAssign for Money {
+    /// 金額を加算して代入する.
+    ///
+    /// # Panics
+    ///
+    /// 加算結果が `i32` の範囲を超える場合はパニック.
     fn add_assign(&mut self, rhs: Self) {
         *self = *self + rhs
     }
 }
 
-/// Moneyに別のMoneyを減算します。
-///
-/// 減算結果が`i32`の範囲を超える場合はパニックします
 impl SubAssign for Money {
+    /// 金額を減算して代入する.
+    ///
+    /// # Panics
+    ///
+    /// 減算結果が `i32` の範囲を超える場合はパニック.
     fn sub_assign(&mut self, rhs: Self) {
         *self = *self - rhs
     }
 }
 
-/// Moneyのイテレータを合計します。
 impl Sum<Money> for Money {
+    /// 金額を合計する.
+    ///
+    /// # Panics
+    ///
+    /// 途中の合計が `i32` の範囲を超える場合はパニック.
     fn sum<I: Iterator<Item = Money>>(iter: I) -> Self {
         iter.fold(Money(0), |total, item| total + item)
     }
 }
 
-/// Moneyへの参照のイテレータを合計します。
 impl<'a> Sum<&'a Money> for Money {
+    /// 金額を合計する.
+    ///
+    /// # Panics
+    ///
+    /// 途中の合計が `i32` の範囲を超える場合はパニック.
     fn sum<I: Iterator<Item = &'a Money>>(iter: I) -> Self {
         iter.fold(Money(0), |total, item| total + *item)
     }
 }
 
-/// 金額を`¥1,234`の形式で表示します。
-///
-/// 負の金額は`-¥1,234`の形式で表示します。
 impl fmt::Display for Money {
+    /// 金額を整形して出力する.
+    ///
+    /// Unicode CLDR の ja ロケールの通貨書式にできるだけ準拠する.
+    /// ただし通貨記号として U+00A5 `¥` を用いる.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use codo_core::money::Money;
+    ///
+    /// assert_eq!(Money::from(1234567).to_string(), "¥1,234,567");
+    /// assert_eq!(Money::from(-1234).to_string(), "-¥1,234");
+    /// ```
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let is_negative = self.0 < 0;
-        let amount = (self.0 as i64).abs();
-        let digits = amount.to_string();
-        let mut result = String::new();
-        for (count, c) in digits.chars().rev().enumerate() {
-            if count > 0 && count % 3 == 0 {
-                result.push(',');
+        let digits = self.0.unsigned_abs().to_string();
+
+        // 残りの桁数が3の倍数になる位置の手前に桁区切りを挿入する
+        let mut grouped = String::with_capacity(digits.len() + digits.len() / 3);
+        for (i, c) in digits.chars().enumerate() {
+            if 0 < i && (digits.len() - i).is_multiple_of(3) {
+                grouped.push(',');
             }
-            result.push(c);
+            grouped.push(c);
         }
-        let formatted = result.chars().rev().collect::<String>();
-        if !is_negative {
-            write!(f, "¥{}", formatted)
-        } else {
-            write!(f, "-¥{}", formatted)
-        }
+
+        let sign = if self.is_negative() { "-" } else { "" };
+        write!(f, "{sign}¥{grouped}")
     }
 }
 
+/// 金額の表記で無視する文字か.
+fn is_ignored(c: char) -> bool {
+    matches!(c, '¥' | '\\' | ',') || c.is_whitespace()
+}
+
+/// 空でなく, ASCII の数字だけからなるか.
 fn is_digits(s: &str) -> bool {
     !s.is_empty() && s.bytes().all(|b| b.is_ascii_digit())
 }
 
-fn is_valid_amount(s: &str) -> bool {
-    match s.split_once(',') {
-        None => is_digits(s),
-        Some((head, tail)) => {
-            is_digits(head)
-                && (1..4).contains(&head.len())
-                && !head.starts_with('0')
-                && tail
-                    .split(',')
-                    .all(|part| is_digits(part) && part.len() == 3)
-        }
-    }
-}
-
-/// 文字列からMoneyを生成します。
-///
-/// `¥`や,先頭の符号（`+`/`-`）を使用できます。
-///
-/// 不正な形式の場合は`MoneyError::Parse`を返し、
-/// 表現可能な範囲を超える場合は`MoneyError::Overflow`を返します。
 impl FromStr for Money {
     type Err = MoneyError;
 
+    /// `Money` にパースする.
+    ///
+    /// 先頭の符号 `+` / `-` と ASCII の数字からなる金額として解釈する.
+    /// `¥`, `\` (0x5C), `,`, 空白は位置によらず存在しないものとして扱う.
+    ///
+    /// 全角文字, `円`, 小数点を含む入力に対する結果は未定義.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use codo_core::money::Money;
+    ///
+    /// assert_eq!("¥1,234".parse::<Money>(), Ok(Money::from(1234)));
+    /// assert_eq!("-¥1,234".parse::<Money>(), Ok(Money::from(-1234)));
+    /// assert_eq!("¥-1,234".parse::<Money>(), Ok(Money::from(-1234)));
+    /// assert_eq!("\\1 234".parse::<Money>(), Ok(Money::from(1234)));
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// 不正な形式の場合は `MoneyError::Parse` エラー.
+    /// 表現可能な範囲を超える場合は `MoneyError::Overflow` エラー.
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let input = s;
-        let trimmed = s.trim();
+        let significant: String = s.chars().filter(|&c| !is_ignored(c)).collect();
+        let digits = significant.strip_prefix(['+', '-']).unwrap_or(&significant);
 
-        if trimmed.is_empty() {
-            return Err(MoneyError::Parse(input.to_string()));
+        if !is_digits(digits) {
+            return Err(MoneyError::Parse(s.to_string()));
         }
 
-        let (mut value_str, is_negative) = if let Some(rest) = trimmed.strip_prefix('-') {
-            (rest, true)
-        } else if let Some(rest) = trimmed.strip_prefix('+') {
-            (rest, false)
-        } else {
-            (trimmed, false)
-        };
-
-        if let Some(rest) = value_str.strip_prefix('¥') {
-            value_str = rest;
-        }
-
-        if !is_valid_amount(value_str) {
-            return Err(MoneyError::Parse(input.to_string()));
-        }
-
-        let digits = value_str.replace(',', "");
-
-        let mut value = match digits.parse::<i64>() {
-            Ok(value) => value,
-            Err(_) => return Err(MoneyError::Overflow),
-        };
-
-        if is_negative {
-            value = -value;
-        }
-
-        match i32::try_from(value) {
-            Ok(value) => Ok(Money(value)),
-            Err(_) => Err(MoneyError::Overflow),
-        }
+        // 形式は検証済みなので, 失敗するのは範囲外の場合に限る
+        significant
+            .parse::<i32>()
+            .map(Money)
+            .map_err(|_| MoneyError::Overflow)
     }
 }
 
-/// Moneyの操作で発生するエラーです。
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum MoneyError {
-    /// 文字列を金額として解釈できませんでした。
+    /// 金額として解釈できない文字列である場合.
     #[error("金額として解釈できない文字列です: {0}")]
     Parse(String),
-    /// 金額が表現可能な範囲を超えました。
-    #[error("金額が表現できる範囲を超えました")]
+    /// 金額が表現可能な範囲を超えた場合.
+    #[error("金額が表現できる範囲を超えています")]
     Overflow,
 }
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
+    fn into_f64_test() {
+        for value in [i32::MIN, -1234, 0, 1234, i32::MAX] {
+            assert_eq!(f64::from(Money::from(value)), f64::from(value));
+        }
+    }
+
+    #[test]
     fn display_test() {
-        assert_eq!(Money(1234).to_string(), "¥1,234");
-        assert_eq!(Money(0).to_string(), "¥0");
-        assert_eq!(Money(1000000).to_string(), "¥1,000,000");
-        assert_eq!(Money(-5000).to_string(), "-¥5,000");
+        for (value, expected) in [
+            (i32::MIN, "-¥2,147,483,648"),
+            (-1000, "-¥1,000"),
+            (-999, "-¥999"),
+            (-1, "-¥1"),
+            (0, "¥0"),
+            (1, "¥1"),
+            (999, "¥999"),
+            (1000, "¥1,000"),
+            (999_999, "¥999,999"),
+            (1_000_000, "¥1,000,000"),
+            (i32::MAX, "¥2,147,483,647"),
+        ] {
+            assert_eq!(Money(value).to_string(), expected, "{value}");
+        }
     }
 
     #[test]
     fn from_str_test() {
-        assert_eq!("1234".parse::<Money>().unwrap(), Money(1234));
-        assert_eq!("1,234".parse::<Money>().unwrap(), Money(1234));
-        assert_eq!("¥1,234".parse::<Money>().unwrap(), Money(1234));
-        assert_eq!("-500".parse::<Money>().unwrap(), Money(-500));
-        assert_eq!("  1,234  ".parse::<Money>().unwrap(), Money(1234));
+        for (s, expected) in [
+            ("-¥2,147,483,648", i32::MIN),
+            ("-2147483648", i32::MIN),
+            ("-¥1,234", -1234),
+            ("-500", -500),
+            ("-0", 0),
+            ("0", 0),
+            ("+5", 5),
+            ("+¥5", 5),
+            ("007", 7),
+            ("1234", 1234),
+            ("1,234", 1234),
+            ("¥1,234", 1234),
+            ("2,147,483,647", i32::MAX),
+            // 無視する文字は位置と個数によらない
+            ("¥-1,234", -1234),
+            ("\\1,234", 1234),
+            ("-\\500", -500),
+            ("¥¥5", 5),
+            ("5¥", 5),
+            ("1,2,3,4", 1234),
+            (",1,,234,", 1234),
+            ("  1 2 3 4  ", 1234),
+            ("\t-\n500 ", -500),
+            ("  -¥5,00 ", -500),
+        ] {
+            assert_eq!(s.parse::<Money>(), Ok(Money(expected)), "{s}");
+        }
     }
 
     #[test]
-    fn from_str_error_test() {
-        assert!(matches!("".parse::<Money>(), Err(MoneyError::Parse(_))));
-
-        assert!(matches!("abc".parse::<Money>(), Err(MoneyError::Parse(_))));
-
-        assert!(matches!(
-            "1,,234".parse::<Money>(),
-            Err(MoneyError::Parse(_))
-        ));
-
-        assert!(matches!(
-            "12,34".parse::<Money>(),
-            Err(MoneyError::Parse(_))
-        ));
+    fn from_str_parse_error_test() {
+        for s in [
+            "", "   ", "¥", "\\", ",", "-", "+", "-¥", "abc", "12a", " 12a ", "5-", "1-2", "--5",
+            "-+5", "+-5", "-¥-5",
+        ] {
+            assert_eq!(s.parse::<Money>(), Err(MoneyError::Parse(s.to_string())));
+        }
     }
 
     #[test]
     fn from_str_overflow_test() {
-        assert!(matches!(
-            "2147483648".parse::<Money>(),
-            Err(MoneyError::Overflow)
-        ));
-        assert!(matches!(
-            "-2147483649".parse::<Money>(),
-            Err(MoneyError::Overflow)
-        ));
-        assert!(matches!(
-            "99999999999999999999".parse::<Money>(),
-            Err(MoneyError::Overflow)
-        ));
-        assert!(matches!(
-            "2,147,483,648".parse::<Money>(),
-            Err(MoneyError::Overflow)
-        ));
-    }
-
-    #[test]
-    fn is_negative_test() {
-        assert!(Money(-500).is_negative());
-        assert!(!Money(0).is_negative());
-        assert!(!Money(500).is_negative());
-    }
-
-    #[test]
-    fn is_positive_test() {
-        assert!(Money(500).is_positive());
-        assert!(!Money(0).is_positive());
-        assert!(!Money(-500).is_positive());
-    }
-
-    #[test]
-    fn is_positive_negative_test() {
-        assert!(matches!("--5".parse::<Money>(), Err(MoneyError::Parse(_))));
-        assert!(matches!("-+5".parse::<Money>(), Err(MoneyError::Parse(_))));
-        assert!(matches!(
-            "¥-500".parse::<Money>(),
-            Err(MoneyError::Parse(_))
-        ));
-    }
-
-    #[test]
-    fn display_boundary_test() {
-        assert_eq!(Money(-500).to_string(), "-¥500");
-        assert_eq!(Money(999).to_string(), "¥999");
-        assert_eq!(Money(1000).to_string(), "¥1,000");
-        assert_eq!(Money(-1).to_string(), "-¥1");
-        assert_eq!(Money(i32::MAX).to_string(), "¥2,147,483,647");
-        assert_eq!(Money(i32::MIN).to_string(), "-¥2,147,483,648");
-    }
-
-    #[test]
-    fn from_str_sign_test() {
-        assert_eq!("+5".parse::<Money>().unwrap(), Money(5));
-        assert_eq!("+¥5".parse::<Money>().unwrap(), Money(5));
-        assert_eq!("-¥500".parse::<Money>().unwrap(), Money(-500));
-        assert_eq!("-¥1,234".parse::<Money>().unwrap(), Money(-1234));
-        assert_eq!("-0".parse::<Money>().unwrap(), Money(0));
-        assert_eq!("007".parse::<Money>().unwrap(), Money(7));
-    }
-
-    #[test]
-    fn from_str_comma_error_test() {
         for s in [
-            ",123", "123,", "1234,567", "1,2345", "1,23", "0,123", "00,123", "01,234",
+            "2147483648",
+            "2,147,483,648",
+            "-2147483649",
+            "99999999999999999999",
+            "-99999999999999999999",
         ] {
-            assert!(
-                matches!(s.parse::<Money>(), Err(MoneyError::Parse(_))),
-                "{s}"
-            );
+            assert_eq!(s.parse::<Money>(), Err(MoneyError::Overflow), "{s}");
         }
     }
 
     #[test]
-    fn from_str_invalid_error_test() {
-        for s in [
-            "   ", "¥", "-", "-¥", "12a", "1 234", "- 500", "¥ 500", "1234.0", "--5", "-+5", "+-5",
-            "¥-500", "¥+5",
-        ] {
-            assert!(
-                matches!(s.parse::<Money>(), Err(MoneyError::Parse(_))),
-                "{s}"
-            );
-        }
-    }
-
-    #[test]
-    fn from_str_error_keeps_input_test() {
-        for s in ["", "   ", "  -¥5,00 ", "¥-500", "abc"] {
-            assert_eq!(s.parse::<Money>(), Err(MoneyError::Parse(s.to_string())));
+    fn display_from_str_roundtrip_test() {
+        for value in [i32::MIN, -1000, -1, 0, 1, 1000, i32::MAX] {
+            let money = Money(value);
+            assert_eq!(money.to_string().parse::<Money>(), Ok(money), "{value}");
         }
     }
 }

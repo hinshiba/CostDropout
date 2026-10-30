@@ -122,7 +122,10 @@ impl Render for ExpenseCalendar {
                 } else {
                     format!(
                         "~{}",
-                        Money((max_expense.0 as i64 * level as i64 / EXPENSE_LEVELS as i64) as i32)
+                        Money::from(
+                            (f64::from(max_expense) * f64::from(level) / f64::from(EXPENSE_LEVELS))
+                                as i32
+                        )
                     )
                 };
                 div()
