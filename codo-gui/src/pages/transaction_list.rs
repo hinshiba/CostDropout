@@ -420,7 +420,7 @@ mod tests {
             // 追加ではなく訂正なので, 件数は増えない
             assert_eq!(ledger.transactions().iter().count(), 1);
             let transaction = ledger.transactions().get(id).unwrap();
-            assert_eq!(Money::from(transaction.amount()), Money::from(3000));
+            assert_eq!(transaction.amount(), Money::from(3000));
             assert_eq!(transaction.comment(), "昼食");
         });
     }

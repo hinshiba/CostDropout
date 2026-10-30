@@ -247,13 +247,12 @@ mod tests {
     use super::*;
     use crate::ledger::money::Money;
     use crate::ledger::period::YearMonth;
-    use crate::ledger::transaction::Amount;
     use chrono::NaiveDate;
 
     fn draft(item: ItemId, counterpart: ItemId) -> TransactionDraft {
         TransactionDraft::new(
             NaiveDate::from_ymd_opt(2026, 10, 12).unwrap(),
-            Amount::of(1000),
+            Money::from(1000),
             item,
             counterpart,
             String::new(),

@@ -4,9 +4,8 @@ use crate::app::AppState;
 use chrono::{Local, NaiveDate};
 use codo_core::ledger::LedgerError;
 use codo_core::ledger::item::{Item, ItemId};
-use codo_core::ledger::transaction::{
-    AmountError, Transaction, TransactionDraft, TransactionError,
-};
+use codo_core::ledger::money::MoneyError;
+use codo_core::ledger::transaction::{Transaction, TransactionDraft, TransactionError};
 use gpui_kit::component::date_picker::{DatePicker, DatePickerEvent, DatePickerState};
 use gpui_kit::component::input::{Input, InputEvent, InputState};
 use gpui_kit::component::select::{Select, SelectEvent, SelectItem, SelectState};
@@ -23,15 +22,15 @@ pub struct ItemChoice {
 /// 取引の追加や訂正で起こるエラー.
 #[derive(Debug)]
 pub enum FormError {
-    Amount(AmountError),
+    Amount(MoneyError),
     MissingDate,
     MissingItem,
     MissingCounterpart,
     Ledger(LedgerError),
 }
 
-impl From<AmountError> for FormError {
-    fn from(error: AmountError) -> Self {
+impl From<MoneyError> for FormError {
+    fn from(error: MoneyError) -> Self {
         Self::Amount(error)
     }
 }

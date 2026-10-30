@@ -5,11 +5,10 @@ use thiserror::Error;
 use uuid::Uuid;
 
 use crate::ledger::item::{ItemId, Tag};
+use crate::ledger::money::Money;
 
-mod amount;
 mod list;
 
-pub use amount::{Amount, AmountError};
 pub use list::TransactionList;
 
 /// 取引を識別する ID.
@@ -38,7 +37,7 @@ impl Transaction {
         self.draft.date
     }
 
-    pub fn amount(&self) -> Amount {
+    pub fn amount(&self) -> Money {
         self.draft.amount
     }
 
@@ -74,7 +73,7 @@ impl Transaction {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TransactionDraft {
     date: NaiveDate,
-    amount: Amount,
+    amount: Money,
     item: ItemId,
     counterpart: ItemId,
     comment: String,
@@ -83,7 +82,7 @@ pub struct TransactionDraft {
 impl TransactionDraft {
     pub fn new(
         date: NaiveDate,
-        amount: Amount,
+        amount: Money,
         item: ItemId,
         counterpart: ItemId,
         comment: String,

@@ -13,7 +13,7 @@ use crate::ledger::report::{Flow, flows_in};
 pub struct ItemShare {
     item: ItemId,
     amount: Money,
-    ratio: f64,
+    ratio: Option<f64>,
 }
 
 impl ItemShare {
@@ -27,8 +27,10 @@ impl ItemShare {
         self.amount
     }
 
-    /// 期間内で同じ分類の総額に対する割合を返す.
-    pub fn ratio(&self) -> f64 {
+    /// 期間内で同じ分類の, 合計が正である品目の総額に対する割合を返す.
+    ///
+    /// 合計が0以下の品目は `None`.
+    pub fn ratio(&self) -> Option<f64> {
         self.ratio
     }
 }
@@ -44,17 +46,21 @@ impl ItemShare {
 pub fn by_item(ledger: &Ledger, period: Period, flow: Flow) -> Vec<ItemShare> {
     let mut amounts: BTreeMap<ItemId, Money> = BTreeMap::new();
     for (tx, _) in flows_in(ledger, period).filter(|&(_, f)| f == flow) {
-        *amounts.entry(tx.item()).or_default() += Money::from(tx.amount());
+        *amounts.entry(tx.item()).or_default() += tx.amount();
     }
 
-    let total: Money = amounts.values().sum();
+    // 負の合計を混ぜると割合が100%を超えるので, 正の品目だけで総額を求める
+    let total: Money = amounts.values().filter(|a| a.is_positive()).sum();
     let mut result: Vec<ItemShare> = amounts
         .into_iter()
         .map(|(item, amount)| ItemShare {
             item,
             amount,
-            // 取引の金額は正なので, 1件でもあれば総額は0にならない
-            ratio: amount.ratio(total).expect("総額は0でない"),
+            ratio: if amount.is_positive() {
+                amount.ratio(total)
+            } else {
+                None
+            },
         })
         .collect();
     result.sort_by(|a, b| b.amount.cmp(&a.amount).then(a.item.cmp(&b.item)));
@@ -99,7 +105,7 @@ mod tests {
             ]
         );
         for share in &result {
-            assert!((share.ratio() - 0.5).abs() < 1e-10);
+            assert_eq!(share.ratio(), Some(0.5));
         }
     }
 
@@ -118,8 +124,57 @@ mod tests {
                 (book.food, Money::from(3_000))
             ]
         );
-        assert!((result[0].ratio() - 0.75).abs() < 1e-10);
-        assert!((result[1].ratio() - 0.25).abs() < 1e-10);
+        assert_eq!(result[0].ratio(), Some(0.75));
+        assert_eq!(result[1].ratio(), Some(0.25));
+    }
+
+    #[test]
+    fn by_item_excludes_non_positive_item_from_ratio_test() {
+        let mut book = Book::new();
+        book.add(date(10, 1), 1_000, book.food);
+        book.add(date(10, 2), -500, book.fun);
+        book.add(date(10, 3), 300, book.salary);
+        book.add(date(10, 4), -300, book.salary);
+
+        let expense = by_item(&book.ledger, october(), Flow::Expense);
+        assert_eq!(
+            summary(&expense),
+            vec![
+                (book.food, Money::from(1_000)),
+                (book.fun, Money::from(-500))
+            ]
+        );
+        assert_eq!(expense[0].ratio(), Some(1.0));
+        assert_eq!(expense[1].ratio(), None);
+
+        // 合計が0の品目も, 取引があるので結果に残る
+        let income = by_item(&book.ledger, october(), Flow::Income);
+        assert_eq!(summary(&income), vec![(book.salary, Money::from(0))]);
+        assert_eq!(income[0].ratio(), None);
+    }
+
+    #[test]
+    fn by_item_of_offsetting_items_test() {
+        let mut book = Book::new();
+        book.add(date(10, 1), 1_000, book.food);
+        book.add(date(10, 2), -1_000, book.fun);
+
+        let result = by_item(&book.ledger, october(), Flow::Expense);
+
+        // 総額が0でも, 正の品目の割合は求まる
+        assert_eq!(result[0].ratio(), Some(1.0));
+        assert_eq!(result[1].ratio(), None);
+    }
+
+    #[test]
+    fn by_item_of_only_negative_items_test() {
+        let mut book = Book::new();
+        book.add(date(10, 1), -1_000, book.food);
+
+        let result = by_item(&book.ledger, october(), Flow::Expense);
+
+        assert_eq!(summary(&result), vec![(book.food, Money::from(-1_000))]);
+        assert_eq!(result[0].ratio(), None);
     }
 
     #[test]
@@ -141,6 +196,6 @@ mod tests {
         let result = by_item(&book.ledger, october(), Flow::Income);
 
         assert_eq!(summary(&result), vec![(book.salary, Money::from(200_000))]);
-        assert!((result[0].ratio() - 1.0).abs() < 1e-10);
+        assert_eq!(result[0].ratio(), Some(1.0));
     }
 }

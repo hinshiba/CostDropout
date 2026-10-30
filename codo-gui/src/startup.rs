@@ -240,9 +240,7 @@ mod tests {
     #[gpui_kit::test]
     fn directory_argument_loads_saved_transactions(cx: &mut TestAppContext) {
         use codo_core::{
-            ledger::item::Tag,
-            ledger::money::Money,
-            ledger::transaction::{Amount, TransactionDraft},
+            ledger::item::Tag, ledger::money::Money, ledger::transaction::TransactionDraft,
         };
         let directory = tempfile::tempdir().unwrap();
         let mut ledger = Ledger::new();
@@ -251,7 +249,7 @@ mod tests {
         ledger
             .add_transaction(TransactionDraft::new(
                 chrono::Local::now().date_naive(),
-                Amount::try_from(Money::from(1200)).unwrap(),
+                Money::from(1200),
                 food,
                 cash,
                 "保存済みの取引".into(),

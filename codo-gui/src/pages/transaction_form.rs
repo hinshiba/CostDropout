@@ -170,7 +170,45 @@ mod tests {
             );
             assert_eq!(expenses.len(), 1);
             assert_eq!(expenses[0].amount(), Money::from(1200));
-            assert_eq!(expenses[0].ratio(), 1.);
+            assert_eq!(expenses[0].ratio(), Some(1.));
+        });
+    }
+
+    #[gpui_kit::test]
+    fn adding_transaction_accepts_negative_and_zero_amount(cx: &mut TestAppContext) {
+        cx.update(gpui_kit::init);
+        let mut ledger = Ledger::new();
+        let food = ledger.add_item("食費", Tag::Expense).unwrap();
+        let cash = ledger.add_item("現金", Tag::Asset).unwrap();
+        let (state, _directory) = AppState::for_test(ledger);
+        let state = cx.new(|_| state);
+        let (handle, form) = cx.update(|cx| {
+            gpui_kit::open_window(WindowOptions::default(), cx, |window, cx| {
+                cx.new(|cx| TransactionForm::new(state.clone(), window, cx))
+            })
+            .unwrap()
+        });
+        cx.update_window(handle, |_, window, cx| {
+            let fields = form.read(cx).fields.clone();
+            for amount in ["-1,200", "0"] {
+                fields.update(cx, |fields, cx| {
+                    fields.fill_for_test(food, cash, amount, window, cx);
+                });
+                window.render_frame(cx);
+                window.click("add-transaction", cx);
+                assert!(matches!(form.read(cx).status, Some(Ok(()))), "{amount}");
+            }
+        })
+        .unwrap();
+        cx.read(|cx| {
+            let amounts = state
+                .read(cx)
+                .ledger()
+                .transactions()
+                .iter()
+                .map(|transaction| transaction.amount())
+                .collect::<Vec<_>>();
+            assert_eq!(amounts, [Money::from(-1200), Money::from(0)]);
         });
     }
 }

@@ -30,7 +30,7 @@ pub fn monthly_expense(
                         && period.contains(tx.date())
                         && item.is_none_or(|item| tx.item() == item)
                 })
-                .map(|(tx, _)| Money::from(tx.amount()))
+                .map(|(tx, _)| tx.amount())
                 .sum();
             (month, total)
         })

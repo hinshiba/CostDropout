@@ -8,9 +8,7 @@ use crate::ledger::budget::{Budget, BudgetId};
 use crate::ledger::item::{Item, ItemId, Tag};
 use crate::ledger::money::Money;
 use crate::ledger::period::{Period, PeriodError};
-use crate::ledger::transaction::{
-    Amount, AmountError, Transaction, TransactionDraft, TransactionId,
-};
+use crate::ledger::transaction::{Transaction, TransactionDraft, TransactionId};
 
 /// 1か月分の取引ファイル
 #[derive(Serialize, Deserialize)]
@@ -83,7 +81,7 @@ impl From<&Transaction> for TransactionRecord {
         Self {
             id: transaction.id().0,
             date: transaction.date(),
-            amount: Money::from(transaction.amount()).to_i32(),
+            amount: transaction.amount().to_i32(),
             item: transaction.item().0,
             counterpart: transaction.counterpart().0,
             comment: transaction.comment().to_string(),
@@ -91,18 +89,16 @@ impl From<&Transaction> for TransactionRecord {
     }
 }
 
-impl TryFrom<TransactionRecord> for Transaction {
-    type Error = AmountError;
-
-    fn try_from(record: TransactionRecord) -> Result<Self, Self::Error> {
+impl From<TransactionRecord> for Transaction {
+    fn from(record: TransactionRecord) -> Self {
         let draft = TransactionDraft::new(
             record.date,
-            Amount::try_from(Money::from(record.amount))?,
+            Money::from(record.amount),
             ItemId(record.item),
             ItemId(record.counterpart),
             record.comment,
         );
-        Ok(Transaction::new(TransactionId(record.id), draft))
+        Transaction::new(TransactionId(record.id), draft)
     }
 }
 
