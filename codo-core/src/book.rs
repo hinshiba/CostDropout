@@ -204,7 +204,7 @@ mod tests {
     use crate::infra::gitrepo::{CommitId, git_command};
     use crate::ledger::item::{ItemError, ItemId, Tag};
     use crate::ledger::money::Money;
-    use crate::ledger::transaction::{Amount, TransactionDraft};
+    use crate::ledger::transaction::TransactionDraft;
 
     /// メモリ上の帳簿に置く保存先. 複製は同じ帳簿を共有する
     #[derive(Debug, Default, Clone)]

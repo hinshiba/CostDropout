@@ -251,7 +251,7 @@ mod tests {
             Ledger,
             item::{ItemId, Tag},
             money::Money,
-            transaction::{Amount, TransactionDraft},
+            transaction::TransactionDraft,
         },
     };
     use gpui_kit::component::WindowExt;
@@ -354,7 +354,7 @@ mod tests {
                     .ledger_mut()
                     .add_transaction(TransactionDraft::new(
                         NaiveDate::from_ymd_opt(2026, 10, 2).unwrap(),
-                        Amount::try_from(Money::from(1200)).unwrap(),
+                        Money::from(1200),
                         food,
                         cash,
                         String::new(),
