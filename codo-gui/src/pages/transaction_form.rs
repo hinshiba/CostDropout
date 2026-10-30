@@ -1,8 +1,7 @@
 //! 取引の日付・金額・品目を入力して帳簿に追加する画面。
 
 use crate::app::AppState;
-use crate::transaction_fields::{FieldsChanged, TransactionFields, friendly_error};
-use codo_core::transaction_input::{FormError, submit_transaction};
+use crate::transaction_fields::{FieldsChanged, FormError, TransactionFields, friendly_error};
 use gpui_kit::component::button::Button;
 use gpui_kit::prelude::FluentBuilder;
 use gpui_kit::*;
@@ -41,16 +40,9 @@ impl TransactionForm {
     }
 
     fn add_transaction(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let values = self.fields.read(cx).values(cx);
+        let draft = self.fields.read(cx).draft(cx);
         let result = self.state.update(cx, |state, cx| {
-            submit_transaction(
-                &mut state.ledger,
-                values.date,
-                &values.amount,
-                values.item,
-                values.counterpart,
-                values.comment,
-            )?;
+            state.ledger.add_transaction(draft?)?;
             cx.notify();
             Ok(())
         });
@@ -113,10 +105,11 @@ mod tests {
     use crate::{app::AppState, pages::expense_pie::ExpensePie};
     use chrono::Local;
     use codo_core::{
+        item::Tag,
         ledger::Ledger,
         money::Money,
         period::{Period, YearMonth},
-        report::category::expense_by_item,
+        report::{Flow, category::by_item},
     };
     use gpui_kit::test::TestWindowExt;
     use gpui_kit::{AppContext, TestAppContext, WindowOptions};
@@ -125,9 +118,10 @@ mod tests {
     #[gpui_kit::test]
     fn adding_transaction_notifies_expense_chart(cx: &mut TestAppContext) {
         cx.update(gpui_kit::init);
-        let state = cx.new(|_| AppState {
-            ledger: Ledger::with_presets(),
-        });
+        let mut ledger = Ledger::new();
+        let food = ledger.add_item("食費", Tag::Expense).unwrap();
+        let cash = ledger.add_item("現金", Tag::Asset).unwrap();
+        let state = cx.new(|_| AppState { ledger });
         let chart = cx.new(|cx| ExpensePie::new(state.clone(), cx));
         let notified = Rc::new(Cell::new(false));
         let _subscription = cx.update(|cx| {
@@ -143,9 +137,6 @@ mod tests {
             .unwrap()
         });
         cx.update_window(handle, |_, window, cx| {
-            let ledger = &state.read(cx).ledger;
-            let food = ledger.items().find_by_name("食費").unwrap().id();
-            let cash = ledger.items().find_by_name("現金").unwrap().id();
             let fields = form.read(cx).fields.clone();
             fields.update(cx, |fields, cx| {
                 fields.fill_for_test(food, cash, "1,200", window, cx);
@@ -165,9 +156,10 @@ mod tests {
         cx.run_until_parked();
         assert!(notified.get());
         cx.read(|cx| {
-            let expenses = expense_by_item(
+            let expenses = by_item(
                 &state.read(cx).ledger,
                 Period::month(YearMonth::from_date(Local::now().date_naive())),
+                Flow::Expense,
             );
             assert_eq!(expenses.len(), 1);
             assert_eq!(expenses[0].amount(), Money::from(1200));

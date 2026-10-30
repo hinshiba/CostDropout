@@ -7,7 +7,7 @@ use crate::money::Money;
 use crate::period::{Period, YearMonth};
 use crate::report::{Flow, flows_in};
 
-/// 1日分の収支
+/// 1日分の収支.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DailySummary {
     date: NaiveDate,
@@ -16,23 +16,23 @@ pub struct DailySummary {
 }
 
 impl DailySummary {
-    /// 日付
+    /// 日付を返す.
     pub fn date(&self) -> NaiveDate {
         self.date
     }
 
-    /// その日の収入
+    /// その日の収入を返す.
     pub fn income(&self) -> Money {
         self.income
     }
 
-    /// その日の支出
+    /// その日の支出を返す.
     pub fn expense(&self) -> Money {
         self.expense
     }
 }
 
-/// 1か月分の収支
+/// 1か月分の収支.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MonthlySummary {
     month: YearMonth,
@@ -42,30 +42,34 @@ pub struct MonthlySummary {
 }
 
 impl MonthlySummary {
-    /// 集計した年月
+    /// 集計した年月を返す.
     pub fn month(&self) -> YearMonth {
         self.month
     }
 
-    /// 月の収入
+    /// 月の収入を返す.
     pub fn income(&self) -> Money {
         self.income
     }
 
-    /// 月の支出
+    /// 月の支出を返す.
     pub fn expense(&self) -> Money {
         self.expense
     }
 
-    /// 1日から末日までの日ごとの収支
+    /// 1日から末日までの日ごとの収支を返す.
     pub fn days(&self) -> &[DailySummary] {
         &self.days
     }
 }
 
-/// 1か月の収支と，1日から末日までの日ごとの内訳を集計する
+/// 1か月の収支と, 1日から末日までの日ごとの内訳を集計する.
 ///
-/// 取引がない日も0として含める
+/// 取引がない日も0として含める.
+///
+/// # Panics
+///
+/// 合計が `i32` の範囲を超える場合はパニック.
 pub fn monthly_summary(ledger: &Ledger, ym: YearMonth) -> MonthlySummary {
     let period = Period::month(ym);
 
@@ -79,12 +83,12 @@ pub fn monthly_summary(ledger: &Ledger, ym: YearMonth) -> MonthlySummary {
         })
         .collect();
 
-    // 月内の取引の金額を，その日に足す
+    // 月内の取引の金額を, その日に足す
     for (tx, flow) in flows_in(ledger, period) {
         let index = tx.date().day0() as usize;
         match flow {
-            Flow::Income => days[index].income += tx.amount(),
-            Flow::Expense => days[index].expense += tx.amount(),
+            Flow::Income => days[index].income += Money::from(tx.amount()),
+            Flow::Expense => days[index].expense += Money::from(tx.amount()),
             Flow::Other => {}
         }
     }
@@ -102,9 +106,7 @@ pub fn monthly_summary(ledger: &Ledger, ym: YearMonth) -> MonthlySummary {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    use crate::item::Tag;
-    use crate::transaction::TransactionDraft;
+    use crate::report::fixture::Book;
 
     /// テスト用の年月
     fn ym(year: i32, month: u32) -> YearMonth {
@@ -116,33 +118,23 @@ mod tests {
         NaiveDate::from_ymd_opt(2026, month, day).unwrap()
     }
 
-    /// 2026年10月を中心に，支出・収入・負債と前後の月の取引を持つ帳簿を作る
+    /// 2026年10月を中心に, 支出, 収入, 負債と前後の月の取引をもつ帳簿.
     ///
-    /// 10月の収入は 5000，支出は 1000 + 500 + 700 = 2200
+    /// 10月の収入は 5000, 支出は 1000 + 500 + 700 = 2200.
     fn sample_ledger() -> Ledger {
-        let mut ledger = Ledger::new();
-        let food = ledger.add_item("食費", Tag::Expense).unwrap();
-        let salary = ledger.add_item("給与", Tag::Income).unwrap();
-        let cash = ledger.add_item("現金", Tag::Asset).unwrap();
-        let card = ledger.add_item("クレジットカード", Tag::Liability).unwrap();
-        let mut add = |date, amount, item| {
-            let draft = TransactionDraft::new(date, Money::from(amount), item, cash, String::new());
-            ledger.add_transaction(draft).unwrap();
-        };
-
+        let mut book = Book::new();
         // 月の初日に2件
-        add(date(10, 1), 1000, food);
-        add(date(10, 1), 500, food);
-        add(date(10, 15), 5000, salary);
+        book.add(date(10, 1), 1000, book.food);
+        book.add(date(10, 1), 500, book.food);
+        book.add(date(10, 15), 5000, book.salary);
         // 負債は収入にも支出にも数えない
-        add(date(10, 20), 3000, card);
+        book.add(date(10, 20), 3000, book.loan);
         // 月の末日
-        add(date(10, 31), 700, food);
+        book.add(date(10, 31), 700, book.food);
         // 前後の月の取引は含めない
-        add(date(9, 30), 9999, food);
-        add(date(11, 1), 8888, salary);
-
-        ledger
+        book.add(date(9, 30), 9999, book.food);
+        book.add(date(11, 1), 8888, book.salary);
+        book.ledger
     }
 
     #[test]
@@ -205,5 +197,15 @@ mod tests {
             assert_eq!(day.income(), Money::from(0));
             assert_eq!(day.expense(), Money::from(0));
         }
+    }
+
+    #[test]
+    #[should_panic]
+    fn monthly_summary_overflow_test() {
+        let mut book = Book::new();
+        book.add(date(10, 1), i32::MAX, book.food);
+        book.add(date(10, 2), 1, book.food);
+
+        monthly_summary(&book.ledger, ym(2026, 10));
     }
 }

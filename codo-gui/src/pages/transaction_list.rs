@@ -1,11 +1,10 @@
 //! 月別の取引一覧と削除操作。
 
 use crate::app::AppState;
-use crate::transaction_fields::{TransactionFields, friendly_error};
+use crate::transaction_fields::{FormError, TransactionFields, friendly_error};
 use chrono::Local;
-use codo_core::period::YearMonth;
+use codo_core::period::{Period, YearMonth};
 use codo_core::transaction::TransactionId;
-use codo_core::transaction_input::{FormError, submit_transaction_update};
 use gpui_kit::component::WindowExt;
 use gpui_kit::component::button::Button;
 use gpui_kit::component::table::{Table, TableBody, TableCell, TableHead, TableHeader, TableRow};
@@ -111,17 +110,9 @@ impl TransactionList {
         let Some((id, fields)) = self.editing.clone() else {
             return;
         };
-        let values = fields.read(cx).values(cx);
+        let draft = fields.read(cx).draft(cx);
         let result: Result<(), FormError> = self.state.update(cx, |state, cx| {
-            submit_transaction_update(
-                &mut state.ledger,
-                id,
-                values.date,
-                &values.amount,
-                values.item,
-                values.counterpart,
-                values.comment,
-            )?;
+            state.ledger.update_transaction(id, draft?)?;
             cx.notify();
             Ok(())
         });
@@ -146,15 +137,17 @@ impl Render for TransactionList {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let ledger = &self.state.read(cx).ledger;
         let rows = ledger
-            .monthly_transactions(self.month)
+            .transactions()
+            .iter_in(Period::month(self.month))
+            .rev()
             .map(|transaction| {
                 let label = format!("{} {}", transaction.date(), transaction.amount());
                 let id = transaction.id();
                 let item_name = |id| {
                     ledger
                         .items()
-                        .get_item(id)
-                        .map(|item| item.name().to_string())
+                        .get(id)
+                        .map(|item| item.to_string())
                         .unwrap_or_else(|| "削除された品目".to_string())
                 };
                 TableRow::new()
@@ -285,8 +278,10 @@ mod tests {
     use crate::app::AppState;
     use chrono::Local;
     use codo_core::{
-        item::ItemId, ledger::Ledger, money::Money, transaction::TransactionDraft,
-        transaction::TransactionId,
+        item::{ItemId, Tag},
+        ledger::Ledger,
+        money::Money,
+        transaction::{TransactionDraft, TransactionId},
     };
     use gpui_kit::test::TestWindowExt;
     use gpui_kit::{App, AppContext, Entity, TestAppContext, Window, WindowOptions};
@@ -303,13 +298,13 @@ mod tests {
     /// 今月の取引を1件持つ取引一覧を開き, その中で `f` を実行する.
     fn with_list(cx: &mut TestAppContext, f: impl FnOnce(&Fixture, &mut Window, &mut App)) {
         cx.update(gpui_kit::init);
-        let mut ledger = Ledger::with_presets();
-        let food = ledger.items().find_by_name("食費").unwrap().id();
-        let cash = ledger.items().find_by_name("現金").unwrap().id();
+        let mut ledger = Ledger::new();
+        let food = ledger.add_item("食費", Tag::Expense).unwrap();
+        let cash = ledger.add_item("現金", Tag::Asset).unwrap();
         let id = ledger
             .add_transaction(TransactionDraft::new(
                 Local::now().date_naive(),
-                Money::from(1200),
+                "1,200".parse().unwrap(),
                 food,
                 cash,
                 "昼食".into(),
@@ -371,7 +366,7 @@ mod tests {
             // 追加ではなく訂正なので, 件数は増えない
             assert_eq!(ledger.transactions().iter().count(), 1);
             let transaction = ledger.transactions().get(id).unwrap();
-            assert_eq!(transaction.amount(), Money::from(3000));
+            assert_eq!(Money::from(transaction.amount()), Money::from(3000));
             assert_eq!(transaction.comment(), "昼食");
         });
     }

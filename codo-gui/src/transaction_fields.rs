@@ -2,10 +2,9 @@
 
 use crate::app::AppState;
 use chrono::{Local, NaiveDate};
-use codo_core::item::{Item, ItemId, Tag};
+use codo_core::item::{Item, ItemId};
 use codo_core::ledger::LedgerError;
-use codo_core::transaction::{Transaction, TransactionError};
-use codo_core::transaction_input::{FormError, counterpart_choices, item_choices};
+use codo_core::transaction::{AmountError, Transaction, TransactionDraft, TransactionError};
 use gpui_kit::component::date_picker::{DatePicker, DatePickerEvent, DatePickerState};
 use gpui_kit::component::input::{Input, InputEvent, InputState};
 use gpui_kit::component::select::{Select, SelectEvent, SelectItem, SelectState};
@@ -17,7 +16,28 @@ use gpui_kit::*;
 pub struct ItemChoice {
     pub id: ItemId,
     pub name: SharedString,
-    pub tag: Tag,
+}
+
+/// 取引の追加や訂正で起こるエラー.
+#[derive(Debug)]
+pub enum FormError {
+    Amount(AmountError),
+    MissingDate,
+    MissingItem,
+    MissingCounterpart,
+    Ledger(LedgerError),
+}
+
+impl From<AmountError> for FormError {
+    fn from(error: AmountError) -> Self {
+        Self::Amount(error)
+    }
+}
+
+impl From<LedgerError> for FormError {
+    fn from(error: LedgerError) -> Self {
+        Self::Ledger(error)
+    }
 }
 
 struct FormControls {
@@ -117,20 +137,20 @@ impl TransactionFields {
         fields.refresh_choices(window, cx);
         fields
     }
+
+    /// 品目管理での編集・削除を反映し, 無効になった選択を解除する.
     fn refresh_choices(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let controls = &mut self.controls;
         let ledger = &self.state.read(cx).ledger;
-        let items = item_choices(ledger)
+        let items = ledger
+            .item_choices()
             .map(ItemChoice::from)
             .collect::<Vec<_>>();
         let selected_item = controls.item.read(cx).selected_value().copied();
-        let selected_tag = items
-            .iter()
-            .find(|item| Some(item.id) == selected_item)
-            .map(|item| item.tag);
-        let counterparts = selected_tag
-            .map(|tag| {
-                counterpart_choices(ledger, tag)
+        let counterparts = selected_item
+            .map(|id| {
+                ledger
+                    .counterpart_choices(id)
                     .map(ItemChoice::from)
                     .collect()
             })
@@ -194,6 +214,24 @@ impl TransactionFields {
             comment,
         }
     }
+
+    /// 入力欄の値を検証し, 取引の下書きを作る.
+    ///
+    /// # Errors
+    ///
+    /// 金額が読めない場合や, 日付・品目・相手先が選ばれていない場合はエラー.
+    pub fn draft(&self, cx: &App) -> Result<TransactionDraft, FormError> {
+        let values = self.values(cx);
+        let amount = values.amount.parse()?;
+        Ok(TransactionDraft::new(
+            values.date.ok_or(FormError::MissingDate)?,
+            amount,
+            values.item.ok_or(FormError::MissingItem)?,
+            values.counterpart.ok_or(FormError::MissingCounterpart)?,
+            values.comment,
+        ))
+    }
+
     /// 金額とコメントを空にする. 追加に成功したあとに使う.
     pub fn clear_amount_and_comment(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         for input in [&self.controls.amount, &self.controls.comment] {
@@ -301,8 +339,7 @@ impl From<&Item> for ItemChoice {
     fn from(item: &Item) -> Self {
         Self {
             id: item.id(),
-            name: item.name().to_string().into(),
-            tag: item.tag(),
+            name: item.to_string().into(),
         }
     }
 }
@@ -314,22 +351,20 @@ pub fn friendly_error(error: &FormError) -> String {
             LedgerError::TransactionItemNotFound(_) => {
                 "選択した品目または相手先が見つかりません。選び直してください".into()
             }
-            LedgerError::InvalidItemTag(tag) => format!(
-                "{}の品目は取引の品目として選べません。収入・支出・負債から選んでください",
-                tag.label()
+            LedgerError::Transaction(TransactionError::InvalidItemTag(tag)) => format!(
+                "{tag}の品目は取引の品目として選べません。収入・支出・負債から選んでください"
             ),
-            LedgerError::SameTag(tag) => format!(
-                "品目と相手先がどちらも{}です。異なる分類の品目を選んでください",
-                tag.label()
-            ),
-            LedgerError::Transaction(TransactionError::SameItemAndCounterpart(_)) => {
-                "品目と相手先には異なる品目を選んでください".into()
+            LedgerError::Transaction(TransactionError::SameTag(tag)) => {
+                format!("品目と相手先がどちらも{tag}です。異なる分類の品目を選んでください")
             }
             LedgerError::Transaction(TransactionError::NotFound(_)) => {
                 "訂正する取引が見つかりません。一覧を確認してください".into()
             }
             _ => "取引を保存できませんでした。品目と相手先を確認してください".into(),
         },
-        error => error.to_string(),
+        FormError::Amount(error) => error.to_string(),
+        FormError::MissingDate => "日付を選択してください".into(),
+        FormError::MissingItem => "品目を選択してください".into(),
+        FormError::MissingCounterpart => "相手先を選択してください".into(),
     }
 }
