@@ -292,6 +292,7 @@ mod tests {
     use crate::{app::AppState, pages::expense_pie::ExpensePie};
     use chrono::Local;
     use codo_core::{
+        item::Tag,
         ledger::Ledger,
         money::Money,
         period::{Period, YearMonth},
@@ -304,9 +305,10 @@ mod tests {
     #[gpui_kit::test]
     fn adding_transaction_notifies_expense_chart(cx: &mut TestAppContext) {
         cx.update(gpui_kit::init);
-        let state = cx.new(|_| AppState {
-            ledger: Ledger::with_presets(),
-        });
+        let mut ledger = Ledger::new();
+        let food = ledger.add_item("食費", Tag::Expense).unwrap();
+        let cash = ledger.add_item("現金", Tag::Asset).unwrap();
+        let state = cx.new(|_| AppState { ledger });
         let chart = cx.new(|cx| ExpensePie::new(state.clone(), cx));
         let notified = Rc::new(Cell::new(false));
         let _subscription = cx.update(|cx| {
@@ -322,9 +324,6 @@ mod tests {
             .unwrap()
         });
         cx.update_window(handle, |_, window, cx| {
-            let ledger = &state.read(cx).ledger;
-            let food = ledger.items().find_by_name("食費").unwrap().id();
-            let cash = ledger.items().find_by_name("現金").unwrap().id();
             form.update(cx, |form, cx| {
                 form.controls.item.update(cx, |select, cx| {
                     select.set_selected_value(&food, window, cx)

@@ -23,18 +23,17 @@ impl ExpenseSlice {
             .into_iter()
             .filter_map(|expense| {
                 let id = expense.item();
-                let item = ledger.items().get_item(id)?;
+                let (index, item) = ledger
+                    .items()
+                    .iter()
+                    .enumerate()
+                    .find(|(_, item)| item.id() == id)?;
                 Some(Self {
-                    name: item.name().to_string(),
+                    name: item.to_string(),
                     amount: expense.amount(),
                     percentage: expense.ratio() * 100.,
-                    // 同じ品目は月を切り替えても同じ色にする。
-                    color: hsla(
-                        (f64::from(id.id()) * 0.618_034).fract() as f32,
-                        0.65,
-                        0.5,
-                        1.,
-                    ),
+                    // IDの昇順に並ぶ品目一覧での位置で色を決め, 月を切り替えても同じ品目は同じ色にする。
+                    color: hsla((index as f64 * 0.618_034).fract() as f32, 0.65, 0.5, 1.),
                 })
             })
             .collect()
