@@ -7,16 +7,44 @@ use crate::pages::{
     transaction_list::TransactionList,
 };
 use chrono::Local;
-use codo_core::ledger::Ledger;
+use codo_core::{book::Book, infra::filestore::TomlStore, infra::gitrepo::GitRepo, ledger::Ledger};
 use gpui_kit::component::button::Button;
 use gpui_kit::component::date_picker::DatePickerState;
 use gpui_kit::component::input::InputState;
 use gpui_kit::component::sidebar::{Sidebar, SidebarMenu, SidebarMenuItem};
 use gpui_kit::*;
 
-/// ledgerの共有
+/// 保存先と履歴を含む帳簿を画面間で共有する.
 pub struct AppState {
-    pub ledger: Ledger,
+    book: Book<TomlStore, GitRepo>,
+}
+
+impl AppState {
+    /// 開いている帳簿を参照する.
+    pub fn ledger(&self) -> &Ledger {
+        self.book.ledger()
+    }
+
+    /// 開いている帳簿を編集する.
+    pub fn ledger_mut(&mut self) -> &mut Ledger {
+        self.book.ledger_mut()
+    }
+
+    /// テスト用の帳簿と, テスト中に保持する保存先を作成する.
+    #[cfg(test)]
+    pub(crate) fn for_test(ledger: Ledger) -> (Self, tempfile::TempDir) {
+        use codo_core::infra::filestore::LedgerStore;
+        let directory = tempfile::tempdir().unwrap();
+        let store = TomlStore::new(directory.path().to_path_buf());
+        store.save(&ledger).unwrap();
+        let history = GitRepo::init(directory.path().to_path_buf()).unwrap();
+        (
+            Self {
+                book: Book::load(store, history).unwrap(),
+            },
+            directory,
+        )
+    }
 }
 
 /// 現在の画面のenum
@@ -49,12 +77,17 @@ pub struct App {
 }
 
 impl App {
-    pub fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
-        Self::with_ledger(Ledger::with_presets(), window, cx)
+    /// 開いた帳簿を共有する各画面を作成する.
+    pub fn new(
+        book: Book<TomlStore, GitRepo>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Self {
+        Self::with_state(AppState { book }, window, cx)
     }
 
-    fn with_ledger(ledger: Ledger, window: &mut Window, cx: &mut Context<Self>) -> Self {
-        let state = cx.new(|_| AppState { ledger });
+    fn with_state(state: AppState, window: &mut Window, cx: &mut Context<Self>) -> Self {
+        let state = cx.new(|_| state);
         let budget_dashboard = cx.new(|cx| BudgetDashboard::new(state.clone(), cx));
         let transaction_form = cx.new(|cx| TransactionForm::new(state.clone(), window, cx));
 
@@ -274,14 +307,14 @@ impl Render for App {
 
 #[cfg(test)]
 mod tests {
-    use super::{App, Page};
+    use super::{App, AppState, Page};
     use chrono::Local;
     use codo_core::ledger::period::YearMonth;
-    use codo_core::ledger::{
-        Ledger,
-        item::Tag,
-        money::Money,
-        transaction::{Amount, TransactionDraft},
+    use codo_core::{
+        ledger::Ledger,
+        ledger::item::Tag,
+        ledger::money::Money,
+        ledger::transaction::{Amount, TransactionDraft},
     };
     use gpui_kit::test::TestWindowExt;
     use gpui_kit::{AppContext, Bounds, TestAppContext, WindowBounds, WindowOptions, px, size};
@@ -307,6 +340,7 @@ mod tests {
     #[gpui_kit::test]
     fn sidebar_opens_expense_pie(cx: &mut TestAppContext) {
         let month = YearMonth::from_date(Local::now().date_naive());
+        let (state, _directory) = AppState::for_test(ledger_for_month_navigation(month));
         cx.update(gpui_kit::init);
         let (handle, app) = cx.update(|cx| {
             cx.set_reduce_motion(true);
@@ -319,9 +353,7 @@ mod tests {
                     ..Default::default()
                 },
                 cx,
-                |window, cx| {
-                    cx.new(|cx| App::with_ledger(ledger_for_month_navigation(month), window, cx))
-                },
+                |window, cx| cx.new(|cx| App::with_state(state, window, cx)),
             )
             .unwrap()
         });
@@ -411,6 +443,7 @@ mod tests {
                 .unwrap();
         }
 
+        let (state, _directory) = AppState::for_test(ledger);
         cx.update(gpui_kit::init);
 
         let (handle, app) = cx.update(|cx| {
@@ -425,7 +458,7 @@ mod tests {
                     ..Default::default()
                 },
                 cx,
-                |window, cx| cx.new(|cx| App::with_ledger(ledger, window, cx)),
+                |window, cx| cx.new(|cx| App::with_state(state, window, cx)),
             )
             .unwrap()
         });

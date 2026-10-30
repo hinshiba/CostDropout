@@ -51,7 +51,7 @@ impl ExpenseBarChart {
     fn expense_items(&self, cx: &Context<Self>) -> Vec<(ItemId, String)> {
         self.state
             .read(cx)
-            .ledger
+            .ledger()
             .items()
             .iter_with_tag(Tag::Expense)
             .map(|item| (item.id(), item.to_string()))
@@ -72,7 +72,7 @@ impl ExpenseBarChart {
     }
 
     fn chart_data(&self, cx: &Context<Self>) -> Vec<ExpenseData> {
-        let ledger = &self.state.read(cx).ledger;
+        let ledger = self.state.read(cx).ledger();
 
         // 表示モードに応じて、グラフに使用する支出データを切り替える。
         match self.chart_mode {

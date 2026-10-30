@@ -79,7 +79,7 @@ impl TransactionList {
 
     fn remove_transaction(&mut self, id: TransactionId, cx: &mut Context<Self>) {
         let result = self.state.update(cx, |state, cx| {
-            state.ledger.remove_transaction(id)?;
+            state.ledger_mut().remove_transaction(id)?;
             cx.notify();
             Ok::<_, codo_core::ledger::LedgerError>(())
         });
@@ -89,7 +89,7 @@ impl TransactionList {
 
     /// 取引の訂正を始める. 入力欄に今の値を入れて, 訂正パネルを開く.
     fn start_edit(&mut self, id: TransactionId, window: &mut Window, cx: &mut Context<Self>) {
-        let Some(transaction) = self.state.read(cx).ledger.transactions().get(id).cloned() else {
+        let Some(transaction) = self.state.read(cx).ledger().transactions().get(id).cloned() else {
             return;
         };
         let state = self.state.clone();
@@ -126,7 +126,7 @@ impl TransactionList {
         };
         let draft = fields.read(cx).draft(cx);
         let result: Result<(), FormError> = self.state.update(cx, |state, cx| {
-            state.ledger.update_transaction(id, draft?)?;
+            state.ledger_mut().update_transaction(id, draft?)?;
             cx.notify();
             Ok(())
         });
@@ -146,7 +146,7 @@ impl TransactionList {
 
 impl Render for TransactionList {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let ledger = &self.state.read(cx).ledger;
+        let ledger = self.state.read(cx).ledger();
         let rows = ledger
             .transactions()
             .iter_in(Period::month(self.month))
@@ -305,6 +305,7 @@ mod tests {
         id: TransactionId,
         food: ItemId,
         cash: ItemId,
+        _directory: tempfile::TempDir,
     }
 
     /// 今月の取引を1件持つ取引一覧を開く.
@@ -322,7 +323,8 @@ mod tests {
                 "昼食".into(),
             ))
             .unwrap();
-        let state = cx.new(|_| AppState { ledger });
+        let (state, directory) = AppState::for_test(ledger);
+        let state = cx.new(|_| state);
         let (handle, list) = cx.update(|cx| {
             gpui_kit::open_window(WindowOptions::default(), cx, |_, cx| {
                 cx.new(|cx| TransactionList::new(state.clone(), cx))
@@ -335,6 +337,7 @@ mod tests {
             id,
             food,
             cash,
+            _directory: directory,
         };
         (fixture, handle)
     }
@@ -355,9 +358,9 @@ mod tests {
                 .list
                 .update(cx, |list, cx| list.start_edit(id, window, cx));
             // 取引が消されていて, 確定するとパネルにエラーが出る状態にする
-            fixture
-                .state
-                .update(cx, |state, _| state.ledger.remove_transaction(id).unwrap());
+            fixture.state.update(cx, |state, _| {
+                state.ledger_mut().remove_transaction(id).unwrap()
+            });
             window.render_frame(cx);
             window.click("confirm-edit", cx);
         })
@@ -413,7 +416,7 @@ mod tests {
             let list = fixture.list.read(cx);
             assert!(list.editing.is_none());
             assert_eq!(list.edit_error, None);
-            let ledger = &fixture.state.read(cx).ledger;
+            let ledger = fixture.state.read(cx).ledger();
             // 追加ではなく訂正なので, 件数は増えない
             assert_eq!(ledger.transactions().iter().count(), 1);
             let transaction = ledger.transactions().get(id).unwrap();
@@ -426,7 +429,7 @@ mod tests {
     fn confirm_edit_keeps_panel_and_ledger_on_amount_error(cx: &mut TestAppContext) {
         with_list(cx, |fixture, window, cx| {
             let id = fixture.id;
-            let before = fixture.state.read(cx).ledger.clone();
+            let before = fixture.state.read(cx).ledger().clone();
             fixture
                 .list
                 .update(cx, |list, cx| list.start_edit(id, window, cx));
@@ -444,7 +447,7 @@ mod tests {
                 fields.read(cx).amount_error(),
                 Some("金額として解釈できない文字列です: abc")
             );
-            assert_eq!(fixture.state.read(cx).ledger, before);
+            assert_eq!(fixture.state.read(cx).ledger(), &before);
         });
     }
 
@@ -456,9 +459,9 @@ mod tests {
                 .list
                 .update(cx, |list, cx| list.start_edit(id, window, cx));
             // 訂正中に, 別の操作で取引が消された場合
-            fixture
-                .state
-                .update(cx, |state, _| state.ledger.remove_transaction(id).unwrap());
+            fixture.state.update(cx, |state, _| {
+                state.ledger_mut().remove_transaction(id).unwrap()
+            });
             window.render_frame(cx);
             window.click("confirm-edit", cx);
             let list = fixture.list.read(cx);
@@ -474,7 +477,7 @@ mod tests {
     fn cancel_edit_closes_panel_without_changes(cx: &mut TestAppContext) {
         with_list(cx, |fixture, window, cx| {
             let id = fixture.id;
-            let before = fixture.state.read(cx).ledger.clone();
+            let before = fixture.state.read(cx).ledger().clone();
             fixture
                 .list
                 .update(cx, |list, cx| list.start_edit(id, window, cx));
@@ -485,7 +488,7 @@ mod tests {
             window.render_frame(cx);
             window.click("cancel-edit", cx);
             assert!(fixture.list.read(cx).editing.is_none());
-            assert_eq!(fixture.state.read(cx).ledger, before);
+            assert_eq!(fixture.state.read(cx).ledger(), &before);
         });
     }
 }

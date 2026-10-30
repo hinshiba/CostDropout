@@ -56,7 +56,7 @@ impl Render for MonthlyReport {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let month_label = format!("{}年{}月", self.yearmonth.year(), self.yearmonth.month());
 
-        let summary = monthly_summary(&self.state.read(cx).ledger, self.yearmonth);
+        let summary = monthly_summary(self.state.read(cx).ledger(), self.yearmonth);
 
         let summary_income = format!("収入: {}", summary.income());
         let summary_expense = format!("支出: {}", summary.expense());
@@ -163,7 +163,7 @@ impl Render for MonthlyReport {
             None => div().child("日を選ぶと，その日の取引が表示されます"),
             Some(date) => {
                 let heading = format!("{}月{}日の取引", date.month(), date.day());
-                let ledger = &self.state.read(cx).ledger;
+                let ledger = self.state.read(cx).ledger();
                 let day = Period::new(date, date).expect("開始日と終了日が同じなので必ず正しい");
 
                 let tx_rows = flows_in(ledger, day)

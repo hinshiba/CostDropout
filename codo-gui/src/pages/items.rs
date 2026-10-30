@@ -67,9 +67,9 @@ impl Items {
 
         let result = self.state.update(cx, |state, cx| {
             if let Some(id) = self.editing_item {
-                state.ledger.update_item(id, &name, tag)?;
+                state.ledger_mut().update_item(id, &name, tag)?;
             } else {
-                state.ledger.add_item(&name, tag)?;
+                state.ledger_mut().add_item(&name, tag)?;
             }
             cx.notify();
             Ok::<_, LedgerError>(())
@@ -129,7 +129,7 @@ impl Items {
     /// Ledger の削除処理を実行し、結果を画面に反映する。
     fn remove_item(&mut self, id: ItemId, cx: &mut Context<Self>) {
         let result = self.state.update(cx, |state, cx| {
-            state.ledger.remove_item(id)?;
+            state.ledger_mut().remove_item(id)?;
             cx.notify();
             Ok::<_, LedgerError>(())
         });
@@ -223,7 +223,7 @@ impl Render for Items {
                 .into_iter()
                 .map(|tag| {
                     let items = state
-                        .ledger
+                        .ledger()
                         .items()
                         .iter_with_tag(tag)
                         .map(|item| (item.id(), item.to_string()))

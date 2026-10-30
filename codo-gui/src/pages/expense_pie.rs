@@ -61,7 +61,7 @@ impl ExpensePie {
 impl Render for ExpensePie {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         // 再表示時にも必ず最新の帳簿から集計する。
-        let slices = ExpenseSlice::for_month(&self.state.read(cx).ledger, self.month);
+        let slices = ExpenseSlice::for_month(self.state.read(cx).ledger(), self.month);
         let month_label = format!("{}年{}月", self.month.year(), self.month.month());
         let content = if slices.is_empty() {
             div()
@@ -183,17 +183,18 @@ mod tests {
         let leisure = ledger.add_item("娯楽", Tag::Expense).unwrap();
         let cash = ledger.add_item("現金", Tag::Asset).unwrap();
         let month = YearMonth::new(2026, 12).unwrap();
-        let state = cx.new(|_| AppState { ledger });
+        let (state, _directory) = AppState::for_test(ledger);
+        let state = cx.new(|_| state);
         let page = cx.new(|cx| ExpensePie::new(state.clone(), cx));
         page.update(cx, |page, _| page.month = month);
 
         assert!(
-            cx.read(|cx| { ExpenseSlice::for_month(&state.read(cx).ledger, month).is_empty() })
+            cx.read(|cx| { ExpenseSlice::for_month(state.read(cx).ledger(), month).is_empty() })
         );
         state.update(cx, |state, cx| {
             for (item, amount) in [(food, 100), (leisure, 300)] {
                 state
-                    .ledger
+                    .ledger_mut()
                     .add_transaction(TransactionDraft::new(
                         month.first_day(),
                         Amount::try_from(Money::from(amount)).unwrap(),
@@ -206,7 +207,7 @@ mod tests {
             cx.notify();
         });
         let slices =
-            cx.read(|cx| ExpenseSlice::for_month(&state.read(cx).ledger, page.read(cx).month));
+            cx.read(|cx| ExpenseSlice::for_month(state.read(cx).ledger(), page.read(cx).month));
         assert_eq!(
             (
                 slices[0].name.as_str(),
@@ -226,7 +227,7 @@ mod tests {
 
         state.update(cx, |state, cx| {
             state
-                .ledger
+                .ledger_mut()
                 .add_transaction(TransactionDraft::new(
                     month.last_day(),
                     Amount::try_from(Money::from(200)).unwrap(),
@@ -237,7 +238,7 @@ mod tests {
                 .unwrap();
             cx.notify();
         });
-        let updated = cx.read(|cx| ExpenseSlice::for_month(&state.read(cx).ledger, month));
+        let updated = cx.read(|cx| ExpenseSlice::for_month(state.read(cx).ledger(), month));
         assert!(
             updated
                 .iter()
@@ -246,12 +247,12 @@ mod tests {
 
         page.update(cx, |page, _| page.month = page.month.next());
         assert!(cx.read(|cx| {
-            ExpenseSlice::for_month(&state.read(cx).ledger, page.read(cx).month).is_empty()
+            ExpenseSlice::for_month(state.read(cx).ledger(), page.read(cx).month).is_empty()
         }));
         page.update(cx, |page, _| page.month = page.month.prev());
         assert_eq!(
             cx.read(
-                |cx| ExpenseSlice::for_month(&state.read(cx).ledger, page.read(cx).month).len()
+                |cx| ExpenseSlice::for_month(state.read(cx).ledger(), page.read(cx).month).len()
             ),
             2
         );
