@@ -741,7 +741,7 @@ mod tests {
         book.ledger_mut()
             .add_transaction(TransactionDraft::new(
                 chrono::NaiveDate::from_ymd_opt(2026, 10, 2).unwrap(),
-                Amount::try_from(Money::from(1200)).unwrap(),
+                Money::from(1200),
                 item,
                 counterpart,
                 String::new(),
