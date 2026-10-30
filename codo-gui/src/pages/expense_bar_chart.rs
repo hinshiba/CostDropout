@@ -70,7 +70,7 @@ impl ExpenseBarChart {
                 .into_iter()
                 .map(|(month, amount)| ExpenseData {
                     month: month.to_string(),
-                    amount: amount.0 as f64,
+                    amount: f64::from(amount),
                     is_dummy: false,
                 })
                 .collect()

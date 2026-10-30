@@ -358,7 +358,7 @@ mod tests {
                 Period::month(YearMonth::from_date(Local::now().date_naive())),
             );
             assert_eq!(expenses.len(), 1);
-            assert_eq!(expenses[0].amount(), Money(1200));
+            assert_eq!(expenses[0].amount(), Money::from(1200));
             assert_eq!(expenses[0].ratio(), 1.);
         });
     }

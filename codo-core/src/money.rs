@@ -19,6 +19,15 @@ impl From<i32> for Money {
     }
 }
 
+// FIXME: gpui-kitのチャートが値にf32かf64しか受け付けないため公開している.
+// チャートがMoneyを描けるようになったら削除する.
+impl From<Money> for f64 {
+    /// 金額を損失なく `f64` に変換する.
+    fn from(value: Money) -> Self {
+        f64::from(value.0)
+    }
+}
+
 impl Add for Money {
     type Output = Money;
 
@@ -234,6 +243,13 @@ pub enum MoneyError {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn into_f64_test() {
+        for value in [i32::MIN, -1234, 0, 1234, i32::MAX] {
+            assert_eq!(f64::from(Money::from(value)), f64::from(value));
+        }
+    }
 
     #[test]
     fn display_test() {
