@@ -4,10 +4,7 @@ use crate::app::AppState;
 use chrono::Local;
 use codo_core::item::{Item, ItemId};
 use codo_core::ledger::LedgerError;
-use codo_core::transaction::TransactionError;
-use codo_core::transaction_input::{
-    FormError, counterpart_choices, item_choices, submit_transaction,
-};
+use codo_core::transaction::{AmountError, TransactionDraft, TransactionError};
 use gpui_kit::component::button::Button;
 use gpui_kit::component::date_picker::{DatePicker, DatePickerEvent, DatePickerState};
 use gpui_kit::component::input::{Input, InputEvent, InputState};
@@ -42,6 +39,28 @@ impl From<&Item> for ItemChoice {
     }
 }
 
+/// 取引の追加で起こるエラー。
+#[derive(Debug)]
+enum FormError {
+    Amount(AmountError),
+    MissingDate,
+    MissingItem,
+    MissingCounterpart,
+    Ledger(LedgerError),
+}
+
+impl From<AmountError> for FormError {
+    fn from(error: AmountError) -> Self {
+        Self::Amount(error)
+    }
+}
+
+impl From<LedgerError> for FormError {
+    fn from(error: LedgerError) -> Self {
+        Self::Ledger(error)
+    }
+}
+
 /// コアのエラーを、画面利用者向けのメッセージに変換する。
 fn friendly_error(error: &FormError) -> String {
     match error {
@@ -57,7 +76,10 @@ fn friendly_error(error: &FormError) -> String {
             }
             _ => "取引を追加できませんでした。品目と相手先を確認してください".into(),
         },
-        error => error.to_string(),
+        FormError::Amount(error) => error.to_string(),
+        FormError::MissingDate => "日付を選択してください".into(),
+        FormError::MissingItem => "品目を選択してください".into(),
+        FormError::MissingCounterpart => "相手先を選択してください".into(),
     }
 }
 
@@ -157,13 +179,15 @@ impl TransactionForm {
     fn refresh_choices(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let controls = &mut self.controls;
         let ledger = &self.state.read(cx).ledger;
-        let items = item_choices(ledger)
+        let items = ledger
+            .item_choices()
             .map(ItemChoice::from)
             .collect::<Vec<_>>();
         let selected_item = controls.item.read(cx).selected_value().copied();
         let counterparts = selected_item
             .map(|id| {
-                counterpart_choices(ledger, id)
+                ledger
+                    .counterpart_choices(id)
                     .map(ItemChoice::from)
                     .collect()
             })
@@ -206,7 +230,15 @@ impl TransactionForm {
         let counterpart = controls.counterpart.read(cx).selected_value().copied();
         let comment = controls.comment.read(cx).value().to_string();
         let result = self.state.update(cx, |state, cx| {
-            submit_transaction(&mut state.ledger, date, &amount, item, counterpart, comment)?;
+            let amount = amount.parse()?;
+            let draft = TransactionDraft::new(
+                date.ok_or(FormError::MissingDate)?,
+                amount,
+                item.ok_or(FormError::MissingItem)?,
+                counterpart.ok_or(FormError::MissingCounterpart)?,
+                comment,
+            );
+            state.ledger.add_transaction(draft)?;
             cx.notify();
             Ok(())
         });
