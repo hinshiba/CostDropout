@@ -34,13 +34,6 @@ impl Tag {
         Tag::Income,
         Tag::Expense,
     ];
-
-    /// 取引の品目として選べるかを判定する.
-    ///
-    /// 収入, 支出, 負債だけが選べる.
-    pub fn is_transaction_selectable(&self) -> bool {
-        matches!(self, Tag::Income | Tag::Expense | Tag::Liability)
-    }
 }
 
 impl fmt::Display for Tag {
@@ -94,8 +87,8 @@ pub struct ItemList {
 }
 
 impl ItemList {
-    /// 新しい空の品目リストを作成する
-    pub fn new() -> Self {
+    /// 新しい空の品目一覧を作成する.
+    pub(crate) fn new() -> Self {
         Self { items: Vec::new() }
     }
 
@@ -154,7 +147,7 @@ impl ItemList {
     /// 空白を取り除いた名前が空の場合は `ItemError::EmptyName` エラー.
     /// 他の品目と名前が同じ場合は `ItemError::DuplicateName` エラー.
     /// 割り当てる ID が `u32` の範囲を超える場合は `ItemError::Overflow` エラー.
-    pub fn add(&mut self, name: &str, tag: Tag) -> Result<ItemId, ItemError> {
+    pub(crate) fn add(&mut self, name: &str, tag: Tag) -> Result<ItemId, ItemError> {
         let name = self.validate_name(name, None)?;
         let max_id = self.items.iter().map(|item| item.id.0).max().unwrap_or(0);
         let id = ItemId(max_id.checked_add(1).ok_or(ItemError::Overflow)?);
@@ -176,7 +169,7 @@ impl ItemList {
     /// 空白を取り除いた名前が空の場合は `ItemError::EmptyName` エラー.
     /// 他の品目と名前が同じ場合は `ItemError::DuplicateName` エラー.
     /// 品目が存在しない場合は `ItemError::NotFound` エラー.
-    pub fn update(&mut self, id: ItemId, name: &str, tag: Tag) -> Result<(), ItemError> {
+    pub(crate) fn update(&mut self, id: ItemId, name: &str, tag: Tag) -> Result<(), ItemError> {
         let name = self.validate_name(name, Some(id))?;
         let index = self.index_of(id)?;
 
@@ -191,7 +184,7 @@ impl ItemList {
     /// # Errors
     ///
     /// 品目が存在しない場合は `ItemError::NotFound` エラー.
-    pub fn remove(&mut self, id: ItemId) -> Result<(), ItemError> {
+    pub(crate) fn remove(&mut self, id: ItemId) -> Result<(), ItemError> {
         let index = self.index_of(id)?;
         self.items.remove(index);
         Ok(())
