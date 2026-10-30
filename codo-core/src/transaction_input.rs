@@ -263,6 +263,162 @@ mod tests {
         }
     }
 
+    /// 訂正の対象になる取引を1件だけ持つ帳簿を作る.
+    fn ledger_with_transaction() -> (Ledger, TransactionId, ItemId, ItemId) {
+        let (mut ledger, item, counterpart) = ledger();
+        let id = ledger
+            .add_transaction(TransactionDraft::new(
+                NaiveDate::from_ymd_opt(2026, 10, 27).unwrap(),
+                Money::from(200),
+                item,
+                counterpart,
+                "訂正前".into(),
+            ))
+            .unwrap();
+        (ledger, id, item, counterpart)
+    }
+
+    #[test]
+    fn submit_transaction_update_replaces_fields() {
+        let (mut ledger, id, _, _) = ledger_with_transaction();
+        let other = ledger.add_item("給与", Tag::Income).unwrap();
+        let bank = ledger.add_item("銀行", Tag::Asset).unwrap();
+        let other_id = ledger
+            .add_transaction(TransactionDraft::new(
+                NaiveDate::from_ymd_opt(2026, 10, 1).unwrap(),
+                Money::from(5000),
+                other,
+                bank,
+                "別の取引".into(),
+            ))
+            .unwrap();
+        let untouched = ledger.transactions().get(other_id).unwrap().clone();
+        let date = NaiveDate::from_ymd_opt(2026, 10, 28).unwrap();
+        for comment in ["訂正後", ""] {
+            submit_transaction_update(
+                &mut ledger,
+                id,
+                Some(date),
+                "1,500",
+                Some(other),
+                Some(bank),
+                comment.into(),
+            )
+            .unwrap();
+            let transaction = ledger.transactions().get(id).unwrap();
+            assert_eq!(transaction.date(), date);
+            assert_eq!(transaction.amount(), Money::from(1500));
+            assert_eq!(transaction.item(), other);
+            assert_eq!(transaction.counterpart(), bank);
+            assert_eq!(transaction.comment(), comment);
+            // 件数は増えず, ほかの取引も変わらない
+            assert_eq!(ledger.transactions().iter().count(), 2);
+            assert_eq!(ledger.transactions().get(other_id), Some(&untouched));
+        }
+    }
+
+    #[test]
+    fn submit_transaction_update_routes_amount_errors_and_keeps_ledger() {
+        let (mut ledger, id, item, counterpart) = ledger_with_transaction();
+        let date = NaiveDate::from_ymd_opt(2026, 10, 28).unwrap();
+        let before = ledger.clone();
+        for (input, expected) in [
+            (
+                " abc ",
+                AmountError::Parse(MoneyError::Parse(" abc ".into())),
+            ),
+            ("0", AmountError::NonPositive(Money::from(0))),
+            ("-1", AmountError::NonPositive(Money::from(-1))),
+        ] {
+            assert_eq!(
+                submit_transaction_update(
+                    &mut ledger,
+                    id,
+                    Some(date),
+                    input,
+                    Some(item),
+                    Some(counterpart),
+                    "残す".into()
+                ),
+                Err(FormError::Amount(expected))
+            );
+            assert_eq!(ledger, before);
+        }
+    }
+
+    #[test]
+    fn submit_transaction_update_reports_missing_fields_and_keeps_ledger() {
+        let (mut ledger, id, item, counterpart) = ledger_with_transaction();
+        let date = NaiveDate::from_ymd_opt(2026, 10, 28).unwrap();
+        let before = ledger.clone();
+        for (date, item, counterpart, expected) in [
+            (None, Some(item), Some(counterpart), FormError::MissingDate),
+            (Some(date), None, Some(counterpart), FormError::MissingItem),
+            (Some(date), Some(item), None, FormError::MissingCounterpart),
+        ] {
+            assert_eq!(
+                submit_transaction_update(
+                    &mut ledger,
+                    id,
+                    date,
+                    "100",
+                    item,
+                    counterpart,
+                    String::new()
+                ),
+                Err(expected)
+            );
+            assert_eq!(ledger, before);
+        }
+    }
+
+    #[test]
+    fn submit_transaction_update_preserves_ledger_errors_and_state() {
+        let (mut ledger, id, item, counterpart) = ledger_with_transaction();
+        let same_tag = ledger.add_item("娯楽", Tag::Expense).unwrap();
+        let removed_id = ledger
+            .add_transaction(TransactionDraft::new(
+                NaiveDate::from_ymd_opt(2026, 10, 1).unwrap(),
+                Money::from(100),
+                item,
+                counterpart,
+                String::new(),
+            ))
+            .unwrap();
+        ledger.remove_transaction(removed_id).unwrap();
+        let date = NaiveDate::from_ymd_opt(2026, 10, 28).unwrap();
+        let before = ledger.clone();
+        for (id, item, counterpart, expected) in [
+            (id, item, same_tag, LedgerError::SameTag(Tag::Expense)),
+            (
+                id,
+                item,
+                item,
+                LedgerError::Transaction(TransactionError::SameItemAndCounterpart(item)),
+            ),
+            (
+                removed_id,
+                item,
+                counterpart,
+                LedgerError::Transaction(TransactionError::NotFound(removed_id)),
+            ),
+        ] {
+            assert_eq!(
+                submit_transaction_update(
+                    &mut ledger,
+                    id,
+                    Some(date),
+                    "100",
+                    Some(item),
+                    Some(counterpart),
+                    String::new()
+                ),
+                Err(FormError::Ledger(expected))
+            );
+            assert_eq!(ledger, before);
+        }
+    }
+
     fn all_tags() -> (Ledger, [ItemId; 5]) {
         let mut ledger = Ledger::new();
         let ids = Tag::ALL_TAGS.map(|tag| ledger.add_item(tag.label(), tag).unwrap());
