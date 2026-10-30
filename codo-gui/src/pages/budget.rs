@@ -54,16 +54,19 @@ impl BudgetPage {
 
         let Some(start) = start else {
             self.error_message = Some("開始日を選択してください".to_string());
+            cx.notify();
             return;
         };
 
         let Some(end) = end else {
             self.error_message = Some("終了日を選択してください".to_string());
+            cx.notify();
             return;
         };
 
         let Ok(period) = Period::new(start, end) else {
             self.error_message = Some("期間が正しくありません".to_string());
+            cx.notify();
             return;
         };
 

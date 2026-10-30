@@ -68,15 +68,15 @@ impl App {
             let amount = cx.new(|cx| InputState::new(window, cx).placeholder("予算額"));
 
             let start_date = cx.new(|cx| {
-                let mut state = DatePickerState::new(window, cx);
-                state.set_date(Local::now().date_naive(), window, cx);
-                state
+                let mut state_start = DatePickerState::new(window, cx);
+                state_start.set_date(Local::now().date_naive(), window, cx);
+                state_start
             });
 
             let end_date = cx.new(|cx| {
-                let mut state = DatePickerState::new(window, cx);
-                state.set_date(Local::now().date_naive(), window, cx);
-                state
+                let mut state_end = DatePickerState::new(window, cx);
+                state_end.set_date(Local::now().date_naive(), window, cx);
+                state_end
             });
 
             BudgetPage::new(state.clone(), amount, start_date, end_date)
@@ -162,8 +162,17 @@ impl Render for App {
             });
 
         // 品目別の支出推移
-        let expense_bar_chart =
-            SidebarMenuItem::new("支出推移（品目別）").active(self.page == Page::ExpenseBarChart);
+        let expense_bar_chart = SidebarMenuItem::new("支出推移（品目別）")
+            .active(self.page == Page::ExpenseBarChart)
+            .on_click({
+                let app = app.clone();
+
+                move |_, _, cx| {
+                    app.update(cx, |app, cx| {
+                        app.show_page(Page::ExpenseBarChart, cx);
+                    });
+                }
+            });
         //予算
         let budget = SidebarMenuItem::new("予算")
             .active(self.page == Page::Budget)
@@ -172,7 +181,7 @@ impl Render for App {
 
                 move |_, _, cx| {
                     app.update(cx, |app, cx| {
-                        app.show_page(Page::ExpenseBarChart, cx);
+                        app.show_page(Page::Budget, cx);
                     });
                 }
             });
@@ -184,8 +193,7 @@ impl Render for App {
 
                 move |_, _, cx| {
                     app.update(cx, |app, cx| {
-                        app.show_page(Page::MonthlyReport, cx);
-                        app.show_page(Page::Budget, cx);
+                        app.show_page(Page::ExpenseBarChart, cx);
                     });
                 }
             });
