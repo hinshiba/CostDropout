@@ -1,7 +1,7 @@
-//! 月別の取引一覧と削除操作。
+//! 月別の取引一覧と, 取引の訂正・削除操作.
 
 use crate::app::AppState;
-use crate::transaction_fields::{FormError, TransactionFields, friendly_error};
+use crate::transaction_fields::{FieldsChanged, FormError, TransactionFields, friendly_error};
 use chrono::Local;
 use codo_core::period::{Period, YearMonth};
 use codo_core::transaction::TransactionId;
@@ -20,6 +20,8 @@ pub struct TransactionList {
     edit_error: Option<String>,
     scroll_handle: ScrollHandle,
     _subscription: Subscription,
+    // 訂正中の入力欄の変化を見張る. 訂正していないときは None
+    _edit_subscription: Option<Subscription>,
 }
 
 impl TransactionList {
@@ -33,6 +35,7 @@ impl TransactionList {
             edit_error: None,
             scroll_handle: ScrollHandle::new(),
             _subscription: subscription,
+            _edit_subscription: None,
         }
     }
 
@@ -43,7 +46,7 @@ impl TransactionList {
         cx.notify();
     }
 
-    /// 削除の確認ダイアログを開き、確定後に取引を削除する。
+    /// 削除の確認ダイアログを開き, 確定後に取引を削除する.
     fn confirm_remove_transaction(
         &mut self,
         id: TransactionId,
@@ -92,16 +95,27 @@ impl TransactionList {
         let state = self.state.clone();
         let fields = cx.new(|cx| TransactionFields::new(state, window, cx));
         fields.update(cx, |fields, cx| fields.set_values(&transaction, window, cx));
+        // 入力が変わったら, 表示中のエラーを消す
+        self._edit_subscription = Some(cx.subscribe(&fields, |this, _, _: &FieldsChanged, cx| {
+            this.edit_error = None;
+            cx.notify();
+        }));
         self.editing = Some((id, fields));
         self.edit_error = None;
         self.error_message = None;
         cx.notify();
     }
 
-    /// 訂正をやめて, 訂正パネルを閉じる.
-    fn cancel_edit(&mut self, cx: &mut Context<Self>) {
+    /// 訂正パネルを閉じ, 入力欄の見張りもやめる.
+    fn close_edit(&mut self) {
         self.editing = None;
         self.edit_error = None;
+        self._edit_subscription = None;
+    }
+
+    /// 訂正をやめて, 訂正パネルを閉じる.
+    fn cancel_edit(&mut self, cx: &mut Context<Self>) {
+        self.close_edit();
         cx.notify();
     }
 
@@ -117,10 +131,7 @@ impl TransactionList {
             Ok(())
         });
         match result {
-            Ok(()) => {
-                self.editing = None;
-                self.edit_error = None;
-            }
+            Ok(()) => self.close_edit(),
             Err(error @ FormError::Amount(_)) => {
                 fields.update(cx, |fields, cx| {
                     fields.set_amount_error(Some(friendly_error(&error)), cx)
@@ -276,6 +287,7 @@ impl Render for TransactionList {
 mod tests {
     use super::TransactionList;
     use crate::app::AppState;
+    use crate::transaction_fields::FieldsChanged;
     use chrono::Local;
     use codo_core::{
         item::{ItemId, Tag},
@@ -284,7 +296,9 @@ mod tests {
         transaction::{TransactionDraft, TransactionId},
     };
     use gpui_kit::test::TestWindowExt;
-    use gpui_kit::{App, AppContext, Entity, TestAppContext, Window, WindowOptions};
+    use gpui_kit::{
+        AnyWindowHandle, App, AppContext, Entity, TestAppContext, Window, WindowOptions,
+    };
 
     /// テストで使う取引の情報.
     struct Fixture {
@@ -295,8 +309,8 @@ mod tests {
         cash: ItemId,
     }
 
-    /// 今月の取引を1件持つ取引一覧を開き, その中で `f` を実行する.
-    fn with_list(cx: &mut TestAppContext, f: impl FnOnce(&Fixture, &mut Window, &mut App)) {
+    /// 今月の取引を1件持つ取引一覧を開く.
+    fn open_list(cx: &mut TestAppContext) -> (Fixture, AnyWindowHandle) {
         cx.update(gpui_kit::init);
         let mut ledger = Ledger::new();
         let food = ledger.add_item("食費", Tag::Expense).unwrap();
@@ -324,8 +338,47 @@ mod tests {
             food,
             cash,
         };
+        (fixture, handle)
+    }
+
+    /// 今月の取引を1件持つ取引一覧を開き, その中で `f` を実行する.
+    fn with_list(cx: &mut TestAppContext, f: impl FnOnce(&Fixture, &mut Window, &mut App)) {
+        let (fixture, handle) = open_list(cx);
         cx.update_window(handle, |_, window, cx| f(&fixture, window, cx))
             .unwrap();
+    }
+
+    #[gpui_kit::test]
+    fn changing_fields_clears_edit_error(cx: &mut TestAppContext) {
+        let (fixture, handle) = open_list(cx);
+        let id = fixture.id;
+        cx.update_window(handle, |_, window, cx| {
+            fixture
+                .list
+                .update(cx, |list, cx| list.start_edit(id, window, cx));
+            // 取引が消されていて, 確定するとパネルにエラーが出る状態にする
+            fixture
+                .state
+                .update(cx, |state, _| state.ledger.remove_transaction(id).unwrap());
+            window.render_frame(cx);
+            window.click("confirm-edit", cx);
+        })
+        .unwrap();
+        cx.run_until_parked();
+        assert!(cx.read(|cx| fixture.list.read(cx).edit_error.is_some()));
+        cx.update(|cx| {
+            let (_, fields) = fixture.list.read(cx).editing.clone().unwrap();
+            // 利用者が入力欄を変えたときに部品が出すイベントを送る.
+            // (コードからの set_value では入力イベントが起きないため, 直接送る)
+            fields.update(cx, |_, cx| cx.emit(FieldsChanged));
+        });
+        cx.run_until_parked();
+        // 入力を変えたら, パネルのエラーは消える
+        cx.read(|cx| {
+            let list = fixture.list.read(cx);
+            assert!(list.editing.is_some());
+            assert_eq!(list.edit_error, None);
+        });
     }
 
     #[gpui_kit::test]
@@ -389,6 +442,10 @@ mod tests {
             // 金額のエラーは入力欄の金額の下に出すので, パネルのエラーは空のまま
             assert!(list.editing.is_some());
             assert_eq!(list.edit_error, None);
+            assert_eq!(
+                fields.read(cx).amount_error(),
+                Some("金額として解釈できない文字列です: abc")
+            );
             assert_eq!(fixture.state.read(cx).ledger, before);
         });
     }

@@ -268,6 +268,11 @@ impl TransactionFields {
 
 #[cfg(test)]
 impl TransactionFields {
+    /// テスト用. 金額の下に出しているエラーを返す.
+    pub fn amount_error(&self) -> Option<&str> {
+        self.amount_error.as_deref()
+    }
+
     /// テスト用. 品目・相手先・金額を, 利用者が選んだのと同じ状態にする.
     pub fn fill_for_test(
         &mut self,
@@ -344,7 +349,7 @@ impl From<&Item> for ItemChoice {
     }
 }
 
-/// コアのエラーを、画面利用者向けのメッセージに変換する。
+/// コアのエラーを, 画面利用者向けのメッセージに変換する.
 pub fn friendly_error(error: &FormError) -> String {
     match error {
         FormError::Ledger(error) => match error {
