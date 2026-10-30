@@ -102,9 +102,7 @@ pub fn monthly_summary(ledger: &Ledger, ym: YearMonth) -> MonthlySummary {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    use crate::item::Tag;
-    use crate::transaction::{Amount, TransactionDraft};
+    use crate::report::fixture::Book;
 
     /// テスト用の年月
     fn ym(year: i32, month: u32) -> YearMonth {
@@ -120,29 +118,19 @@ mod tests {
     ///
     /// 10月の収入は 5000，支出は 1000 + 500 + 700 = 2200
     fn sample_ledger() -> Ledger {
-        let mut ledger = Ledger::new();
-        let food = ledger.add_item("食費", Tag::Expense).unwrap();
-        let salary = ledger.add_item("給与", Tag::Income).unwrap();
-        let cash = ledger.add_item("現金", Tag::Asset).unwrap();
-        let card = ledger.add_item("クレジットカード", Tag::Liability).unwrap();
-        let mut add = |date, amount, item| {
-            let draft = TransactionDraft::new(date, Amount::of(amount), item, cash, String::new());
-            ledger.add_transaction(draft).unwrap();
-        };
-
+        let mut book = Book::new();
         // 月の初日に2件
-        add(date(10, 1), 1000, food);
-        add(date(10, 1), 500, food);
-        add(date(10, 15), 5000, salary);
+        book.add(date(10, 1), 1000, book.food);
+        book.add(date(10, 1), 500, book.food);
+        book.add(date(10, 15), 5000, book.salary);
         // 負債は収入にも支出にも数えない
-        add(date(10, 20), 3000, card);
+        book.add(date(10, 20), 3000, book.loan);
         // 月の末日
-        add(date(10, 31), 700, food);
+        book.add(date(10, 31), 700, book.food);
         // 前後の月の取引は含めない
-        add(date(9, 30), 9999, food);
-        add(date(11, 1), 8888, salary);
-
-        ledger
+        book.add(date(9, 30), 9999, book.food);
+        book.add(date(11, 1), 8888, book.salary);
+        book.ledger
     }
 
     #[test]
