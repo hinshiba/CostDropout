@@ -1,12 +1,15 @@
 //! 画面切り替えと共有画面の作成
 
 use crate::pages::{
-    expense_bar_chart::ExpenseBarChart, expense_calendar::ExpenseCalendar, expense_pie::ExpensePie,
-    items::Items, monthly_report::MonthlyReport, transaction_form::TransactionForm,
-    transaction_list::TransactionList,
+    budget::BudgetPage, expense_bar_chart::ExpenseBarChart, expense_calendar::ExpenseCalendar,
+    expense_pie::ExpensePie, items::Items, monthly_report::MonthlyReport,
+    transaction_form::TransactionForm, transaction_list::TransactionList,
 };
+use chrono::Local;
 use codo_core::ledger::Ledger;
 use gpui_kit::component::button::Button;
+use gpui_kit::component::date_picker::DatePickerState;
+use gpui_kit::component::input::InputState;
 use gpui_kit::component::sidebar::{Sidebar, SidebarMenu, SidebarMenuItem};
 use gpui_kit::*;
 
@@ -24,6 +27,7 @@ pub enum Page {
     Items,
     ExpenseBarChart,
     MonthlyReport,
+    Budget,
     ExpenseCalendar,
 }
 
@@ -38,6 +42,7 @@ pub struct App {
     expense_calendar: Entity<ExpenseCalendar>,
     page: Page,
     sidebar_open: bool,
+    budget: Entity<BudgetPage>,
 }
 
 impl App {
@@ -56,8 +61,26 @@ impl App {
         let items = cx.new(|_| Items::new(state.clone()));
 
         let expense_bar_chart = cx.new(|_| ExpenseBarChart::new(state.clone()));
+
         let monthly_report = cx.new(|_| MonthlyReport::new(state.clone()));
 
+        let budget = cx.new(|cx| {
+            let amount = cx.new(|cx| InputState::new(window, cx).placeholder("予算額"));
+
+            let start_date = cx.new(|cx| {
+                let mut state_start = DatePickerState::new(window, cx);
+                state_start.set_date(Local::now().date_naive(), window, cx);
+                state_start
+            });
+
+            let end_date = cx.new(|cx| {
+                let mut state_end = DatePickerState::new(window, cx);
+                state_end.set_date(Local::now().date_naive(), window, cx);
+                state_end
+            });
+
+            BudgetPage::new(state.clone(), amount, start_date, end_date)
+        });
         let expense_calendar = cx.new(|_| ExpenseCalendar::new(state.clone()));
 
         Self {
@@ -70,6 +93,7 @@ impl App {
             page: Page::TransactionForm,
             expense_bar_chart,
             sidebar_open: true,
+            budget,
         }
     }
 
@@ -149,6 +173,18 @@ impl Render for App {
                     });
                 }
             });
+        //予算
+        let budget = SidebarMenuItem::new("予算")
+            .active(self.page == Page::Budget)
+            .on_click({
+                let app = app.clone();
+
+                move |_, _, cx| {
+                    app.update(cx, |app, cx| {
+                        app.show_page(Page::Budget, cx);
+                    });
+                }
+            });
         // 月の収支
         let monthly_report = SidebarMenuItem::new("月の収支")
             .active(self.page == Page::MonthlyReport)
@@ -157,7 +193,7 @@ impl Render for App {
 
                 move |_, _, cx| {
                     app.update(cx, |app, cx| {
-                        app.show_page(Page::MonthlyReport, cx);
+                        app.show_page(Page::ExpenseBarChart, cx);
                     });
                 }
             });
@@ -202,6 +238,7 @@ impl Render for App {
                             .child(expense_bar_chart)
                             .child(expense_pie)
                             .child(monthly_report)
+                            .child(budget)
                             .child(expense_calendar),
                     ),
             )
@@ -215,6 +252,7 @@ impl Render for App {
                     Page::Items => div().child(self.items.clone()),
                     Page::ExpenseBarChart => div().child(self.expense_bar_chart.clone()),
                     Page::MonthlyReport => div().child(self.monthly_report.clone()),
+                    Page::Budget => div().child(self.budget.clone()),
                     Page::ExpenseCalendar => div().size_full().child(self.expense_calendar.clone()),
                 }),
             ))
