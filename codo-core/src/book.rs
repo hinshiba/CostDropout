@@ -1,10 +1,9 @@
 //! 保存すると commit される帳簿
-use std::path::Path;
-use thiserror::Error;
-
 use crate::git::{GitError, GitRepo};
 use crate::ledger::Ledger;
 use crate::storage::{LedgerStore, StorageError, TomlStore};
+use std::path::Path;
+use thiserror::Error;
 
 /// 帳簿の変更履歴
 pub trait History {
@@ -12,11 +11,29 @@ pub trait History {
     ///
     /// 変更がなければ何もしない.
     fn commit_all(&self, message: &str) -> Result<(), GitError>;
+
+    fn has_remote(&self) -> Result<bool, GitError>;
+
+    fn push(&self) -> Result<(), GitError>;
+
+    fn pull_rebase(&self) -> Result<(), GitError>;
 }
 
 impl History for GitRepo {
     fn commit_all(&self, message: &str) -> Result<(), GitError> {
         GitRepo::commit_all(self, message).map(drop)
+    }
+
+    fn has_remote(&self) -> Result<bool, GitError> {
+        GitRepo::has_remote(self)
+    }
+
+    fn push(&self) -> Result<(), GitError> {
+        GitRepo::push(self)
+    }
+
+    fn pull_rebase(&self) -> Result<(), GitError> {
+        GitRepo::pull_rebase(self)
     }
 }
 
@@ -39,6 +56,15 @@ pub enum BookError {
 
     #[error(transparent)]
     History(#[from] GitError),
+
+    #[error("未保存の変更があります")]
+    UnsavedChanges,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SyncOutcome {
+    Pushed,
+    PulledAndPushed,
 }
 
 impl<S: LedgerStore, H: History> Book<S, H> {
@@ -72,6 +98,13 @@ impl<S: LedgerStore, H: History> Book<S, H> {
         self.ledger != self.saved
     }
 
+    //保存した最新の帳簿を読み込んで反映する．
+    fn reload(&mut self) -> Result<(), BookError> {
+        self.ledger = self.store.load()?;
+        self.saved = self.ledger.clone();
+        Ok(())
+    }
+
     /// 帳簿を保存してから commit する.
     ///
     /// 失敗した場合は保存していないものとして扱い, 次の `save` で書き直す.
@@ -84,6 +117,32 @@ impl<S: LedgerStore, H: History> Book<S, H> {
         self.history.commit_all(message)?;
         self.saved = self.ledger.clone();
         Ok(())
+    }
+
+    pub fn sync(&mut self) -> Result<SyncOutcome, BookError> {
+        if self.is_dirty() {
+            return Err(BookError::UnsavedChanges);
+        }
+
+        if !self.history.has_remote()? {
+            return Ok(SyncOutcome::Pushed);
+        }
+
+        match self.history.push() {
+            Ok(()) => return Ok(SyncOutcome::Pushed),
+
+            Err(GitError::PushRejected) => {}
+
+            Err(error) => return Err(error.into()),
+        }
+
+        self.history.pull_rebase()?;
+
+        self.reload()?;
+
+        self.history.push()?;
+
+        Ok(SyncOutcome::PulledAndPushed)
     }
 }
 
@@ -121,7 +180,6 @@ mod tests {
     use std::cell::RefCell;
 
     use crate::git::git_command;
-
     use crate::item::{ItemError, Tag};
     use crate::ledger::LedgerError;
     use crate::storage::MemoryStore;
@@ -131,6 +189,11 @@ mod tests {
     struct FakeHistory {
         messages: RefCell<Vec<String>>,
         is_broken: bool,
+        has_remote: bool,
+        push_rejected: bool,
+        pull_rebased: RefCell<bool>,
+        push_count: RefCell<u32>,
+        pull_rebase_fails: bool,
     }
 
     impl History for FakeHistory {
@@ -142,6 +205,30 @@ mod tests {
                 ));
             }
             self.messages.borrow_mut().push(message.to_string());
+            Ok(())
+        }
+
+        fn has_remote(&self) -> Result<bool, GitError> {
+            Ok(self.has_remote)
+        }
+
+        fn push(&self) -> Result<(), GitError> {
+            let mut count = self.push_count.borrow_mut();
+
+            *count += 1;
+
+            if *count == 1 && self.push_rejected {
+                return Err(GitError::PushRejected);
+            }
+
+            Ok(())
+        }
+
+        fn pull_rebase(&self) -> Result<(), GitError> {
+            *self.pull_rebased.borrow_mut() = true;
+            if self.pull_rebase_fails {
+                return Err(GitError::Conflict);
+            }
             Ok(())
         }
     }
@@ -310,5 +397,73 @@ mod tests {
                 if command == "git -C <path> rev-parse --show-cdup"
         ));
         assert!(!dir.path().join(".git").exists());
+    }
+
+    #[test]
+    fn sync_returns_error_when_dirty() {
+        let mut book = book(FakeHistory::default());
+
+        book.ledger_mut().add_item("書籍", Tag::Expense).unwrap();
+
+        assert!(matches!(book.sync(), Err(BookError::UnsavedChanges)));
+    }
+
+    #[test]
+    fn sync_succeeds_without_remote() {
+        let mut book = book(FakeHistory::default());
+
+        let result = book.sync();
+
+        assert!(matches!(result, Ok(SyncOutcome::Pushed)));
+    }
+
+    #[test]
+    fn sync_pulls_then_pushes_when_rejected() {
+        let mut book = book(FakeHistory {
+            has_remote: true,
+            push_rejected: true,
+            ..FakeHistory::default()
+        });
+
+        let result = book.sync();
+
+        assert!(matches!(result, Ok(SyncOutcome::PulledAndPushed)));
+        //pull_rebaseが呼ばれた
+        assert!(*book.history.pull_rebased.borrow());
+        //pushが２回呼ばれた
+        assert_eq!(*book.history.push_count.borrow(), 2);
+    }
+
+    #[test]
+    fn sync_returns_conflict_when_pull_rebase_fails() {
+        let mut book = book(FakeHistory {
+            has_remote: true,
+            push_rejected: true,
+            pull_rebase_fails: true,
+            ..FakeHistory::default()
+        });
+
+        let result = book.sync();
+
+        assert!(matches!(
+            result,
+            Err(BookError::History(GitError::Conflict))
+        ));
+    }
+
+    #[test]
+    fn sync_pushes_when_remote_exists() {
+        let mut book = book(FakeHistory {
+            has_remote: true,
+            ..FakeHistory::default()
+        });
+
+        let result = book.sync();
+
+        assert!(matches!(result, Ok(SyncOutcome::Pushed)));
+
+        assert_eq!(*book.history.push_count.borrow(), 1);
+
+        assert!(!*book.history.pull_rebased.borrow());
     }
 }
