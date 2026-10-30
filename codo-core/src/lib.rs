@@ -1,6 +1,7 @@
 //! 家計簿のドメインモデル
 
 pub mod audit;
+pub mod book;
 pub mod budget;
 pub mod git;
 pub mod item;
