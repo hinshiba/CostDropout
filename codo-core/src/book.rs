@@ -1,7 +1,5 @@
 //! 保存すると commit される帳簿
-use crate::git::{GitError, GitRepo};
 use crate::ledger::Ledger;
-use crate::storage::{LedgerStore, StorageError, TomlStore};
 use std::path::Path;
 use thiserror::Error;
 
@@ -36,6 +34,9 @@ impl History for GitRepo {
         GitRepo::pull_rebase(self)
     }
 }
+
+use crate::infra::filestore::{LedgerStore, StorageError, TomlStore};
+use crate::infra::gitrepo::{GitError, GitRepo};
 
 /// 保存先と変更履歴をもつ帳簿.
 ///
@@ -177,13 +178,47 @@ impl Book<TomlStore, GitRepo> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::git::git_command;
-    use crate::item::{ItemError, Tag};
     use crate::ledger::LedgerError;
-    use crate::storage::MemoryStore;
     use std::cell::RefCell;
     use std::path::Path;
     use std::process::Command;
+
+    use crate::infra::gitrepo::git_command;
+    use crate::ledger::item::{ItemError, Tag};
+
+    /// メモリ上の帳簿に置く保存先
+    #[derive(Debug, Default)]
+    struct MemoryStore {
+        ledger: RefCell<Option<Ledger>>,
+    }
+
+    impl LedgerStore for MemoryStore {
+        fn save(&self, ledger: &Ledger) -> Result<(), StorageError> {
+            *self.ledger.borrow_mut() = Some(ledger.clone());
+            Ok(())
+        }
+
+        fn load(&self) -> Result<Ledger, StorageError> {
+            Ok(self.ledger.borrow().clone().unwrap_or_default())
+        }
+    }
+
+    #[test]
+    fn memory_store_load_before_save_returns_empty_ledger() {
+        let store = MemoryStore::default();
+
+        assert_eq!(store.load().unwrap(), Ledger::new());
+    }
+
+    #[test]
+    fn memory_store_save_then_load_returns_same_ledger() {
+        let store = MemoryStore::default();
+        let ledger = Ledger::with_presets();
+
+        store.save(&ledger).unwrap();
+
+        assert_eq!(store.load().unwrap(), ledger);
+    }
 
     /// commit したメッセージを記録する変更履歴
     #[derive(Debug, Default)]

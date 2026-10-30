@@ -2,9 +2,9 @@
 
 use crate::app::AppState;
 use chrono::{Datelike, Local};
-use codo_core::item::{ItemId, Tag};
-use codo_core::period::{Period, YearMonth};
-use codo_core::report::trend::{monthly_expense, yearly_expense};
+use codo_core::ledger::item::{ItemId, Tag};
+use codo_core::ledger::period::{Period, YearMonth};
+use codo_core::ledger::report::trend::{monthly_expense, yearly_expense};
 use gpui_kit::component::ActiveTheme;
 use gpui_kit::component::Selectable;
 use gpui_kit::component::button::Button;
@@ -51,7 +51,7 @@ impl ExpenseBarChart {
     fn expense_items(&self, cx: &Context<Self>) -> Vec<(ItemId, String)> {
         self.state
             .read(cx)
-            .ledger
+            .ledger()
             .items()
             .iter_with_tag(Tag::Expense)
             .map(|item| (item.id(), item.to_string()))
@@ -72,7 +72,7 @@ impl ExpenseBarChart {
     }
 
     fn chart_data(&self, cx: &Context<Self>) -> Vec<ExpenseData> {
-        let ledger = &self.state.read(cx).ledger;
+        let ledger = self.state.read(cx).ledger();
 
         // 表示モードに応じて、グラフに使用する支出データを切り替える。
         match self.chart_mode {

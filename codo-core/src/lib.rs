@@ -1,15 +1,5 @@
-//! 家計簿のドメインモデル
+//! 家計簿のドメインモデルと永続化
 
-pub mod audit;
 pub mod book;
-pub mod budget;
-pub mod git;
-pub mod item;
+pub mod infra;
 pub mod ledger;
-pub mod money;
-pub mod period;
-pub mod preset;
-pub mod report;
-mod serialization;
-pub mod storage;
-pub mod transaction;

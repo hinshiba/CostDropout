@@ -110,7 +110,7 @@ impl fmt::Display for YearMonth {
     /// # Examples
     ///
     /// ```
-    /// use codo_core::period::YearMonth;
+    /// use codo_core::ledger::period::YearMonth;
     ///
     /// assert_eq!(YearMonth::new(2026, 10).unwrap().to_string(), "2026-10");
     /// assert_eq!(YearMonth::new(800, 1).unwrap().to_string(), "0800-01");
@@ -132,7 +132,7 @@ impl FromStr for YearMonth {
     /// # Examples
     ///
     /// ```
-    /// use codo_core::period::YearMonth;
+    /// use codo_core::ledger::period::YearMonth;
     ///
     /// assert_eq!("2026-10".parse(), YearMonth::new(2026, 10));
     /// assert_eq!("2026-1".parse(), YearMonth::new(2026, 1));

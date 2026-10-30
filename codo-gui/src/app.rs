@@ -1,26 +1,56 @@
 //! 画面切り替えと共有画面の作成
 
 use crate::pages::{
-    budget::BudgetPage, expense_bar_chart::ExpenseBarChart, expense_calendar::ExpenseCalendar,
-    expense_pie::ExpensePie, items::Items, monthly_report::MonthlyReport,
-    transaction_form::TransactionForm, transaction_list::TransactionList,
+    budget::BudgetPage, budget_dashboard::BudgetDashboard, expense_bar_chart::ExpenseBarChart,
+    expense_calendar::ExpenseCalendar, expense_pie::ExpensePie, items::Items,
+    monthly_report::MonthlyReport, transaction_form::TransactionForm,
+    transaction_list::TransactionList,
 };
 use chrono::Local;
-use codo_core::ledger::Ledger;
+use codo_core::{book::Book, infra::filestore::TomlStore, infra::gitrepo::GitRepo, ledger::Ledger};
 use gpui_kit::component::button::Button;
 use gpui_kit::component::date_picker::DatePickerState;
 use gpui_kit::component::input::InputState;
 use gpui_kit::component::sidebar::{Sidebar, SidebarMenu, SidebarMenuItem};
 use gpui_kit::*;
 
-/// ledgerの共有
+/// 保存先と履歴を含む帳簿を画面間で共有する.
 pub struct AppState {
-    pub ledger: Ledger,
+    book: Book<TomlStore, GitRepo>,
+}
+
+impl AppState {
+    /// 開いている帳簿を参照する.
+    pub fn ledger(&self) -> &Ledger {
+        self.book.ledger()
+    }
+
+    /// 開いている帳簿を編集する.
+    pub fn ledger_mut(&mut self) -> &mut Ledger {
+        self.book.ledger_mut()
+    }
+
+    /// テスト用の帳簿と, テスト中に保持する保存先を作成する.
+    #[cfg(test)]
+    pub(crate) fn for_test(ledger: Ledger) -> (Self, tempfile::TempDir) {
+        use codo_core::infra::filestore::LedgerStore;
+        let directory = tempfile::tempdir().unwrap();
+        let store = TomlStore::new(directory.path().to_path_buf());
+        store.save(&ledger).unwrap();
+        let history = GitRepo::init(directory.path().to_path_buf()).unwrap();
+        (
+            Self {
+                book: Book::load(store, history).unwrap(),
+            },
+            directory,
+        )
+    }
 }
 
 /// 現在の画面のenum
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Page {
+    BudgetDashboard,
     TransactionForm,
     TransactionList,
     ExpensePie,
@@ -33,6 +63,7 @@ pub enum Page {
 
 /// 画面の管理
 pub struct App {
+    budget_dashboard: Entity<BudgetDashboard>,
     transaction_form: Entity<TransactionForm>,
     transaction_list: Entity<TransactionList>,
     expense_pie: Entity<ExpensePie>,
@@ -46,12 +77,18 @@ pub struct App {
 }
 
 impl App {
-    pub fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
-        Self::with_ledger(Ledger::with_presets(), window, cx)
+    /// 開いた帳簿を共有する各画面を作成する.
+    pub fn new(
+        book: Book<TomlStore, GitRepo>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Self {
+        Self::with_state(AppState { book }, window, cx)
     }
 
-    fn with_ledger(ledger: Ledger, window: &mut Window, cx: &mut Context<Self>) -> Self {
-        let state = cx.new(|_| AppState { ledger });
+    fn with_state(state: AppState, window: &mut Window, cx: &mut Context<Self>) -> Self {
+        let state = cx.new(|_| state);
+        let budget_dashboard = cx.new(|cx| BudgetDashboard::new(state.clone(), cx));
         let transaction_form = cx.new(|cx| TransactionForm::new(state.clone(), window, cx));
 
         let transaction_list = cx.new(|cx| TransactionList::new(state.clone(), cx));
@@ -84,13 +121,14 @@ impl App {
         let expense_calendar = cx.new(|_| ExpenseCalendar::new(state.clone()));
 
         Self {
+            budget_dashboard,
             transaction_form,
             transaction_list,
             expense_pie,
             items,
             monthly_report,
             expense_calendar,
-            page: Page::TransactionForm,
+            page: Page::BudgetDashboard,
             expense_bar_chart,
             sidebar_open: true,
             budget,
@@ -115,6 +153,12 @@ impl Render for App {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         // 自分自身のEntityを取得する
         let app = cx.entity();
+
+        let budget_dashboard = SidebarMenuItem::new("予算ダッシュボード")
+            .active(self.page == Page::BudgetDashboard)
+            .on_click(cx.listener(|app, _, _, cx| {
+                app.show_page(Page::BudgetDashboard, cx);
+            }));
 
         // 取引入力
         let transaction_form = SidebarMenuItem::new("取引入力")
@@ -193,7 +237,7 @@ impl Render for App {
 
                 move |_, _, cx| {
                     app.update(cx, |app, cx| {
-                        app.show_page(Page::ExpenseBarChart, cx);
+                        app.show_page(Page::MonthlyReport, cx);
                     });
                 }
             });
@@ -232,6 +276,7 @@ impl Render for App {
                         SidebarMenu::new()
                             .gap_4()
                             .py_4()
+                            .child(budget_dashboard)
                             .child(transaction_form)
                             .child(transaction_list)
                             .child(items)
@@ -246,6 +291,7 @@ impl Render for App {
             .child(div().flex_1().h_full().min_w_0().child(
                 // 画面選択
                 div().size_full().child(match self.page {
+                    Page::BudgetDashboard => div().size_full().child(self.budget_dashboard.clone()),
                     Page::TransactionForm => div().child(self.transaction_form.clone()),
                     Page::TransactionList => div().child(self.transaction_list.clone()),
                     Page::ExpensePie => div().size_full().child(self.expense_pie.clone()),
@@ -261,14 +307,14 @@ impl Render for App {
 
 #[cfg(test)]
 mod tests {
-    use super::{App, Page};
+    use super::{App, AppState, Page};
     use chrono::Local;
-    use codo_core::period::YearMonth;
+    use codo_core::ledger::period::YearMonth;
     use codo_core::{
-        item::Tag,
         ledger::Ledger,
-        money::Money,
-        transaction::{Amount, TransactionDraft},
+        ledger::item::Tag,
+        ledger::money::Money,
+        ledger::transaction::{Amount, TransactionDraft},
     };
     use gpui_kit::test::TestWindowExt;
     use gpui_kit::{AppContext, Bounds, TestAppContext, WindowBounds, WindowOptions, px, size};
@@ -294,6 +340,7 @@ mod tests {
     #[gpui_kit::test]
     fn sidebar_opens_expense_pie(cx: &mut TestAppContext) {
         let month = YearMonth::from_date(Local::now().date_naive());
+        let (state, _directory) = AppState::for_test(ledger_for_month_navigation(month));
         cx.update(gpui_kit::init);
         let (handle, app) = cx.update(|cx| {
             cx.set_reduce_motion(true);
@@ -306,17 +353,17 @@ mod tests {
                     ..Default::default()
                 },
                 cx,
-                |window, cx| {
-                    cx.new(|cx| App::with_ledger(ledger_for_month_navigation(month), window, cx))
-                },
+                |window, cx| cx.new(|cx| App::with_state(state, window, cx)),
             )
             .unwrap()
         });
         cx.update_window(handle, |_, window, cx| {
             window.render_frame(cx);
+            assert!(app.read(cx).page == Page::BudgetDashboard);
+            assert!(window.find("budget-empty-state").visible());
             // Sidebar が割り当てる「グループ番号-項目番号」の ID でクリックする。
             assert!(window.find("0-2").visible());
-            window.click("0-4", cx);
+            window.click("0-5", cx);
             assert!(app.read(cx).page == Page::ExpensePie);
             window.render_frame(cx);
             assert!(window.find("previous-month").visible());
@@ -345,6 +392,19 @@ mod tests {
             window.click("previous-month", cx);
             window.render_frame(cx);
             assert_month(window, month, false);
+            for (id, page) in [
+                ("0-6", Page::MonthlyReport),
+                ("0-7", Page::Budget),
+                ("0-8", Page::ExpenseCalendar),
+            ] {
+                window.click(id, cx);
+                window.render_frame(cx);
+                assert_eq!(app.read(cx).page, page);
+            }
+            window.click("0-0", cx);
+            window.render_frame(cx);
+            assert!(app.read(cx).page == Page::BudgetDashboard);
+            assert!(window.find("budget-empty-state").visible());
         })
         .unwrap();
     }
@@ -383,6 +443,7 @@ mod tests {
                 .unwrap();
         }
 
+        let (state, _directory) = AppState::for_test(ledger);
         cx.update(gpui_kit::init);
 
         let (handle, app) = cx.update(|cx| {
@@ -397,7 +458,7 @@ mod tests {
                     ..Default::default()
                 },
                 cx,
-                |window, cx| cx.new(|cx| App::with_ledger(ledger, window, cx)),
+                |window, cx| cx.new(|cx| App::with_state(state, window, cx)),
             )
             .unwrap()
         });
@@ -406,7 +467,7 @@ mod tests {
             window.render_frame(cx);
 
             // Sidebar の「支出推移」を開く。
-            window.click("0-3", cx);
+            window.click("0-4", cx);
             window.render_frame(cx);
 
             assert_eq!(app.read(cx).page, Page::ExpenseBarChart);

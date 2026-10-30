@@ -2,7 +2,7 @@
 //!
 //! 新しい帳簿を作るときに最初から登録しておく品目を提供する.
 
-use crate::item::{ItemList, Tag};
+use crate::ledger::item::{ItemList, Tag};
 
 /// プリセット品目の名前とタグ. 登録順に ID が割り当てられる.
 const PRESETS: [(&str, Tag); 12] = [

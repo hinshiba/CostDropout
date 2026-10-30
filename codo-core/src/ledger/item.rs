@@ -1,17 +1,15 @@
 //! 品目のモデルと品目一覧
 
-use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::fmt;
 use thiserror::Error;
 
 /// 品目を識別する連番.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-pub struct ItemId(u32);
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ItemId(pub(crate) u32);
 
 /// 品目の分類.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Tag {
     /// 資産.
     Asset,
@@ -51,7 +49,7 @@ impl fmt::Display for Tag {
 }
 
 /// 品目.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Item {
     id: ItemId,
     name: String,
@@ -59,8 +57,16 @@ pub struct Item {
 }
 
 impl Item {
+    pub(crate) fn new(id: ItemId, name: String, tag: Tag) -> Self {
+        Self { id, name, tag }
+    }
+
     pub fn id(&self) -> ItemId {
         self.id
+    }
+
+    pub(crate) fn name(&self) -> &str {
+        &self.name
     }
 
     pub(crate) fn tag(&self) -> Tag {
@@ -81,7 +87,7 @@ impl fmt::Display for Item {
 /// * ID の昇順に並ぶ
 /// * 名前は前後に空白がなく空でない
 /// * 互いに異なる ID と名前をもつ
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ItemList {
     items: Vec<Item>,
 }
