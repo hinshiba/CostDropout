@@ -87,8 +87,8 @@ pub fn monthly_summary(ledger: &Ledger, ym: YearMonth) -> MonthlySummary {
     for (tx, flow) in flows_in(ledger, period) {
         let index = tx.date().day0() as usize;
         match flow {
-            Flow::Income => days[index].income += Money::from(tx.amount()),
-            Flow::Expense => days[index].expense += Money::from(tx.amount()),
+            Flow::Income => days[index].income += tx.amount(),
+            Flow::Expense => days[index].expense += tx.amount(),
             Flow::Other => {}
         }
     }
@@ -197,6 +197,24 @@ mod tests {
             assert_eq!(day.income(), Money::from(0));
             assert_eq!(day.expense(), Money::from(0));
         }
+    }
+
+    #[test]
+    fn monthly_summary_subtracts_negative_amounts() {
+        let mut book = Book::new();
+        book.add(date(10, 1), 1000, book.food);
+        book.add(date(10, 1), -300, book.food);
+        book.add(date(10, 2), -500, book.food);
+        book.add(date(10, 3), 5000, book.salary);
+        book.add(date(10, 3), -1000, book.salary);
+
+        let summary = monthly_summary(&book.ledger, ym(2026, 10));
+
+        assert_eq!(summary.days()[0].expense(), Money::from(700));
+        assert_eq!(summary.days()[1].expense(), Money::from(-500));
+        assert_eq!(summary.days()[2].income(), Money::from(4000));
+        assert_eq!(summary.expense(), Money::from(200));
+        assert_eq!(summary.income(), Money::from(4000));
     }
 
     #[test]

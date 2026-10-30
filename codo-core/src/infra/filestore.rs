@@ -13,7 +13,7 @@ use self::record::{
 use crate::ledger::budget::{Budget, BudgetError, BudgetList};
 use crate::ledger::item::{Item, ItemError, ItemList};
 use crate::ledger::period::{PeriodError, YearMonth};
-use crate::ledger::transaction::{AmountError, Transaction, TransactionError, TransactionList};
+use crate::ledger::transaction::{Transaction, TransactionError, TransactionList};
 use crate::ledger::{Ledger, LedgerError};
 
 /// 拡張子がtomlかの判断
@@ -81,9 +81,7 @@ impl LedgerStore for TomlStore {
                 }
                 let month_toml = std::fs::read_to_string(&path)?;
                 let month_file: MonthFile = toml::from_str(&month_toml)?;
-                for record in month_file.transactions {
-                    all.push(Transaction::try_from(record)?);
-                }
+                all.extend(month_file.transactions.into_iter().map(Transaction::from));
             }
         }
         let transactions = TransactionList::from_transactions(all)?;
@@ -168,9 +166,6 @@ pub enum StorageError {
     #[error("TOMLへの変換に失敗しました: {0}")]
     SerializeToml(#[from] toml::ser::Error),
 
-    #[error("取引の金額が不正です: {0}")]
-    InvalidAmount(#[from] AmountError),
-
     #[error("予算期間が不正です: {0}")]
     InvalidPeriod(#[from] PeriodError),
 
@@ -195,7 +190,7 @@ mod tests {
     use crate::ledger::item::Tag;
     use crate::ledger::money::Money;
     use crate::ledger::period::Period;
-    use crate::ledger::transaction::{Amount, TransactionDraft, TransactionId};
+    use crate::ledger::transaction::{TransactionDraft, TransactionId};
 
     /// 読み込んで保存し直しても, ファイルの内容が1バイトも変わらない
     #[test]
@@ -280,7 +275,7 @@ comment = "昼食"
         let draft = |month, day, amount, comment: &str| {
             TransactionDraft::new(
                 date(month, day),
-                Amount::of(amount),
+                Money::from(amount),
                 food,
                 cash,
                 comment.to_string(),
@@ -396,16 +391,22 @@ comment = "昼食"
     }
 
     #[test]
-    fn toml_store_load_rejects_non_positive_amount() {
-        for amount in ["0", "-1"] {
-            let result = load_with_replaced("amount = 1200", &format!("amount = {amount}"));
+    fn toml_store_round_trips_zero_and_negative_amount() {
+        for amount in [0, -1] {
+            let ledger =
+                load_with_replaced("amount = 1200", &format!("amount = {amount}")).unwrap();
             assert!(
-                matches!(
-                    result,
-                    Err(StorageError::InvalidAmount(AmountError::NonPositive(_)))
-                ),
+                ledger
+                    .transactions()
+                    .iter()
+                    .any(|transaction| transaction.amount() == Money::from(amount)),
                 "{amount}"
             );
+
+            let dir = tempfile::tempdir().unwrap();
+            let store = TomlStore::new(dir.path().to_path_buf());
+            store.save(&ledger).unwrap();
+            assert_eq!(store.load().unwrap(), ledger, "{amount}");
         }
     }
 
@@ -436,17 +437,17 @@ comment = "昼食"
                 LedgerError::TransactionItemNotFound(_)
             ))
         ));
-        // 資産の品目は取引の品目として選べない
-        let invalid_tag = load_with_replaced(
+        // 資産の品目の相手先に支出の品目は選べない
+        let invalid_pair = load_with_replaced(
             "item = 1
 counterpart = 2",
             "item = 2
 counterpart = 1",
         );
         assert!(matches!(
-            invalid_tag,
+            invalid_pair,
             Err(StorageError::InvalidLedger(LedgerError::Transaction(
-                TransactionError::InvalidItemTag(Tag::Asset)
+                TransactionError::InvalidPair(Tag::Asset, Tag::Expense)
             )))
         ));
     }

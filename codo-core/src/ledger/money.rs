@@ -83,6 +83,18 @@ impl Money {
         }
     }
 
+    /// 金額の符号を反転する.
+    ///
+    /// # Errors
+    ///
+    /// 反転結果が `i32` の範囲を超える場合は `MoneyError::Overflow` エラー.
+    pub fn checked_neg(self) -> Result<Money, MoneyError> {
+        match self.0.checked_neg() {
+            Some(value) => Ok(Money(value)),
+            None => Err(MoneyError::Overflow),
+        }
+    }
+
     /// `base` に対する比率を返す.
     ///
     /// `base` が0の場合は `None`.
@@ -327,6 +339,20 @@ mod tests {
         ] {
             assert_eq!(s.parse::<Money>(), Err(MoneyError::Overflow), "{s}");
         }
+    }
+
+    #[test]
+    fn checked_neg_test() {
+        for (value, expected) in [
+            (i32::MAX, -i32::MAX),
+            (1, -1),
+            (0, 0),
+            (-1, 1),
+            (i32::MIN + 1, i32::MAX),
+        ] {
+            assert_eq!(Money(value).checked_neg(), Ok(Money(expected)), "{value}");
+        }
+        assert_eq!(Money(i32::MIN).checked_neg(), Err(MoneyError::Overflow));
     }
 
     #[test]

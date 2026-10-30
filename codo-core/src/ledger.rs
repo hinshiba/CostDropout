@@ -14,7 +14,7 @@ use crate::ledger::money::Money;
 use crate::ledger::period::Period;
 use crate::ledger::preset::preset_items;
 use crate::ledger::transaction::{
-    TransactionDraft, TransactionError, TransactionId, TransactionList, check_item_tag, check_tags,
+    Direction, Transaction, TransactionDraft, TransactionError, TransactionId, TransactionList,
 };
 use thiserror::Error;
 
@@ -22,7 +22,8 @@ use thiserror::Error;
 ///
 /// 品目一覧, 取引一覧, 予算一覧をもち, 次の要件を満たす.
 /// * 取引の品目と相手先は品目一覧に存在する
-/// * 取引の品目と相手先のタグの組み合わせは `check_tags` を満たす
+/// * 取引の相手先の増減は `TransactionDraft::counterpart_amount` で求まる
+/// * 取引で使う品目のタグは変わらない
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Ledger {
     items: ItemList,
@@ -44,6 +45,9 @@ pub enum LedgerError {
     /// 取引から使われている品目を削除しようとした場合.
     #[error("取引から参照されている品目 {0:?} は削除できません")]
     ItemUse(ItemId),
+    /// 取引から使われている品目のタグを変更しようとした場合.
+    #[error("取引から参照されている品目 {0:?} のタグは変更できません")]
+    ItemTagInUse(ItemId),
     /// 取引の品目または相手先が存在しない場合.
     #[error("存在しない取引の品目 {0:?} が指定されています")]
     TransactionItemNotFound(ItemId),
@@ -68,7 +72,7 @@ impl Ledger {
     /// # Errors
     ///
     /// 取引の品目または相手先が存在しない場合は `LedgerError::TransactionItemNotFound` エラー.
-    /// 取引のタグの組み合わせが不正な場合は `LedgerError::Transaction` エラー.
+    /// 取引の内容が不正な場合は `LedgerError::Transaction` エラー.
     pub(crate) fn from_parts(
         items: ItemList,
         transactions: TransactionList,
@@ -80,7 +84,7 @@ impl Ledger {
             budgets,
         };
         for t in ledger.transactions.iter() {
-            t.check_tags(|id| ledger.tag_of(id))?;
+            t.counterpart_amount(|id| ledger.tag_of(id))?;
         }
         Ok(ledger)
     }
@@ -100,21 +104,26 @@ impl Ledger {
         &self.budgets
     }
 
-    /// 取引の品目として選べる品目を返す.
-    pub fn item_choices(&self) -> impl Iterator<Item = &Item> {
-        self.items
-            .iter()
-            .filter(|item| check_item_tag(item.tag()).is_ok())
-    }
-
     /// 品目が `item` である取引の相手先として選べる品目を返す.
     ///
-    /// `item` が存在しないか, 取引の品目として選べない場合は空.
+    /// `item` 自身は含まない. `item` が存在しない場合は空.
     pub fn counterpart_choices(&self, item: ItemId) -> impl Iterator<Item = &Item> {
         let tag = self.items.get(item).map(Item::tag);
         self.items.iter().filter(move |candidate| {
-            tag.is_some_and(|tag| check_tags(tag, candidate.tag()).is_ok())
+            candidate.id() != item
+                && tag.is_some_and(|tag| Direction::of(tag, candidate.tag()).is_ok())
         })
+    }
+
+    /// 帳簿の取引の相手先の増減を返す.
+    ///
+    /// # Panics
+    ///
+    /// `transaction` がこの帳簿の取引でない場合はパニック.
+    pub fn counterpart_amount(&self, transaction: &Transaction) -> Money {
+        transaction
+            .counterpart_amount(|id| self.tag_of(id))
+            .expect("帳簿の取引は検査済みで, 使用中の品目のタグは変わらない")
     }
 
     /// 品目を追加する.
@@ -131,22 +140,14 @@ impl Ledger {
     /// # Errors
     ///
     /// 品目が存在しない場合は `ItemError::NotFound` エラー.
-    /// この品目を使う取引のタグの組み合わせが不正になる場合は `LedgerError::Transaction` エラー.
+    /// 取引で使う品目のタグを変える場合は `LedgerError::ItemTagInUse` エラー.
     /// そのほか `ItemList::update` のエラー.
     pub fn update_item(&mut self, id: ItemId, name: &str, tag: Tag) -> Result<(), LedgerError> {
         let item = self.items.get(id).ok_or(ItemError::NotFound(id))?;
 
-        if item.tag() != tag {
-            let tag_after = |item_id| {
-                if item_id == id {
-                    Ok(tag)
-                } else {
-                    self.tag_of(item_id)
-                }
-            };
-            for t in self.transactions.iter().filter(|t| t.uses(id)) {
-                t.check_tags(tag_after)?;
-            }
+        // 相手先の増減はタグから導出するので, タグが変わると過去の取引の増減まで変わる
+        if item.tag() != tag && self.transactions.uses_item(id) {
+            return Err(LedgerError::ItemTagInUse(id));
         }
         Ok(self.items.update(id, name, tag)?)
     }
@@ -176,12 +177,12 @@ impl Ledger {
     /// # Errors
     ///
     /// 品目または相手先が存在しない場合は `LedgerError::TransactionItemNotFound` エラー.
-    /// タグの組み合わせが不正な場合は `LedgerError::Transaction` エラー.
+    /// 取引の内容が不正な場合は `LedgerError::Transaction` エラー.
     pub fn add_transaction(
         &mut self,
         draft: TransactionDraft,
     ) -> Result<TransactionId, LedgerError> {
-        draft.check_tags(|id| self.tag_of(id))?;
+        draft.counterpart_amount(|id| self.tag_of(id))?;
         Ok(self.transactions.add(draft))
     }
 
@@ -190,13 +191,13 @@ impl Ledger {
     /// # Errors
     ///
     /// 品目または相手先が存在しない場合は `LedgerError::TransactionItemNotFound` エラー.
-    /// タグの組み合わせが不正な場合と, 取引が存在しない場合は `LedgerError::Transaction` エラー.
+    /// 取引の内容が不正な場合と, 取引が存在しない場合は `LedgerError::Transaction` エラー.
     pub fn update_transaction(
         &mut self,
         id: TransactionId,
         draft: TransactionDraft,
     ) -> Result<(), LedgerError> {
-        draft.check_tags(|id| self.tag_of(id))?;
+        draft.counterpart_amount(|id| self.tag_of(id))?;
         Ok(self.transactions.update(id, draft)?)
     }
 
@@ -247,13 +248,12 @@ mod tests {
     use super::*;
     use crate::ledger::money::Money;
     use crate::ledger::period::YearMonth;
-    use crate::ledger::transaction::Amount;
     use chrono::NaiveDate;
 
     fn draft(item: ItemId, counterpart: ItemId) -> TransactionDraft {
         TransactionDraft::new(
             NaiveDate::from_ymd_opt(2026, 10, 12).unwrap(),
-            Amount::of(1000),
+            Money::from(1000),
             item,
             counterpart,
             String::new(),
@@ -276,7 +276,7 @@ mod tests {
     }
 
     /// 品目と相手先の組み合わせが不正な取引と, そのエラー.
-    fn invalid_pairs(ids: [ItemId; 5]) -> [(ItemId, ItemId, LedgerError); 5] {
+    fn invalid_pairs(ids: [ItemId; 5]) -> [(ItemId, ItemId, LedgerError); 6] {
         let [salary, cash, food, fun, removed] = ids;
         [
             (removed, cash, LedgerError::TransactionItemNotFound(removed)),
@@ -284,10 +284,15 @@ mod tests {
             (
                 cash,
                 salary,
-                TransactionError::InvalidItemTag(Tag::Asset).into(),
+                TransactionError::InvalidPair(Tag::Asset, Tag::Income).into(),
             ),
-            (food, fun, TransactionError::SameTag(Tag::Expense).into()),
-            (food, food, TransactionError::SameTag(Tag::Expense).into()),
+            (
+                food,
+                fun,
+                TransactionError::InvalidPair(Tag::Expense, Tag::Expense).into(),
+            ),
+            (food, food, TransactionError::SameItem(food).into()),
+            (cash, cash, TransactionError::SameItem(cash).into()),
         ]
     }
 
@@ -313,25 +318,21 @@ mod tests {
     }
 
     #[test]
-    fn item_choices_test() {
-        let (ledger, ids) = all_tags();
-
-        let choices = ledger.item_choices().map(Item::id).collect::<Vec<_>>();
-        assert_eq!(choices, vec![ids[1], ids[3], ids[4]]);
-    }
-
-    #[test]
     fn counterpart_choices_test() {
         let (mut ledger, ids) = all_tags();
+        let [asset, liability, opening, income, expense] = ids;
+        let bank = ledger.add_item("銀行口座", Tag::Asset).unwrap();
         let removed = ledger.add_item("削除する品目", Tag::Expense).unwrap();
         ledger.remove_item(removed).unwrap();
 
         for (item, expected) in [
-            (ids[0], vec![]),
-            (ids[1], vec![ids[0], ids[2], ids[3], ids[4]]),
-            (ids[2], vec![]),
-            (ids[3], vec![ids[0], ids[1], ids[2], ids[4]]),
-            (ids[4], vec![ids[0], ids[1], ids[2], ids[3]]),
+            // 資産同士は選べるが, 自身は選べない
+            (asset, vec![bank]),
+            (bank, vec![asset]),
+            (liability, vec![asset, bank]),
+            (opening, vec![asset, liability, bank]),
+            (income, vec![asset, bank]),
+            (expense, vec![asset, liability, bank]),
             (removed, vec![]),
         ] {
             let choices = ledger.counterpart_choices(item).map(Item::id);
@@ -340,35 +341,95 @@ mod tests {
     }
 
     #[test]
-    fn choices_reflect_item_changes_test() {
-        let (mut ledger, ids) = all_tags();
+    fn counterpart_choices_reflect_item_changes_test() {
+        let (mut ledger, [asset, liability, _, income, expense]) = all_tags();
 
-        ledger.update_item(ids[4], "変更後", Tag::Asset).unwrap();
-        ledger.remove_item(ids[1]).unwrap();
+        ledger.update_item(expense, "変更後", Tag::Asset).unwrap();
+        ledger.remove_item(liability).unwrap();
 
-        let choices = ledger.item_choices().map(Item::id).collect::<Vec<_>>();
-        assert_eq!(choices, vec![ids[3]]);
-        let counterparts = ledger.counterpart_choices(ids[3]).map(Item::id);
+        let counterparts = ledger.counterpart_choices(income).map(Item::id);
+        assert_eq!(counterparts.collect::<Vec<_>>(), vec![asset, expense]);
+    }
+
+    #[test]
+    fn counterpart_amount_test() {
+        let (mut ledger, [cash, card, opening, salary, food]) = all_tags();
+        let bank = ledger.add_item("銀行口座", Tag::Asset).unwrap();
+
+        for (item, counterpart, expected) in [
+            (salary, cash, 1000),
+            (food, cash, -1000),
+            (food, card, 1000),
+            (card, cash, 1000),
+            (cash, bank, -1000),
+            (opening, cash, 1000),
+            (opening, card, -1000),
+        ] {
+            let id = ledger.add_transaction(draft(item, counterpart)).unwrap();
+            let transaction = ledger.transactions().get(id).unwrap();
+            assert_eq!(
+                ledger.counterpart_amount(transaction),
+                Money::from(expected),
+                "{item:?} {counterpart:?}"
+            );
+        }
+    }
+
+    #[test]
+    #[should_panic]
+    fn counterpart_amount_of_foreign_transaction_test() {
+        let (mut ledger, [_, cash, food, ..]) = ledger();
+        let id = ledger.add_transaction(draft(food, cash)).unwrap();
+
+        Ledger::new().counterpart_amount(ledger.transactions().get(id).unwrap());
+    }
+
+    /// 符号を反転できない金額は, 追加, 訂正, 読込のすべてで拒否する.
+    #[test]
+    fn counterpart_overflow_test() {
+        let (mut ledger, [_, cash, food, ..]) = ledger();
+        let id = ledger.add_transaction(draft(food, cash)).unwrap();
+        let before = ledger.clone();
+        let min = Money::from(i32::MIN);
+        let overflow = TransactionDraft::new(
+            NaiveDate::from_ymd_opt(2026, 10, 12).unwrap(),
+            min,
+            food,
+            cash,
+            String::new(),
+        );
+
         assert_eq!(
-            counterparts.collect::<Vec<_>>(),
-            vec![ids[0], ids[2], ids[4]]
+            ledger.add_transaction(overflow.clone()),
+            Err(TransactionError::CounterpartOverflow(min).into())
+        );
+        assert_eq!(
+            ledger.update_transaction(id, overflow.clone()),
+            Err(TransactionError::CounterpartOverflow(min).into())
+        );
+        assert_eq!(ledger, before);
+
+        let mut transactions = TransactionList::default();
+        transactions.add(overflow);
+        assert_eq!(
+            Ledger::from_parts(ledger.items.clone(), transactions, BudgetList::new()),
+            Err(TransactionError::CounterpartOverflow(min).into())
         );
     }
 
     #[test]
     fn update_item_test() {
-        let (mut ledger, [salary, cash, food, fun, _]) = ledger();
+        let (mut ledger, [salary, cash, _, fun, _]) = ledger();
         ledger.add_transaction(draft(salary, cash)).unwrap();
 
-        // 取引の組み合わせを壊さないタグへの変更
-        ledger.update_item(cash, "カード", Tag::Liability).unwrap();
-        // 取引に使われていない品目のタグの変更
+        // 取引で使う品目もタグを変えなければ名前を変えられる
+        ledger.update_item(cash, "財布", Tag::Asset).unwrap();
+        // 取引で使わない品目はタグも変えられる
         ledger.update_item(fun, "娯楽", Tag::Asset).unwrap();
 
         let tags = [cash, fun].map(|id| ledger.items.get(id).unwrap().tag());
-        assert_eq!(tags, [Tag::Liability, Tag::Asset]);
-        assert_eq!(ledger.items.get(cash).unwrap().to_string(), "カード");
-        assert!(ledger.add_transaction(draft(food, cash)).is_ok());
+        assert_eq!(tags, [Tag::Asset, Tag::Asset]);
+        assert_eq!(ledger.items.get(cash).unwrap().to_string(), "財布");
     }
 
     #[test]
@@ -378,16 +439,9 @@ mod tests {
         let before = ledger.clone();
 
         for (id, tag, expected) in [
-            (
-                salary,
-                Tag::Asset,
-                TransactionError::InvalidItemTag(Tag::Asset).into(),
-            ),
-            (
-                cash,
-                Tag::Income,
-                TransactionError::SameTag(Tag::Income).into(),
-            ),
+            // 品目と相手先のどちらとして使われていてもタグは変えられない
+            (salary, Tag::Liability, LedgerError::ItemTagInUse(salary)),
+            (cash, Tag::Liability, LedgerError::ItemTagInUse(cash)),
             (removed, Tag::Income, ItemError::NotFound(removed).into()),
         ] {
             assert_eq!(
@@ -425,7 +479,7 @@ mod tests {
     fn add_transaction_test() {
         let (mut ledger, [salary, cash, food, _, _]) = ledger();
 
-        for (item, counterpart) in [(salary, cash), (food, cash), (food, salary)] {
+        for (item, counterpart) in [(salary, cash), (food, cash)] {
             let id = ledger.add_transaction(draft(item, counterpart)).unwrap();
 
             let transaction = ledger.transactions().get(id).unwrap();
@@ -434,7 +488,7 @@ mod tests {
                 (item, counterpart)
             );
         }
-        assert_eq!(ledger.transactions().iter().count(), 3);
+        assert_eq!(ledger.transactions().iter().count(), 2);
     }
 
     #[test]

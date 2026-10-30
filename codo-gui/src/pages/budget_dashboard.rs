@@ -271,10 +271,7 @@ mod tests {
         use super::BudgetDashboard;
         use crate::app::AppState;
         use chrono::{Days, Local};
-        use codo_core::ledger::{
-            item::Tag,
-            transaction::{Amount, TransactionDraft},
-        };
+        use codo_core::ledger::{item::Tag, transaction::TransactionDraft};
         use gpui_kit::test::TestWindowExt;
         use gpui_kit::{AppContext, Bounds, WindowBounds, WindowOptions, px, size};
 
@@ -287,7 +284,7 @@ mod tests {
         ledger
             .add_transaction(TransactionDraft::new(
                 today,
-                Amount::try_from(Money::from(2000)).unwrap(),
+                Money::from(2000),
                 food,
                 cash,
                 String::new(),
@@ -386,9 +383,7 @@ mod tests {
     fn budget_card_renders_boundary_statuses_and_progress(cx: &mut gpui_kit::TestAppContext) {
         use super::budget_card;
         use codo_core::ledger::{
-            item::Tag,
-            report::budget::BudgetStatus,
-            transaction::{Amount, TransactionDraft},
+            item::Tag, report::budget::BudgetStatus, transaction::TransactionDraft,
         };
         use gpui_kit::test::TestWindowExt;
         use gpui_kit::{
@@ -419,19 +414,17 @@ mod tests {
         let status_for = |amount: i32, spent: i32, period: Period| {
             let mut ledger = Ledger::new();
             let id = ledger.add_budget(Money::from(amount), period).unwrap();
-            if 0 < spent {
-                let food = ledger.add_item("食費", Tag::Expense).unwrap();
-                let cash = ledger.add_item("現金", Tag::Asset).unwrap();
-                ledger
-                    .add_transaction(TransactionDraft::new(
-                        today,
-                        Amount::try_from(Money::from(spent)).unwrap(),
-                        food,
-                        cash,
-                        String::new(),
-                    ))
-                    .unwrap();
-            }
+            let food = ledger.add_item("食費", Tag::Expense).unwrap();
+            let cash = ledger.add_item("現金", Tag::Asset).unwrap();
+            ledger
+                .add_transaction(TransactionDraft::new(
+                    today,
+                    Money::from(spent),
+                    food,
+                    cash,
+                    String::new(),
+                ))
+                .unwrap();
             BudgetStatus::calculate(&ledger, id).unwrap()
         };
         cx.update(gpui_kit::init);

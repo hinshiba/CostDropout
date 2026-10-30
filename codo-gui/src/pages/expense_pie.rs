@@ -9,12 +9,14 @@ use codo_core::ledger::report::Flow;
 use codo_core::ledger::report::category::by_item;
 use gpui_kit::base::TestSupportExt;
 use gpui_kit::component::{ActiveTheme, button::Button, chart::PieChart};
+use gpui_kit::prelude::FluentBuilder;
 use gpui_kit::*;
 
 struct ExpenseSlice {
     name: String,
     amount: Money,
-    percentage: f64,
+    /// 合計が0以下の品目は `None`.
+    percentage: Option<f64>,
     color: Hsla,
 }
 
@@ -32,7 +34,7 @@ impl ExpenseSlice {
                 Some(Self {
                     name: item.to_string(),
                     amount: expense.amount(),
-                    percentage: expense.ratio() * 100.,
+                    percentage: expense.ratio().map(|ratio| ratio * 100.),
                     // IDの昇順に並ぶ品目一覧での位置で色を決め, 月を切り替えても同じ品目は同じ色にする。
                     color: hsla((index as f64 * 0.618_034).fract() as f32, 0.65, 0.5, 1.),
                 })
@@ -91,29 +93,34 @@ impl Render for ExpensePie {
                         )
                         .child(div().flex_1().child(slice.name.clone()))
                         .child(slice.amount.to_string())
-                        .child(
-                            div()
-                                .w(px(80.))
-                                .text_right()
-                                .child(format!("{:.1}%", slice.percentage)),
-                        )
+                        .child(div().w(px(80.)).text_right().child(
+                            slice.percentage.map_or("—".to_string(), |percentage| {
+                                format!("{percentage:.1}%")
+                            }),
+                        ))
                 }));
+            let charted = slices
+                .into_iter()
+                .filter_map(|slice| Some((slice.percentage?, slice)))
+                .collect::<Vec<_>>();
             div()
                 .flex()
                 .flex_col()
                 .gap_6()
-                .child(
-                    div().w_full().h(px(320.)).child(
-                        PieChart::new(slices)
-                            .inner_radius(0.)
-                            .value(|slice| slice.percentage as f32)
-                            .color(|slice| slice.color)
-                            .tooltip_name(|slice| slice.name.clone().into())
-                            .tooltip_value(|slice, _, _| {
-                                format!("{} ({:.1}%)", slice.amount, slice.percentage).into()
-                            }),
-                    ),
-                )
+                .when(!charted.is_empty(), |this| {
+                    this.child(
+                        div().w_full().h(px(320.)).child(
+                            PieChart::new(charted)
+                                .inner_radius(0.)
+                                .value(|(percentage, _)| *percentage as f32)
+                                .color(|(_, slice)| slice.color)
+                                .tooltip_name(|(_, slice)| slice.name.clone().into())
+                                .tooltip_value(|(percentage, slice), _, _| {
+                                    format!("{} ({percentage:.1}%)", slice.amount).into()
+                                }),
+                        ),
+                    )
+                })
                 .child(legend)
                 .flex_shrink_0()
                 .into_any_element()
@@ -173,8 +180,9 @@ mod tests {
     use codo_core::ledger::item::Tag;
     use codo_core::ledger::money::Money;
     use codo_core::ledger::period::YearMonth;
-    use codo_core::ledger::transaction::{Amount, TransactionDraft};
-    use gpui_kit::{AppContext, TestAppContext};
+    use codo_core::ledger::transaction::TransactionDraft;
+    use gpui_kit::test::TestWindowExt;
+    use gpui_kit::{AppContext, TestAppContext, WindowOptions};
 
     #[gpui_kit::test]
     fn transaction_changes_refresh_monthly_slices(cx: &mut TestAppContext) {
@@ -197,7 +205,7 @@ mod tests {
                     .ledger_mut()
                     .add_transaction(TransactionDraft::new(
                         month.first_day(),
-                        Amount::try_from(Money::from(amount)).unwrap(),
+                        Money::from(amount),
                         item,
                         cash,
                         String::new(),
@@ -214,7 +222,7 @@ mod tests {
                 slices[0].amount,
                 slices[0].percentage
             ),
-            ("娯楽", Money::from(300), 75.)
+            ("娯楽", Money::from(300), Some(75.))
         );
         assert_eq!(
             (
@@ -222,7 +230,7 @@ mod tests {
                 slices[1].amount,
                 slices[1].percentage
             ),
-            ("食費", Money::from(100), 25.)
+            ("食費", Money::from(100), Some(25.))
         );
 
         state.update(cx, |state, cx| {
@@ -230,7 +238,7 @@ mod tests {
                 .ledger_mut()
                 .add_transaction(TransactionDraft::new(
                     month.last_day(),
-                    Amount::try_from(Money::from(200)).unwrap(),
+                    Money::from(200),
                     food,
                     cash,
                     String::new(),
@@ -242,7 +250,7 @@ mod tests {
         assert!(
             updated
                 .iter()
-                .all(|slice| slice.amount == Money::from(300) && slice.percentage == 50.)
+                .all(|slice| slice.amount == Money::from(300) && slice.percentage == Some(50.))
         );
 
         page.update(cx, |page, _| page.month = page.month.next());
@@ -256,5 +264,53 @@ mod tests {
             ),
             2
         );
+    }
+
+    /// 合計が0以下の品目があっても, 割合を持たない行として描画できる.
+    #[gpui_kit::test]
+    fn renders_month_with_non_positive_items(cx: &mut TestAppContext) {
+        cx.update(gpui_kit::init);
+        let mut ledger = Ledger::new();
+        let food = ledger.add_item("食費", Tag::Expense).unwrap();
+        let leisure = ledger.add_item("娯楽", Tag::Expense).unwrap();
+        let cash = ledger.add_item("現金", Tag::Asset).unwrap();
+        let month = YearMonth::new(2026, 12).unwrap();
+        // 12月は正と負の品目, 翌1月は負の品目だけ
+        for (date, item, amount) in [
+            (month.first_day(), food, 1000),
+            (month.first_day(), leisure, -1000),
+            (month.next().first_day(), food, -500),
+        ] {
+            ledger
+                .add_transaction(TransactionDraft::new(
+                    date,
+                    Money::from(amount),
+                    item,
+                    cash,
+                    String::new(),
+                ))
+                .unwrap();
+        }
+        let (state, _directory) = AppState::for_test(ledger);
+        let state = cx.new(|_| state);
+        let (handle, page) = cx.update(|cx| {
+            gpui_kit::open_window(WindowOptions::default(), cx, |_, cx| {
+                cx.new(|cx| ExpensePie::new(state.clone(), cx))
+            })
+            .unwrap()
+        });
+
+        for (month, expected) in [(month, vec![Some(100.), None]), (month.next(), vec![None])] {
+            page.update(cx, |page, _| page.month = month);
+            cx.update_window(handle, |_, window, cx| window.render_frame(cx))
+                .unwrap();
+            let percentages = cx.read(|cx| {
+                ExpenseSlice::for_month(state.read(cx).ledger(), month)
+                    .iter()
+                    .map(|slice| slice.percentage)
+                    .collect::<Vec<_>>()
+            });
+            assert_eq!(percentages, expected);
+        }
     }
 }

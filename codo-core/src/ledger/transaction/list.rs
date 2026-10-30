@@ -114,7 +114,7 @@ impl TransactionList {
 mod tests {
     use super::*;
     use crate::ledger::item::{ItemList, Tag};
-    use crate::ledger::transaction::Amount;
+    use crate::ledger::money::Money;
     use chrono::NaiveDate;
 
     /// 2026年10月の `day` 日.
@@ -137,7 +137,7 @@ mod tests {
     fn draft(day: u32, amount: i32, item: ItemId, counterpart: ItemId) -> TransactionDraft {
         TransactionDraft::new(
             date(day),
-            Amount::of(amount),
+            Money::from(amount),
             item,
             counterpart,
             String::from("テスト"),
@@ -148,7 +148,7 @@ mod tests {
         let [food, cash, _] = items();
         Transaction {
             id: TransactionId(Uuid::from_u128(id)),
-            draft: TransactionDraft::new(date, Amount::of(1000), food, cash, String::new()),
+            draft: TransactionDraft::new(date, Money::from(1000), food, cash, String::new()),
         }
     }
 

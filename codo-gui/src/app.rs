@@ -310,12 +310,7 @@ mod tests {
     use super::{App, AppState, Page};
     use chrono::Local;
     use codo_core::ledger::period::YearMonth;
-    use codo_core::{
-        ledger::Ledger,
-        ledger::item::Tag,
-        ledger::money::Money,
-        ledger::transaction::{Amount, TransactionDraft},
-    };
+    use codo_core::ledger::{Ledger, item::Tag, money::Money, transaction::TransactionDraft};
     use gpui_kit::test::TestWindowExt;
     use gpui_kit::{AppContext, Bounds, TestAppContext, WindowBounds, WindowOptions, px, size};
 
@@ -327,7 +322,7 @@ mod tests {
             ledger
                 .add_transaction(TransactionDraft::new(
                     month.first_day(),
-                    Amount::try_from(Money::from(amount)).unwrap(),
+                    Money::from(amount),
                     food,
                     cash,
                     String::new(),
@@ -435,7 +430,7 @@ mod tests {
             ledger
                 .add_transaction(TransactionDraft::new(
                     date,
-                    Amount::try_from(Money::from(amount)).unwrap(),
+                    Money::from(amount),
                     food,
                     cash,
                     String::new(),

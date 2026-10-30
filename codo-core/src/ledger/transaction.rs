@@ -5,11 +5,10 @@ use thiserror::Error;
 use uuid::Uuid;
 
 use crate::ledger::item::{ItemId, Tag};
+use crate::ledger::money::Money;
 
-mod amount;
 mod list;
 
-pub use amount::{Amount, AmountError};
 pub use list::TransactionList;
 
 /// 取引を識別する ID.
@@ -38,11 +37,10 @@ impl Transaction {
         self.draft.date
     }
 
-    pub fn amount(&self) -> Amount {
+    pub fn amount(&self) -> Money {
         self.draft.amount
     }
 
-    /// 収入, 支出, 負債のいずれかの品目を返す.
     pub fn item(&self) -> ItemId {
         self.draft.item
     }
@@ -56,12 +54,12 @@ impl Transaction {
         &self.draft.comment
     }
 
-    /// `TransactionDraft::check_tags` と同じ.
-    pub(crate) fn check_tags<E: From<TransactionError>>(
+    /// `TransactionDraft::counterpart_amount` と同じ.
+    pub(crate) fn counterpart_amount<E: From<TransactionError>>(
         &self,
         tag_of: impl Fn(ItemId) -> Result<Tag, E>,
-    ) -> Result<(), E> {
-        self.draft.check_tags(tag_of)
+    ) -> Result<Money, E> {
+        self.draft.counterpart_amount(tag_of)
     }
 
     /// 品目または相手先として `item` を使うかを判定する.
@@ -74,7 +72,7 @@ impl Transaction {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TransactionDraft {
     date: NaiveDate,
-    amount: Amount,
+    amount: Money,
     item: ItemId,
     counterpart: ItemId,
     comment: String,
@@ -83,7 +81,7 @@ pub struct TransactionDraft {
 impl TransactionDraft {
     pub fn new(
         date: NaiveDate,
-        amount: Amount,
+        amount: Money,
         item: ItemId,
         counterpart: ItemId,
         comment: String,
@@ -97,59 +95,79 @@ impl TransactionDraft {
         }
     }
 
-    /// 品目と相手先のタグの組み合わせを検査する.
+    /// 品目と相手先の組み合わせを検査し, 相手先の増減を求める.
     ///
     /// `tag_of` で `ItemId` から `Tag` を解決する.
     ///
     /// # Errors
     ///
     /// `tag_of` のエラー.
-    /// `codo_core::ledger::transaction::check_tags` のエラー.
-    pub(crate) fn check_tags<E: From<TransactionError>>(
+    /// 品目と相手先が同じ場合は `TransactionError::SameItem` エラー.
+    /// `Direction::of` と `Direction::apply` のエラー.
+    pub(crate) fn counterpart_amount<E: From<TransactionError>>(
         &self,
         tag_of: impl Fn(ItemId) -> Result<Tag, E>,
-    ) -> Result<(), E> {
-        // 内部の関数に移譲する
-        Ok(check_tags(tag_of(self.item)?, tag_of(self.counterpart)?)?)
+    ) -> Result<Money, E> {
+        let (item, counterpart) = (tag_of(self.item)?, tag_of(self.counterpart)?);
+        if self.item == self.counterpart {
+            return Err(TransactionError::SameItem(self.item).into());
+        }
+        Ok(Direction::of(item, counterpart)?.apply(self.amount)?)
     }
 }
 
-/// 取引の品目として選べるタグかを検査する.
-///
-/// 収入, 支出, 負債だけが選べる.
-///
-/// # Errors
-///
-/// 選べない場合は `TransactionError::InvalidItemTag` エラー.
-pub(crate) fn check_item_tag(tag: Tag) -> Result<(), TransactionError> {
-    if !matches!(tag, Tag::Income | Tag::Expense | Tag::Liability) {
-        return Err(TransactionError::InvalidItemTag(tag));
-    }
-    Ok(())
+/// 品目の増減に対する相手先の増減の向き.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Direction {
+    /// 品目と同じ符号で増減する.
+    Same,
+    /// 品目と異なる符号で増減する.
+    Opposite,
 }
 
-/// 取引の品目と相手先のタグの組み合わせを検査する.
-///
-/// # Errors
-///
-/// 品目のタグが取引の品目として選べない場合は `TransactionError::InvalidItemTag` エラー.
-/// 相手先のタグが品目のタグと同じ場合は `TransactionError::SameTag` エラー.
-pub(crate) fn check_tags(item: Tag, counterpart: Tag) -> Result<(), TransactionError> {
-    check_item_tag(item)?;
-    if item == counterpart {
-        return Err(TransactionError::SameTag(item));
+impl Direction {
+    /// 品目と相手先のタグの組から向きを決める.
+    ///
+    /// # Errors
+    ///
+    /// 取引にできない組の場合は `TransactionError::InvalidPair` エラー.
+    pub(crate) fn of(item: Tag, counterpart: Tag) -> Result<Self, TransactionError> {
+        match (item, counterpart) {
+            (Tag::Income | Tag::Liability | Tag::OpeningBalance, Tag::Asset)
+            | (Tag::Expense, Tag::Liability) => Ok(Self::Same),
+            (Tag::Expense | Tag::Asset, Tag::Asset) | (Tag::OpeningBalance, Tag::Liability) => {
+                Ok(Self::Opposite)
+            }
+            _ => Err(TransactionError::InvalidPair(item, counterpart)),
+        }
     }
-    Ok(())
+
+    /// 品目の増減 `amount` から相手先の増減を求める.
+    ///
+    /// # Errors
+    ///
+    /// 符号を反転できない場合は `TransactionError::CounterpartOverflow` エラー.
+    fn apply(self, amount: Money) -> Result<Money, TransactionError> {
+        match self {
+            Self::Same => Ok(amount),
+            Self::Opposite => amount
+                .checked_neg()
+                .map_err(|_| TransactionError::CounterpartOverflow(amount)),
+        }
+    }
 }
 
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum TransactionError {
-    /// 品目のタグが取引の品目として選べない場合.
-    #[error("取引の品目のタグ {0} が収入・支出・負債ではありません")]
-    InvalidItemTag(Tag),
-    /// 相手先のタグが品目のタグと同じ場合.
-    #[error("相手先のタグ {0} が品目のタグと同じです")]
-    SameTag(Tag),
+    /// 品目と相手先のタグが取引にできない組の場合.
+    #[error("品目のタグ {0} と相手先のタグ {1} の組は取引にできません")]
+    InvalidPair(Tag, Tag),
+    /// 品目と相手先が同じ場合.
+    #[error("品目と相手先がどちらも {0:?} です")]
+    SameItem(ItemId),
+    /// 相手先の増減が金額の範囲を超える場合.
+    #[error("金額 {0} の符号を反転した相手先の増減は範囲を超えています")]
+    CounterpartOverflow(Money),
     /// 取引が存在しない場合.
     #[error("取引 {0:?} が見つかりません")]
     NotFound(TransactionId),
@@ -162,63 +180,106 @@ pub enum TransactionError {
 mod tests {
     use super::*;
 
+    /// 取引にできる組と, その向き.
+    const PAIRS: [(Tag, Tag, Direction); 7] = [
+        (Tag::Income, Tag::Asset, Direction::Same),
+        (Tag::Expense, Tag::Asset, Direction::Opposite),
+        (Tag::Expense, Tag::Liability, Direction::Same),
+        (Tag::Liability, Tag::Asset, Direction::Same),
+        (Tag::Asset, Tag::Asset, Direction::Opposite),
+        (Tag::OpeningBalance, Tag::Asset, Direction::Same),
+        (Tag::OpeningBalance, Tag::Liability, Direction::Opposite),
+    ];
+
+    /// `item` と `counterpart` の取引の相手先の増減を求める.
+    fn counterpart_amount(
+        item: Tag,
+        counterpart: Tag,
+        amount: i32,
+    ) -> Result<Money, TransactionError> {
+        let [item_id, counterpart_id] = [ItemId(1), ItemId(2)];
+        let draft = TransactionDraft::new(
+            NaiveDate::from_ymd_opt(2026, 10, 12).unwrap(),
+            Money::from(amount),
+            item_id,
+            counterpart_id,
+            String::new(),
+        );
+        draft.counterpart_amount(|id| Ok(if id == item_id { item } else { counterpart }))
+    }
+
     #[test]
-    fn check_tags_test() {
-        for (item, counterpart) in [
-            (Tag::Expense, Tag::Asset),
-            (Tag::Expense, Tag::Liability),
-            (Tag::Income, Tag::Asset),
-            (Tag::Liability, Tag::Asset),
-            (Tag::Liability, Tag::OpeningBalance),
-        ] {
+    fn direction_of_test() {
+        for (item, counterpart, expected) in PAIRS {
             assert_eq!(
-                check_tags(item, counterpart),
-                Ok(()),
+                Direction::of(item, counterpart),
+                Ok(expected),
                 "{item:?} {counterpart:?}"
             );
         }
     }
 
     #[test]
-    fn check_tags_error_test() {
-        for (item, counterpart, expected) in [
-            (
-                Tag::Asset,
-                Tag::Income,
-                TransactionError::InvalidItemTag(Tag::Asset),
-            ),
-            (
-                Tag::OpeningBalance,
-                Tag::Asset,
-                TransactionError::InvalidItemTag(Tag::OpeningBalance),
-            ),
-            // 品目として選べないことを先に判定する
-            (
-                Tag::Asset,
-                Tag::Asset,
-                TransactionError::InvalidItemTag(Tag::Asset),
-            ),
-            (
-                Tag::Income,
-                Tag::Income,
-                TransactionError::SameTag(Tag::Income),
-            ),
-            (
-                Tag::Expense,
-                Tag::Expense,
-                TransactionError::SameTag(Tag::Expense),
-            ),
-            (
-                Tag::Liability,
-                Tag::Liability,
-                TransactionError::SameTag(Tag::Liability),
-            ),
-        ] {
-            assert_eq!(
-                check_tags(item, counterpart),
-                Err(expected),
-                "{item:?} {counterpart:?}"
-            );
+    fn direction_of_error_test() {
+        for item in Tag::ALL {
+            for counterpart in Tag::ALL {
+                if PAIRS.iter().any(|&(i, c, _)| (i, c) == (item, counterpart)) {
+                    continue;
+                }
+                assert_eq!(
+                    Direction::of(item, counterpart),
+                    Err(TransactionError::InvalidPair(item, counterpart)),
+                    "{item:?} {counterpart:?}"
+                );
+            }
         }
+    }
+
+    #[test]
+    fn counterpart_amount_test() {
+        for (item, counterpart, direction) in PAIRS {
+            for amount in [-1000, 0, 1000, i32::MAX] {
+                let expected = match direction {
+                    Direction::Same => amount,
+                    Direction::Opposite => -amount,
+                };
+                assert_eq!(
+                    counterpart_amount(item, counterpart, amount),
+                    Ok(Money::from(expected)),
+                    "{item:?} {counterpart:?} {amount}"
+                );
+            }
+        }
+    }
+
+    /// 同じ符号なら `i32::MIN` も相手先の増減として表せるが, 異なる符号では表せない.
+    #[test]
+    fn counterpart_amount_of_min_test() {
+        let min = Money::from(i32::MIN);
+        assert_eq!(
+            counterpart_amount(Tag::Income, Tag::Asset, i32::MIN),
+            Ok(min)
+        );
+        assert_eq!(
+            counterpart_amount(Tag::Expense, Tag::Asset, i32::MIN),
+            Err(TransactionError::CounterpartOverflow(min))
+        );
+    }
+
+    #[test]
+    fn counterpart_amount_rejects_same_item_test() {
+        let cash = ItemId(1);
+        let draft = TransactionDraft::new(
+            NaiveDate::from_ymd_opt(2026, 10, 12).unwrap(),
+            Money::from(1000),
+            cash,
+            cash,
+            String::new(),
+        );
+
+        assert_eq!(
+            draft.counterpart_amount(|_| Ok::<_, TransactionError>(Tag::Asset)),
+            Err(TransactionError::SameItem(cash))
+        );
     }
 }

@@ -54,7 +54,7 @@ pub fn flows_in(
 pub fn total(ledger: &Ledger, period: Period, flow: Flow) -> Money {
     flows_in(ledger, period)
         .filter(|&(_, f)| f == flow)
-        .map(|(tx, _)| Money::from(tx.amount()))
+        .map(|(tx, _)| tx.amount())
         .sum()
 }
 
@@ -83,7 +83,8 @@ mod fixture {
 
     use crate::ledger::Ledger;
     use crate::ledger::item::{ItemId, Tag};
-    use crate::ledger::transaction::{Amount, TransactionDraft};
+    use crate::ledger::money::Money;
+    use crate::ledger::transaction::TransactionDraft;
 
     /// 食費, 娯楽 (支出), 給与 (収入), 借入 (負債), 現金 (資産) を登録した帳簿.
     pub(super) struct Book {
@@ -119,7 +120,7 @@ mod fixture {
         /// 品目が `item`, 相手先が現金の取引を追加する.
         pub fn add(&mut self, date: NaiveDate, amount: i32, item: ItemId) {
             let draft =
-                TransactionDraft::new(date, Amount::of(amount), item, self.cash, String::new());
+                TransactionDraft::new(date, Money::from(amount), item, self.cash, String::new());
             self.ledger.add_transaction(draft).unwrap();
         }
     }
@@ -165,6 +166,17 @@ mod tests {
         assert_eq!(expense_total(&book.ledger, period), Money::from(1700));
         assert_eq!(income_total(&book.ledger, period), Money::from(5000));
         assert_eq!(total(&book.ledger, period, Flow::Other), Money::from(3000));
+    }
+
+    #[test]
+    fn total_nets_negative_amounts_test() {
+        let mut book = Book::new();
+        book.add(date(10, 1), 1000, book.food);
+        book.add(date(10, 2), -1500, book.food);
+        book.add(date(10, 3), 0, book.food);
+        let period = Period::month(YearMonth::new(2026, 10).unwrap());
+
+        assert_eq!(expense_total(&book.ledger, period), Money::from(-500));
     }
 
     #[test]
