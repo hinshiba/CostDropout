@@ -1,3 +1,0 @@
-codo-core/src/book.rs:22:9: replace <impl History for GitRepo>::commit_all -> Result<(), GitError> with Ok(())
-codo-core/src/book.rs:26:9: replace <impl History for GitRepo>::has_remote -> Result<bool, GitError> with Ok(true)
-codo-core/src/book.rs:26:9: replace <impl History for GitRepo>::has_remote -> Result<bool, GitError> with Ok(false)
