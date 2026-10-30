@@ -88,7 +88,7 @@ impl ExpenseBarChart {
                         .into_iter()
                         .map(|(month, amount)| ExpenseData {
                             label: month.to_string(),
-                            amount: amount.0 as f64,
+                            amount: f64::from(amount),
                             is_dummy: false,
                         })
                         .collect()
@@ -101,7 +101,7 @@ impl ExpenseBarChart {
                         .into_iter()
                         .map(|(year, amount)| ExpenseData {
                             label: format!("{year}年"),
-                            amount: amount.0 as f64,
+                            amount: f64::from(amount),
                             is_dummy: false,
                         })
                         .collect()
@@ -114,7 +114,7 @@ impl ExpenseBarChart {
                                 .into_iter()
                                 .map(|(month, amount)| ExpenseData {
                                     label: format!("{}月", month.month()),
-                                    amount: amount.0 as f64,
+                                    amount: f64::from(amount),
                                     is_dummy: false,
                                 })
                                 .collect()

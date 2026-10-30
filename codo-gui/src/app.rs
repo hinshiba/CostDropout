@@ -218,7 +218,7 @@ mod tests {
             ledger
                 .add_transaction(TransactionDraft::new(
                     month.first_day(),
-                    Money(amount),
+                    Money::from(amount),
                     food,
                     cash,
                     String::new(),

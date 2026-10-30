@@ -44,15 +44,10 @@ fn month_of_file(path: &Path) -> Option<YearMonth> {
     }
 
     let stem = path.file_stem()?.to_str()?;
-    let (year, month) = stem.split_once('-')?;
-    let toml_year = year.parse::<i32>().ok()?;
-    let toml_month = month.parse::<u32>().ok()?;
-    let ym = YearMonth::new(toml_year, toml_month).ok()?;
-    if ym.to_string() == stem {
-        Some(ym)
-    } else {
-        None
-    }
+    let ym = stem.parse::<YearMonth>().ok()?;
+
+    // 保存時と同じ表記YYYY-MMのものだけを月ファイルとする
+    (ym.to_string() == stem).then_some(ym)
 }
 
 /// TOMLに保存する予算1件分のデータ
@@ -295,7 +290,7 @@ mod tests {
         let draft = |month, day, amount, comment: &str| {
             TransactionDraft::new(
                 date(month, day),
-                Money(amount),
+                Money::from(amount),
                 food,
                 cash,
                 comment.to_string(),
@@ -540,14 +535,14 @@ mod tests {
 
         let period = Period::new(date(10, 1), date(10, 31)).unwrap();
 
-        let budget_id = ledger.add_budget(Money(50_000), period).unwrap();
+        let budget_id = ledger.add_budget(Money::from(50_000), period).unwrap();
         store.save(&ledger).unwrap();
 
         let loaded = store.load().unwrap();
         assert_eq!(loaded, ledger);
         let loaded_budget = loaded.budgets().get(budget_id).unwrap();
 
-        assert_eq!(loaded_budget.amount(), Money(50_000));
+        assert_eq!(loaded_budget.amount(), Money::from(50_000));
         assert_eq!(loaded_budget.period(), period);
     }
 
