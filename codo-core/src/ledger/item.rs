@@ -396,8 +396,6 @@ mod tests {
     fn remove_test() {
         let mut list = list();
 
-        list.remove(ItemId(2)).unwrap();
-
         assert_eq!(list.remove(ItemId(2)), Ok(()));
 
         assert!(list.get(ItemId(2)).is_none());
