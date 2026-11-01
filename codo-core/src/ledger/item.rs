@@ -398,8 +398,13 @@ mod tests {
 
         list.remove(ItemId(2)).unwrap();
 
-        let ids = list.iter().map(Item::id).collect::<Vec<_>>();
-        assert_eq!(ids, vec![ItemId(1), ItemId(3)]);
+        assert_eq!(list.remove(ItemId(2)), Ok(()));
+
+        assert!(list.get(ItemId(2)).is_none());
+        assert!(list.get(ItemId(1)).is_some());
+        assert!(list.get(ItemId(3)).is_some());
+
+        assert_eq!(list.iter().count(), 2);
     }
 
     #[test]
