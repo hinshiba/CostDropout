@@ -1,4 +1,5 @@
 use crate::app::AppState;
+use codo_core::ledger::budget::BudgetId;
 use codo_core::ledger::period::Period;
 use gpui_kit::component::button::Button;
 use gpui_kit::component::date_picker::{DatePicker, DatePickerState};
@@ -91,6 +92,22 @@ impl BudgetPage {
         }
         cx.notify();
     }
+
+    fn remove_budget(&mut self, id: BudgetId, cx: &mut Context<Self>) {
+        let result = self.state.update(cx, |state, cx| {
+            state.ledger_mut().remove_budget(id)?;
+            cx.notify();
+
+            Ok::<_, codo_core::ledger::LedgerError>(())
+        });
+
+        match result {
+            Ok(_) => self.error_message = None,
+            Err(error) => self.error_message = Some(error.to_string()),
+        }
+
+        cx.notify();
+    }
 }
 
 impl Render for BudgetPage {
@@ -129,6 +146,7 @@ impl Render for BudgetPage {
                 })
                 //一覧
                 .children(budgets.iter().map(|budget| {
+                    let id = budget.id();
                     div()
                         .flex()
                         .gap_4()
@@ -138,6 +156,13 @@ impl Render for BudgetPage {
                             budget.period().end(),
                         ))
                         .child(budget.amount().to_string())
+                        .child(
+                            Button::new(format!("remove-budget-{}", id.value()))
+                                .label("削除")
+                                .on_click(
+                                    cx.listener(move |this, _, _, cx| this.remove_budget(id, cx)),
+                                ),
+                        )
                 })),
         )
     }
